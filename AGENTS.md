@@ -32,5 +32,5 @@ This repo is generic. IDs, rates, defaults and client rules come from the busine
 
 ## Development
 
-Tests: `python3 -m unittest discover tests`.
+Tests: `python3 -m pytest` (install with `pip install -e ".[dev]"`).
 Claude Code loads the skills through the `freeagent-ai` plugin (`.claude-plugin/`), as `/freeagent-ai:<name>`. Develop with `claude --plugin-dir .`.
