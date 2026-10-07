@@ -7,6 +7,7 @@ Credentials live in a mode-600 JSON file outside any repo (default
 
 Never print these values.
 """
+
 import base64
 import datetime
 import json
@@ -18,9 +19,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BASE = "https://api.freeagent.com/v2/"
-CREDS_PATH = os.path.expanduser(
-    os.environ.get("FREEAGENT_CREDENTIALS", "~/.config/freeagent/credentials.json")
-)
+CREDS_PATH = os.path.expanduser(os.environ.get("FREEAGENT_CREDENTIALS", "~/.config/freeagent/credentials.json"))
 PORT = 47821
 REDIRECT = f"http://localhost:{PORT}/callback"
 
@@ -59,9 +58,7 @@ def _store_token(creds, t):
 
 
 def _refresh(creds):
-    _store_token(creds, _token_request(
-        creds, {"grant_type": "refresh_token", "refresh_token": creds["refresh_token"]}
-    ))
+    _store_token(creds, _token_request(creds, {"grant_type": "refresh_token", "refresh_token": creds["refresh_token"]}))
     return creds
 
 
@@ -128,13 +125,15 @@ def login(timeout=300):
             self.end_headers()
             self.wfile.write(msg.encode())
 
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
     server = HTTPServer(("127.0.0.1", PORT), Handler)
     server.timeout = timeout
-    url = BASE + "approve_app?" + urllib.parse.urlencode(
-        {"response_type": "code", "client_id": creds["client_id"], "redirect_uri": REDIRECT}
+    url = (
+        BASE
+        + "approve_app?"
+        + urllib.parse.urlencode({"response_type": "code", "client_id": creds["client_id"], "redirect_uri": REDIRECT})
     )
     webbrowser.open(url)
     print(f"Opened FreeAgent approval page. Log in and click Approve (waiting up to {timeout}s)...", flush=True)

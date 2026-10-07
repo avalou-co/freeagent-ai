@@ -3,6 +3,7 @@
 Run over stdio for Claude Code or Codex (`freeagent-ai mcp`), or over
 streamable HTTP for ChatGPT (`freeagent-ai mcp --http`). Needs the `mcp` extra.
 """
+
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
@@ -21,7 +22,7 @@ WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent
 
 def _path(ref):
     """Accept a /v2/-relative path or a full FreeAgent URL; reject anything else."""
-    path = ref[len(BASE):] if ref.startswith(BASE) else ref
+    path = ref[len(BASE) :] if ref.startswith(BASE) else ref
     if "://" in path or path.startswith("/") or ".." in path:
         raise ValueError(f"not a FreeAgent API path: {ref}")
     return path

@@ -21,6 +21,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 
 ```python
 from freeagent_ai import call
+
 call("GET", "users/me")
 ```
 
@@ -32,5 +33,5 @@ This repo is generic. IDs, rates, defaults and client rules come from the busine
 
 ## Development
 
-Tests: `python3 -m unittest discover tests`.
+Install dev tools with `pip install -e ".[mcp,dev]"`, then run the checks CI runs on every PR: `ruff check .`, `ruff format --check .`, `pyright`, `pytest`.
 Claude Code loads the skills through the `freeagent-ai` plugin (`.claude-plugin/`), as `/freeagent-ai:<name>`. Develop with `claude --plugin-dir .`.
