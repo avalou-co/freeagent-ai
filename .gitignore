@@ -2,3 +2,6 @@ __pycache__/
 *.egg-info/
 .venv/
 credentials*.json
+build/
+.pytest_cache/
+.ruff_cache/

@@ -2,11 +2,12 @@
 name = "freeagent-ai"
 version = "0.1.0"
 description = "Generic FreeAgent API mechanics and agent workflows. No business-specific logic."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["typer>=0.12"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=2,<3"]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
 
 [project.scripts]
 freeagent-ai = "freeagent_ai.cli:main"
@@ -17,3 +18,18 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["freeagent_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501"]  # formatter handles line length; long prose strings are fine
+
+[tool.pyright]
+include = ["freeagent_ai", "tests"]
+pythonVersion = "3.10"
