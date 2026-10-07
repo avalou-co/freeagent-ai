@@ -3,7 +3,7 @@ name = "freeagent-ai"
 version = "0.1.0"
 description = "Generic FreeAgent API mechanics and agent workflows. No business-specific logic."
 requires-python = ">=3.9"
-dependencies = []
+dependencies = ["typer>=0.12"]
 
 [project.scripts]
 freeagent-ai = "freeagent_ai.cli:main"
