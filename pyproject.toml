@@ -2,7 +2,7 @@
 name = "freeagent-ai"
 version = "0.1.0"
 description = "Generic FreeAgent API mechanics and agent workflows. No business-specific logic."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["typer>=0.12"]
 
 [project.optional-dependencies]
@@ -24,7 +24,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
