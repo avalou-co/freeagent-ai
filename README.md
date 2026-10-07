@@ -64,4 +64,4 @@ The business owns the specifics, wherever it keeps them (a repo, a prompt, a wik
 - Client-specific delivery rules (e.g. a portal instead of email).
 - Rules such as "invoices are drafts only, never sent" and approval requirements beyond `docs/agent-rules.md`.
 
-Tests: `python3 -m unittest discover tests`.
+Tests: `python3 -m pytest` (install with `pip install -e ".[dev]"`).
