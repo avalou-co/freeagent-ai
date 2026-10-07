@@ -1,6 +1,6 @@
 # Timesheets workflow
 
-Generic. The consuming repo supplies the project, task and default hours.
+Generic. The business supplies the project, task and default hours; ask for them or find them in the business's own instructions.
 
 1. Resolve dates from today's date. "Last week" means Mon to Sun before the current week. Confirm if ambiguous.
 2. Working days are Mon to Fri minus days the user was out. Ask about bank holidays; do not assume.
@@ -9,4 +9,4 @@ Generic. The consuming repo supplies the project, task and default hours.
 5. `POST timeslips` once per date.
 6. `GET` the range again and report what FreeAgent holds.
 
-If the user omits project or hours, use the consuming repo's defaults and say so in the report.
+If the user omits project or hours, use the business's defaults and say so in the report.

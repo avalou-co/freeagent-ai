@@ -8,6 +8,7 @@ Credentials live in a mode-600 JSON file outside any repo (default
 Never print these values.
 """
 import base64
+import datetime
 import json
 import os
 import urllib.error
@@ -20,7 +21,7 @@ BASE = "https://api.freeagent.com/v2/"
 CREDS_PATH = os.path.expanduser(
     os.environ.get("FREEAGENT_CREDENTIALS", "~/.config/freeagent/credentials.json")
 )
-PORT = 8080
+PORT = 47821
 REDIRECT = f"http://localhost:{PORT}/callback"
 
 
@@ -48,12 +49,26 @@ def _token_request(creds, params):
     return json.load(urllib.request.urlopen(req))
 
 
-def _refresh(creds):
-    creds["access_token"] = _token_request(
-        creds, {"grant_type": "refresh_token", "refresh_token": creds["refresh_token"]}
-    )["access_token"]
+def _store_token(creds, t):
+    creds["access_token"] = t["access_token"]
+    if "refresh_token" in t:
+        creds["refresh_token"] = t["refresh_token"]
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=int(t["expires_in"]))
+    creds["expires_at"] = expires.isoformat(timespec="seconds")
     _save(creds)
+
+
+def _refresh(creds):
+    _store_token(creds, _token_request(
+        creds, {"grant_type": "refresh_token", "refresh_token": creds["refresh_token"]}
+    ))
     return creds
+
+
+def token_expiry():
+    """Access token expiry as an aware UTC datetime, or None if unknown."""
+    exp = _load().get("expires_at")
+    return datetime.datetime.fromisoformat(exp) if exp else None
 
 
 def call(method, path, body=None, _retry=True):
@@ -104,8 +119,7 @@ def login(timeout=300):
                     creds,
                     {"grant_type": "authorization_code", "code": q["code"][0], "redirect_uri": REDIRECT},
                 )
-                creds.update(access_token=t["access_token"], refresh_token=t["refresh_token"])
-                _save(creds)
+                _store_token(creds, t)
                 result["ok"] = True
                 msg = "Done. You can close this tab."
             except Exception as e:  # noqa: BLE001

@@ -2,7 +2,7 @@
 
 Generic mechanics and concepts for AI agents working with a FreeAgent account through the API.
 Nothing here is specific to one business: no contact, project or bank-account IDs, no rates, no client rules.
-Consuming repos keep those (see "Using this from a business repo").
+The business keeps those wherever it likes (see "Business-specific configuration").
 
 ## Contents
 
@@ -34,13 +34,13 @@ call("GET", "users/me")
 call("POST", "timeslips", {"timeslip": {...}})
 ```
 
-## Using this from a business repo
+## Business-specific configuration
 
-The consuming repo owns the specifics and points agents here for the mechanics:
+The business owns the specifics, wherever it keeps them (a repo, a prompt, a wiki), and gives agents that context alongside these docs:
 
 - Fixed IDs (user, contacts, projects, tasks, bank account, categories) and your OAuth app's client ID.
 - Defaults (hours per day, billing rate, VAT, payment terms, invoice reference format).
 - Client-specific delivery rules (e.g. a portal instead of email).
-- Any tightening of `docs/agent-rules.md`.
+- Rules such as "invoices are drafts only, never sent" and approval requirements beyond `docs/agent-rules.md`.
 
 Tests: `python3 -m unittest discover tests`.
