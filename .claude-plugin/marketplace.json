@@ -1,0 +1,11 @@
+{
+  "name": "freeagent-ai",
+  "owner": { "name": "Quatech" },
+  "plugins": [
+    {
+      "name": "freeagent-ai",
+      "source": "./",
+      "description": "Generic FreeAgent API workflows for agents: timesheets and invoicing."
+    }
+  ]
+}

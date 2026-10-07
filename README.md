@@ -13,7 +13,7 @@ The business keeps those wherever it likes (see "Business-specific configuration
 | `docs/api-notes.md` | API behaviours and gotchas learned the hard way |
 | `.agents/skills/timesheets/` | Skill: generic workflow for logging time |
 | `.agents/skills/invoicing/` | Skill: generic workflow for draft invoices from timeslips |
-| `AGENTS.md` | Agent entry point (`CLAUDE.md` and `.claude/skills/` point to it and `.agents/`) |
+| `AGENTS.md` | Agent entry point (`CLAUDE.md` points to it) |
 | `docs/agent-rules.md` | Safety rules every agent should follow |
 
 ## Install
@@ -21,6 +21,15 @@ The business keeps those wherever it likes (see "Business-specific configuration
 ```bash
 pip install -e ~/projects/freeagent-ai    # provides the `freeagent-ai` command and `import freeagent_ai`
 ```
+
+## Claude Code plugin
+
+```
+/plugin marketplace add QuatechOrg/freeagent-ai
+/plugin install freeagent-ai@freeagent-ai
+```
+
+Skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`.
 
 ## Use
 
