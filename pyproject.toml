@@ -7,7 +7,7 @@ dependencies = ["typer>=0.12"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=2,<3"]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
 
 [project.scripts]
 freeagent-ai = "freeagent_ai.cli:main"
@@ -30,7 +30,6 @@ target-version = "py39"
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 ignore = ["E501"]  # formatter handles line length; long prose strings are fine
 
-[tool.mypy]
-python_version = "3.10"
-files = ["freeagent_ai", "tests"]
-warn_unused_ignores = true
+[tool.pyright]
+include = ["freeagent_ai", "tests"]
+pythonVersion = "3.10"

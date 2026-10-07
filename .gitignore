@@ -3,6 +3,5 @@ __pycache__/
 .venv/
 credentials*.json
 build/
-.mypy_cache/
 .pytest_cache/
 .ruff_cache/

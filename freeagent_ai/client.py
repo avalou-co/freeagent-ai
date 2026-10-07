@@ -125,7 +125,7 @@ def login(timeout=300):
             self.end_headers()
             self.wfile.write(msg.encode())
 
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
     server = HTTPServer(("127.0.0.1", PORT), Handler)
