@@ -11,8 +11,10 @@ The business keeps those wherever it likes (see "Business-specific configuration
 | `freeagent_ai/` | Python client: credentials file, 401 auto-refresh, `login`, `status` |
 | `docs/auth.md` | OAuth setup, credentials file, refresh, re-login |
 | `docs/api-notes.md` | API behaviours and gotchas learned the hard way |
-| `docs/timesheets.md` | Generic workflow for logging time |
-| `docs/invoicing.md` | Generic workflow for draft invoices from timeslips |
+| `.agents/skills/timesheets/` | Skill: generic workflow for logging time |
+| `.agents/skills/invoicing/` | Skill: generic workflow for draft invoices from timeslips |
+| `AGENTS.md` | Agent entry point (`CLAUDE.md` points to it) |
+| `docs/mcp.md` | MCP server for Claude Code, Codex and ChatGPT |
 | `docs/agent-rules.md` | Safety rules every agent should follow |
 
 ## Install
@@ -20,6 +22,25 @@ The business keeps those wherever it likes (see "Business-specific configuration
 ```bash
 pip install -e ~/projects/freeagent-ai    # provides the `freeagent-ai` command and `import freeagent_ai`
 ```
+
+## Plugin (Claude Code and Codex)
+
+Installs the skills and the MCP server (run via `uvx`, so install [uv](https://docs.astral.sh/uv/) first). No checkout needed.
+
+Claude Code:
+```
+/plugin marketplace add QuatechOrg/freeagent-ai
+/plugin install freeagent-ai@freeagent-ai
+```
+Skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`.
+
+Codex:
+```bash
+codex plugin marketplace add QuatechOrg/freeagent-ai
+```
+then install `freeagent-ai` from the plugin list.
+
+Manifests: `.claude-plugin/` (Claude Code), `.codex-plugin/` and `.agents/plugins/marketplace.json` (Codex), shared `.mcp.json` and `.agents/skills/`.
 
 ## Use
 
