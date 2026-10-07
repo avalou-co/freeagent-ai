@@ -65,4 +65,4 @@ The business owns the specifics, wherever it keeps them (a repo, a prompt, a wik
 - Client-specific delivery rules (e.g. a portal instead of email).
 - Rules such as "invoices are drafts only, never sent" and approval requirements beyond `docs/agent-rules.md`.
 
-Install dev tools with `pip install -e ".[mcp,dev]"`, then run the checks CI runs on every PR: `ruff check .`, `ruff format --check .`, `mypy`, `pytest`.
+Install dev tools with `pip install -e ".[mcp,dev]"`, then run the checks CI runs on every PR: `ruff check .`, `ruff format --check .`, `pyright`, `pytest`.

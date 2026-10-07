@@ -22,8 +22,8 @@ jobs:
         run: ruff check --output-format=github .
       - name: Ruff format
         run: ruff format --check .
-      - name: Mypy
-        run: mypy
+      - name: Pyright
+        run: pyright
 
   test:
     runs-on: ubuntu-latest
