@@ -23,14 +23,24 @@ The business keeps those wherever it likes (see "Business-specific configuration
 pip install -e ~/projects/freeagent-ai    # provides the `freeagent-ai` command and `import freeagent_ai`
 ```
 
-## Claude Code plugin
+## Plugin (Claude Code and Codex)
 
+Installs the skills and the MCP server (run via `uvx`, so install [uv](https://docs.astral.sh/uv/) first). No checkout needed.
+
+Claude Code:
 ```
 /plugin marketplace add QuatechOrg/freeagent-ai
 /plugin install freeagent-ai@freeagent-ai
 ```
-
 Skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`.
+
+Codex:
+```bash
+codex plugin marketplace add QuatechOrg/freeagent-ai
+```
+then install `freeagent-ai` from the plugin list.
+
+Manifests: `.claude-plugin/` (Claude Code), `.codex-plugin/` and `.agents/plugins/marketplace.json` (Codex), shared `.mcp.json` and `.agents/skills/`.
 
 ## Use
 

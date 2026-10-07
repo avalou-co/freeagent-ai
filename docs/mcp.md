@@ -2,24 +2,9 @@
 
 Typed tools over the client: `freeagent_get` (read-only), `create_timeslip`, `create_draft_invoice` (always Draft, emails off). Writes read back and return what FreeAgent holds.
 
-```bash
-pip install -e '.[mcp]'
-freeagent-ai login            # once; the server uses the same credentials file
-```
+The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/QuatechOrg/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
 
-## Claude Code
-
-Bundled in the plugin; nothing extra to do once `freeagent-ai` is on PATH.
-
-## Codex
-
-Add to `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.freeagent]
-command = "freeagent-ai"
-args = ["mcp"]
-```
+For local development: `pip install -e '.[mcp]'` and `freeagent-ai mcp`.
 
 ## ChatGPT
 
