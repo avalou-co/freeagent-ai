@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "freeagent": {
+      "command": "uvx",
+      "args": ["--from", "freeagent-ai[mcp] @ git+https://github.com/QuatechOrg/freeagent-ai", "freeagent-ai", "mcp"]
+    }
+  }
+}

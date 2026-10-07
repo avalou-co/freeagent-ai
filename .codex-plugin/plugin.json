@@ -1,0 +1,8 @@
+{
+  "name": "freeagent-ai",
+  "version": "0.1.0",
+  "description": "Generic FreeAgent API workflows for agents: timesheets and invoicing.",
+  "repository": "https://github.com/QuatechOrg/freeagent-ai",
+  "skills": "./.agents/skills/",
+  "mcpServers": "./.mcp.json"
+}
