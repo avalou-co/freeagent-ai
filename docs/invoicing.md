@@ -1,0 +1,8 @@
+# Invoicing workflow
+
+Generic. The business supplies the contact, project, bank account, reference format, payment terms, whether timeslips go on the invoice, and how invoices are delivered. Those are business decisions; ask for them or find them in the business's own instructions.
+
+1. Read the latest invoice for the project to copy reference style, terms, bank account and settings.
+2. `POST invoices`. If the business bills from timeslips, set `include_timeslips` (e.g. `"billed_grouped_by_timeslip"`); FreeAgent bills each timeslip only once, so no double-billing check is needed. Add no placeholder items (see `api-notes.md`).
+3. `GET` the invoice and verify its status, line count and totals.
+4. Report reference, due date, lines and totals. Say the reference number is an assumption if you inferred it.
