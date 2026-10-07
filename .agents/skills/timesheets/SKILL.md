@@ -1,3 +1,8 @@
+---
+name: timesheets
+description: Log time to FreeAgent as timeslips for a date range (e.g. "log last week"). Use when the user asks to record, fill in or check timesheets.
+---
+
 # Timesheets workflow
 
 Generic. The business supplies the project, task and default hours; ask for them or find them in the business's own instructions.
@@ -10,3 +15,5 @@ Generic. The business supplies the project, task and default hours; ask for them
 6. `GET` the range again and report what FreeAgent holds.
 
 If the user omits project or hours, use the business's defaults and say so in the report.
+
+Follow `docs/agent-rules.md` throughout.
