@@ -1,6 +1,7 @@
 import typer
 
-from .client import call, login as client_login, token_expiry
+from .client import call, token_expiry
+from .client import login as client_login
 
 app = typer.Typer(help="FreeAgent API helper.", no_args_is_help=True, add_completion=False)
 
