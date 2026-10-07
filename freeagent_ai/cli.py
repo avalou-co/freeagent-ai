@@ -26,6 +26,18 @@ def status():
     typer.echo(f"ok: {user} ({_expiry_text()})")
 
 
+@app.command()
+def mcp(
+    http: bool = typer.Option(False, help="Serve streamable HTTP (for ChatGPT) instead of stdio."),
+    host: str = "127.0.0.1",
+    port: int = 8000,
+):
+    """Run the MCP server (stdio by default)."""
+    from .mcp_server import run
+
+    run(http=http, host=host, port=port)
+
+
 def main():
     app()
 

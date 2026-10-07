@@ -24,7 +24,7 @@ from freeagent_ai import call
 call("GET", "users/me")
 ```
 
-Or from the shell: `freeagent-ai status`, `freeagent-ai login`.
+If the `freeagent` MCP tools are available, prefer them (`docs/mcp.md`). Or from the shell: `freeagent-ai status`, `freeagent-ai login`.
 
 ## Business specifics
 
