@@ -2,5 +2,8 @@
   "name": "freeagent-ai",
   "version": "0.1.0",
   "description": "Generic FreeAgent API workflows for agents: timesheets and invoicing.",
-  "skills": "./.agents/skills/"
+  "skills": "./.agents/skills/",
+  "mcpServers": {
+    "freeagent": { "command": "freeagent-ai", "args": ["mcp"] }
+  }
 }

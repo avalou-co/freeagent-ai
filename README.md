@@ -14,6 +14,7 @@ The business keeps those wherever it likes (see "Business-specific configuration
 | `.agents/skills/timesheets/` | Skill: generic workflow for logging time |
 | `.agents/skills/invoicing/` | Skill: generic workflow for draft invoices from timeslips |
 | `AGENTS.md` | Agent entry point (`CLAUDE.md` points to it) |
+| `docs/mcp.md` | MCP server for Claude Code, Codex and ChatGPT |
 | `docs/agent-rules.md` | Safety rules every agent should follow |
 
 ## Install

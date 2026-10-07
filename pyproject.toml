@@ -5,6 +5,9 @@ description = "Generic FreeAgent API mechanics and agent workflows. No business-
 requires-python = ">=3.9"
 dependencies = ["typer>=0.12"]
 
+[project.optional-dependencies]
+mcp = ["mcp>=2,<3"]
+
 [project.scripts]
 freeagent-ai = "freeagent_ai.cli:main"
 
