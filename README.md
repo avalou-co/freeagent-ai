@@ -11,8 +11,9 @@ The business keeps those wherever it likes (see "Business-specific configuration
 | `freeagent_ai/` | Python client: credentials file, 401 auto-refresh, `login`, `status` |
 | `docs/auth.md` | OAuth setup, credentials file, refresh, re-login |
 | `docs/api-notes.md` | API behaviours and gotchas learned the hard way |
-| `docs/timesheets.md` | Generic workflow for logging time |
-| `docs/invoicing.md` | Generic workflow for draft invoices from timeslips |
+| `.agents/skills/timesheets/` | Skill: generic workflow for logging time |
+| `.agents/skills/invoicing/` | Skill: generic workflow for draft invoices from timeslips |
+| `AGENTS.md` | Agent entry point (`CLAUDE.md` and `.claude/skills/` point to it and `.agents/`) |
 | `docs/agent-rules.md` | Safety rules every agent should follow |
 
 ## Install
