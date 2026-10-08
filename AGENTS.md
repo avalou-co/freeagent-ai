@@ -17,6 +17,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `timesheets` | Logging time as timeslips for a date range |
 | `invoicing` | Creating draft invoices, optionally from timeslips |
 | `expenses` | Recording expense claims with receipts |
+| `bills` | Recording supplier bills, listing unpaid or overdue ones |
 
 ## Calling the API
 
