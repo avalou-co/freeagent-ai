@@ -254,32 +254,40 @@ def test_login_times_out_and_releases_port(login_env):
 
 
 @pytest.fixture
-def responses(monkeypatch):
-    from email.message import Message
-    from io import BytesIO
+def responses(monkeypatch, servers):
+    from types import SimpleNamespace
 
-    queue, requests, sleeps = [], [], []
+    queue, requests_seen, sleeps = [], [], []
 
-    class Response(BytesIO):
-        status = 200
-
-        def __init__(self, data, link):
-            super().__init__(json.dumps(data).encode())
-            self.headers = Message()
-            if link:
-                self.headers["Link"] = link
-
-    def open_request(req):
-        requests.append(req)
+    def handler(h):
+        requests_seen.append(
+            SimpleNamespace(
+                full_url=api.url.rstrip("/") + h.path,
+                get_header=lambda name: h.headers.get(name),
+            )
+        )
         item = queue.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return Response(*item)
+        if isinstance(item, urllib.error.HTTPError):
+            h.send_response(item.code)
+            for name, value in item.headers.items():
+                h.send_header(name, value)
+            h.send_header("Content-Length", "0")
+            h.end_headers()
+        else:
+            data, link = item
+            body = json.dumps(data).encode()
+            h.send_response(200)
+            h.send_header("Content-Length", str(len(body)))
+            if link:
+                h.send_header("Link", link)
+            h.end_headers()
+            h.wfile.write(body)
 
+    api = servers(handler)
+    monkeypatch.setattr(client, "BASE", api.url + "v2/")
     monkeypatch.setattr(client, "_load", lambda: dict(CREDS))
-    monkeypatch.setattr(client._opener, "open", open_request)
     monkeypatch.setattr(client.time, "sleep", sleeps.append)
-    return queue, requests, sleeps
+    return queue, requests_seen, sleeps
 
 
 def test_paginate_preserves_filters_and_combines_pages(responses):
@@ -329,12 +337,12 @@ def rate_limit(value=None):
     return urllib.error.HTTPError(client.BASE + "invoices", 429, "limited", headers, None)
 
 
-@pytest.mark.parametrize("header,delay", [("2", 2), ("60", 60), (None, 1), ("invalid", 1)])
+@pytest.mark.parametrize("header,delay", [("2", [2]), ("60", [60]), (None, [1]), ("invalid", [1])])
 def test_rate_limit_then_success(responses, header, delay):
     queue, requests, sleeps = responses
     queue.extend([rate_limit(header), ({"invoices": []}, "")])
     assert client.call("GET", "invoices") == {"invoices": []}
-    assert sleeps == [delay]
+    assert sleeps == delay
     assert len(requests) == 2
 
 
@@ -361,7 +369,8 @@ def test_retry_after_http_date():
     from email.utils import format_datetime
 
     future = client.datetime.datetime.now(client.datetime.timezone.utc) + client.datetime.timedelta(seconds=10)
-    assert 8 <= client._retry_delay(format_datetime(future, usegmt=True), 0) <= 10
+    delay = client._retry_after({"Retry-After": format_datetime(future, usegmt=True)})
+    assert delay is not None and 8 <= delay <= 10
 
 
 def test_rate_limit_on_later_page(responses):
@@ -405,3 +414,59 @@ def test_inconsistent_page_raises_instead_of_returning_partial_results(responses
     queue.extend([({"invoices": [1]}, '<invoices?page=2>; rel="next"'), ({"error": "bad response"}, "")])
     with pytest.raises(ValueError, match="Inconsistent"):
         client.call("GET", "invoices")
+
+
+def test_bearer_auth_is_preserved_with_matching_netrc(responses, tmp_path, monkeypatch):
+    queue, requests, _ = responses
+    netrc = tmp_path / "netrc"
+    netrc.write_text("machine 127.0.0.1 login dummy password dummy\n")
+    netrc.chmod(0o600)
+    monkeypatch.setenv("NETRC", str(netrc))
+    queue.append(({"user": {}}, ""))
+    assert client.call("GET", "users/me") == {"user": {}}
+    assert requests[0].get_header("Authorization") == "Bearer c"
+
+
+def test_non_rate_limit_error_is_not_retried(responses):
+    from email.message import Message
+
+    queue, requests, sleeps = responses
+    headers = Message()
+    headers["Retry-After"] = "1"
+    queue.append(urllib.error.HTTPError(client.BASE + "invoices", 503, "unavailable", headers, None))
+    with pytest.raises(urllib.error.HTTPError) as error:
+        client.call("GET", "invoices")
+    assert error.value.code == 503
+    assert len(requests) == 1
+    assert sleeps == []
+
+
+def test_unauthorized_refresh_is_bounded(responses, monkeypatch):
+    from email.message import Message
+
+    queue, requests, _ = responses
+    refreshes = []
+    monkeypatch.setattr(client, "_refresh", lambda creds: refreshes.append(creds))
+    queue.extend([urllib.error.HTTPError(client.BASE + "invoices", 401, "expired", Message(), None)] * 2)
+    with pytest.raises(urllib.error.HTTPError) as error:
+        client.call("GET", "invoices")
+    assert error.value.code == 401
+    assert len(requests) == 2
+    assert len(refreshes) == 1
+
+
+def test_rate_limit_budget_survives_token_refresh(responses, monkeypatch):
+    from email.message import Message
+
+    queue, requests, sleeps = responses
+    refreshes = []
+    monkeypatch.setattr(client, "_refresh", lambda creds: refreshes.append(creds))
+    queue.extend([rate_limit()] * 3)
+    queue.append(urllib.error.HTTPError(client.BASE + "invoices", 401, "expired", Message(), None))
+    queue.append(rate_limit())
+    with pytest.raises(urllib.error.HTTPError) as error:
+        client.call("GET", "invoices")
+    assert error.value.code == 429
+    assert len(requests) == 5
+    assert len(refreshes) == 1
+    assert sleeps == [1, 2, 4]
