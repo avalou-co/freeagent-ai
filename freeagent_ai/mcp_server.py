@@ -102,7 +102,7 @@ def create_expense(
     (e.g. '-12.50'; check the sign against an existing expense); `sales_tax_rate` e.g. '20.0'.
     `receipt_path` is an optional local PDF/PNG/JPG/GIF file to attach. Check for an existing
     expense on that date first."""
-    exp = {
+    exp: dict = {
         "user": user,
         "category": category,
         "dated_on": dated_on,
