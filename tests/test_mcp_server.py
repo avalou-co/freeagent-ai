@@ -130,6 +130,24 @@ def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
     assert out["estimate"]["status"] == "Draft"
 
 
+def test_create_bill_attaches_file_and_reads_back(monkeypatch, tmp_path):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"bill": {"url": BASE + "bills/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    pdf = tmp_path / "inv.pdf"
+    pdf.write_bytes(b"%PDF")
+    items = [{"category": BASE + "categories/285", "description": "Hosting", "total_value": "100.00"}]
+    mcp_server.create_bill(BASE + "contacts/1", "INV-1", "2026-10-01", "2026-10-31", items, str(pdf))
+    bill = calls[0][2]["bill"]
+    assert bill["bill_items"] == items
+    assert bill["attachment"] == {"file_name": "inv.pdf", "content_type": "application/pdf", "data": "JVBERg=="}
+    assert calls[1][:2] == ("GET", "bills/5")
+
+
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
@@ -142,6 +160,7 @@ def test_tools_registered_with_hints():
         "create_draft_estimate",
         "create_project",
         "create_task",
+        "create_bill",
     }
     assert tools["freeagent_get"].annotations.read_only_hint
     assert not tools["create_timeslip"].annotations.read_only_hint

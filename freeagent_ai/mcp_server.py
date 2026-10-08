@@ -229,6 +229,35 @@ def create_draft_estimate(
     return call("GET", _path(created["url"]))
 
 
+@mcp.tool(annotations=WRITE)
+def create_bill(
+    contact: str,
+    reference: str,
+    dated_on: str,
+    due_on: str,
+    items: list[dict],
+    attachment_path: str = "",
+) -> dict:
+    """Create one supplier bill and return it as FreeAgent holds it. `contact` is the supplier's
+    resource URL; `dated_on` and `due_on` are YYYY-MM-DD. `items` are lines, each
+    {"category": <category URL>, "description": str, "total_value": "120.00", "sales_tax_rate": "20.0"}
+    (`total_value` is the line net before VAT; `sales_tax_rate` optional; list categories with
+    freeagent_get 'categories'). `attachment_path` is an optional local PDF/PNG/JPG/GIF file to attach.
+    Check for an existing bill with that reference first (freeagent_get 'bills?view=open'
+    lists unpaid bills, 'bills?view=overdue' overdue ones)."""
+    bill: dict = {
+        "contact": contact,
+        "reference": reference,
+        "dated_on": dated_on,
+        "due_on": due_on,
+        "bill_items": items,
+    }
+    if attachment_path:
+        bill["attachment"] = _attachment(attachment_path)
+    created = call("POST", "bills", {"bill": bill})["bill"]
+    return call("GET", _path(created["url"]))
+
+
 def run(http=False, host="127.0.0.1", port=8000):
     """Serve over stdio, or streamable HTTP behind bearer-token auth (FREEAGENT_MCP_TOKEN required)."""
     if not http:

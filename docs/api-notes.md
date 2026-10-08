@@ -45,6 +45,14 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Not yet supported: converting an approved estimate to an invoice.
 - Verify after creating: status, line count, net = quantity x price.
 
+## Bills
+
+- `POST bills` body: `{"bill": {"contact", "reference", "dated_on", "due_on", "bill_items": [{"category", "description", "total_value", "sales_tax_rate"}]}}` with full resource URLs and decimal strings; `total_value` is the line net before VAT.
+- `sales_tax_rate` (e.g. `"20.0"`) sets VAT per line; the category may need to allow it.
+- Attachment: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF; the tool allows only those types.
+- Unpaid and overdue: `GET bills?view=open` and `GET bills?view=overdue`.
+- Categories: `GET categories`. Check `GET bills?from_date=&to_date=` for the same reference before posting.
+
 ## General
 
 - Rate-limit and server errors raise `urllib.error.HTTPError`; the body usually names the problem.
