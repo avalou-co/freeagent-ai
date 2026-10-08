@@ -6,6 +6,17 @@ The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see 
 
 For local development: `pip install -e '.[mcp]'` and `freeagent-ai mcp`.
 
+## GET pagination and rate limits
+
+`freeagent_get(path)` aggregates all pages linked by the API. For example,
+`freeagent_get("invoices?view=overdue&per_page=100")` returns the complete overdue
+list without a manual page loop. Use `paginate=False` to retrieve just the
+requested page. Do not manually follow pages after an automatic call, since
+that would count records again.
+
+GET HTTP 429 responses use bounded `Retry-After` retries. See
+[API notes](api-notes.md#general) for retry and pagination limits.
+
 ## ChatGPT / remote HTTP
 
 ChatGPT connects to remote servers only, so it needs `freeagent-ai mcp --http` (serves `http://127.0.0.1:8000/mcp`) reachable over public HTTPS, added as a custom connector in developer mode.

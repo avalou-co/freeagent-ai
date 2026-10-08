@@ -44,25 +44,22 @@ def _attachment(path):
 
 
 @mcp.tool(annotations=READ)
-def freeagent_get(path: str) -> dict:
+def freeagent_get(path: str, paginate: bool = True) -> dict:
     """GET any FreeAgent API resource. `path` is relative to /v2/ (e.g. 'users/me',
     'projects?view=active', 'timeslips?from_date=2026-01-05&to_date=2026-01-11&per_page=100')
-    or a full resource URL."""
-    return call("GET", _path(path))
+    or a full resource URL. Lists include all pages by default; set `paginate=False`
+    to fetch only the requested page. GET rate limits use bounded Retry-After retries."""
+    return call("GET", _path(path), paginate=paginate)
 
 
 @mcp.tool(annotations=READ)
 def find_contacts(query: str) -> list:
     """List contacts whose organisation, name or email contains `query` (case-insensitive).
     Use before create_contact to avoid duplicates, and to get the contact URL for invoicing."""
-    q, found, page = query.lower(), [], 1
-    while True:
-        batch = call("GET", f"contacts?view=all&per_page=100&page={page}")["contacts"]
-        fields = ("organisation_name", "first_name", "last_name", "email")
-        found += [c for c in batch if any(q in (c.get(f) or "").lower() for f in fields)]
-        if len(batch) < 100:
-            return found
-        page += 1
+    q = query.lower()
+    batch = call("GET", "contacts?view=all&per_page=100")["contacts"]
+    fields = ("organisation_name", "first_name", "last_name", "email")
+    return [c for c in batch if any(q in (c.get(f) or "").lower() for f in fields)]
 
 
 @mcp.tool(annotations=WRITE)

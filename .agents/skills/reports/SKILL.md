@@ -12,7 +12,7 @@ Read-only: use `freeagent_get` only, never write. The business supplies the date
 2. Balance sheet: `accounting/balance_sheet?as_at_date=`.
 3. Trial balance: `accounting/trial_balance/summary?from_date=&to_date=`.
 4. Cash: `GET bank_accounts`, report each account's balance.
-5. Overdue: `invoices?view=overdue` and `bills?view=overdue`. Follow `next` pages (`per_page=100&page=N`) and total the amounts per currency.
+5. Overdue: `invoices?view=overdue` and `bills?view=overdue`. Use `freeagent_get` once per endpoint with `per_page=100`; it aggregates linked pages automatically. Total the amounts per currency. For manual paging, set `paginate=False` on every call; do not follow pages after an automatic call.
 6. Report figures with their date range, state which endpoints returned them, and flag any call that failed or returned an unexpected shape instead of guessing.
 
 Follow `docs/agent-rules.md` throughout.

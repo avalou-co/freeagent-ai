@@ -11,7 +11,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 ## Timeslips
 
 - `POST timeslips` body: `{"timeslip": {"task", "project", "user", "dated_on", "hours"}}` with full resource URLs and `hours` as a string.
-- `GET timeslips?from_date=&to_date=&per_page=100` returns a page; filter by range and check for existing dates before posting.
+- `GET timeslips?from_date=&to_date=&per_page=100` returns all linked pages with this client; filter by range and check for existing dates before posting.
 - A per-day task is billed per day, so a full working day's hours equals one billable day. Check the task's `billing_period` and rate first.
 
 ## Invoices
@@ -20,7 +20,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
   **Do not also send a placeholder `invoice_items` entry**: it is added on top as an extra line and inflates the total.
 - A created invoice is `Draft`. Set all three `send_new_invoice_emails`, `send_reminder_emails`, `send_thank_you_emails` to `false`.
 - Removing a line: `DELETE invoice_items/<id>` works. `PUT` with `_destroy` (`1` or `true`) did not remove it.
-- Listing: `GET invoices?view=` `open_or_overdue`, `open`, `overdue`, `draft`, `paid`; filters `contact=<url>`, `from_date`, `to_date`. Payment fields `status`, `due_on`, `total_value`, `due_value`, `currency`. Paginate with `per_page=100&page=N`.
+- Listing: `GET invoices?view=` `open_or_overdue`, `open`, `overdue`, `draft`, `paid`; filters `contact=<url>`, `from_date`, `to_date`. Payment fields `status`, `due_on`, `total_value`, `due_value`, `currency`. The client follows linked pages automatically; use `paginate=False` with `per_page=100&page=N` for manual paging.
 - Reading past invoices (`GET invoices?project=...`, then `GET invoices/<id>`) is the best source for reference format, terms, description style and VAT.
 - Verify after creating: status, line count, net = quantity x rate, VAT, emails off.
 
@@ -63,7 +63,10 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## General
 
-- Rate-limit and server errors raise `urllib.error.HTTPError`; the body usually names the problem.
+- HTTPX2 handles API requests and parses Link headers; Tenacity manages retry scheduling and limits.
+- `call("GET", path)` and MCP `freeagent_get(path)` follow `Link: rel=next` automatically and combine top-level list fields into the original response object. Filters come from the server's next link; detail/report responses without a next link are unchanged. Use `paginate=False` for a single page or manual paging. Start without a `page` parameter to retrieve the complete collection; an explicit page starts aggregation there. Non-list metadata remains from the first page.
+- Pagination refuses links outside the API origin or `/v2/`, repeated links, inconsistent list responses, and collections exceeding 1,000 pages. Failures raise instead of returning partial results.
+- GET HTTP 429 responses retry up to three times per page. `Retry-After` seconds and HTTP dates are honoured; missing/invalid values use Tenacity exponential backoff (1, 2, then 4 seconds). A requested wait over 60 seconds raises immediately rather than retrying early. Writes are not retried on 429. Other rate-limit/server failures raise `urllib.error.HTTPError`; the body usually names the problem.
 - Always read back after a write and report what FreeAgent holds, not what you sent.
 
 ## Reports
@@ -73,5 +76,5 @@ Read-only via `freeagent_get`.
 - `accounting/profit_and_loss/summary?from_date=&to_date=`
 - `accounting/balance_sheet?as_at_date=`
 - `accounting/trial_balance/summary?from_date=&to_date=`
-- `invoices?view=overdue`, `bills?view=overdue` (paged; follow pages and total per currency)
+- `invoices?view=overdue`, `bills?view=overdue` (client aggregates linked pages; total per currency)
 - `bank_accounts` for balances (cash).
