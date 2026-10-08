@@ -35,6 +35,32 @@ def test_draft_invoice_turns_emails_off_and_reads_back(monkeypatch):
     assert out["invoice"]["status"] == "Draft"
 
 
+def test_find_contacts_filters_across_pages(monkeypatch):
+    pages = {
+        1: [{"organisation_name": "Other"}] * 99 + [{"organisation_name": "Acme Ltd"}],
+        2: [{"first_name": "Bob", "email": "ACME@x.com"}, {"organisation_name": None}],
+    }
+    monkeypatch.setattr(mcp_server, "call", lambda m, path, body=None: {"contacts": pages[int(path[-1])]})
+    assert len(mcp_server.find_contacts("acme")) == 2
+
+
+def test_create_contact_posts_only_given_fields_and_reads_back(monkeypatch):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"contact": {"url": BASE + "contacts/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    mcp_server.create_contact(organisation_name="Acme", email="a@x.com", payment_terms_in_days=30)
+    assert calls[0][2] == {
+        "contact": {"organisation_name": "Acme", "email": "a@x.com", "default_payment_terms_in_days": 30}
+    }
+    assert calls[1][:2] == ("GET", "contacts/5")
+    with pytest.raises(ValueError):
+        mcp_server.create_contact(first_name="Bob")
+
+
 def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
     calls = []
 
@@ -58,6 +84,13 @@ def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
 
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
-    assert set(tools) == {"freeagent_get", "create_timeslip", "create_draft_invoice", "create_draft_estimate"}
+    assert set(tools) == {
+        "freeagent_get",
+        "find_contacts",
+        "create_contact",
+        "create_timeslip",
+        "create_draft_invoice",
+        "create_draft_estimate",
+    }
     assert tools["freeagent_get"].annotations.read_only_hint
     assert not tools["create_timeslip"].annotations.read_only_hint
