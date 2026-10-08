@@ -2,7 +2,7 @@
   "name": "freeagent-ai",
   "version": "0.1.0",
   "description": "Generic FreeAgent API workflows for agents: timesheets and invoicing.",
-  "repository": "https://github.com/avalou/freeagent-ai",
+  "repository": "https://github.com/avalou-co/freeagent-ai",
   "skills": "./.agents/skills/",
   "mcpServers": "./.mcp.json"
 }
