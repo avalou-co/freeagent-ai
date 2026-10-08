@@ -1,25 +1,42 @@
 # MCP server
 
-Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`. Writes read back and return what FreeAgent holds.
+The server wraps the Python client in typed tools:
 
-The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
+| Tool | Does |
+|------|------|
+| `freeagent_get`, `find_contacts` | Read only |
+| `create_contact`, `create_project`, `create_task`, `create_timeslip` | Create one entry |
+| `create_draft_invoice` | Draft invoice with emails off |
+| `create_draft_estimate` | Draft estimate, never sent |
+| `create_expense` | Expense with an optional receipt file |
+| `create_bill` | Supplier bill with line items and an optional attachment |
 
-For local development: `pip install -e '.[mcp]'` and `freeagent-ai mcp`.
+Each write tool reads the entry back and returns what FreeAgent holds.
 
-## ChatGPT / remote HTTP
+## Running it
 
-ChatGPT connects to remote servers only, so it needs `freeagent-ai mcp --http` (serves `http://127.0.0.1:8000/mcp`) reachable over public HTTPS, added as a custom connector in developer mode.
+The Claude Code and Codex plugins start the server with `uvx` from GitHub (see `.mcp.json`), so you only need `uv` installed. Log in once first; the server shares the same credentials file:
 
-**HTTP mode requires a bearer token and fails closed.** Set `FREEAGENT_MCP_TOKEN` to a random secret of at least 32 ASCII characters before starting; without it the server refuses to start. Every request must send `Authorization: Bearer <token>`; others get `401` before any FreeAgent call. stdio mode needs no token.
+```bash
+uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login
+```
 
-```sh
+For local development, run `pip install -e '.[mcp]'` then `freeagent-ai mcp`.
+
+## ChatGPT and remote HTTP
+
+ChatGPT only connects to remote servers. Run `freeagent-ai mcp --http`, which serves `http://127.0.0.1:8000/mcp`, expose it over public HTTPS and add it as a custom connector in developer mode.
+
+HTTP mode needs a bearer token. Set `FREEAGENT_MCP_TOKEN` to a random secret of 32 or more ASCII characters, or the server will not start. Requests without `Authorization: Bearer <token>` get a 401 before any FreeAgent call. stdio mode needs no token.
+
+```bash
 export FREEAGENT_MCP_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 freeagent-ai mcp --http
 ```
 
-Secure remote setup:
+`Keeping it safe:`
 
-- Keep the default `--host 127.0.0.1` and expose it only through an HTTPS tunnel or reverse proxy. The token is sent in a header, so never serve it over plain HTTP across a network.
-- Treat the token like a password: keep it out of shell history, repos and logs, and rotate it (restart with a new value) if it may have leaked. Anyone holding it can read and write your FreeAgent account.
-- The connector client must be able to send a custom `Authorization: Bearer` header. If it cannot, do not use remote mode.
-- This is a single static shared secret, not OAuth. Get an independent security review before relying on it for remote use.
+- Keep the default `--host 127.0.0.1` and expose the server only through an HTTPS tunnel or reverse proxy. Plain HTTP would send the token in the clear.
+- Anyone with the token can read and write your FreeAgent account. Keep it out of shell history, repos and logs, and restart with a new one if it may have leaked.
+- Your connector must be able to send a custom `Authorization` header. If it cannot, do not use remote mode.
+- The token is one shared secret, not OAuth. Get a security review before you rely on it.

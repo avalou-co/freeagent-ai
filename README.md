@@ -2,49 +2,42 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-freeagent--ai-black)](https://skills.sh/avalou-co/freeagent-ai)
 
-Let AI agents (Claude Code, Codex, ChatGPT) work with your [FreeAgent](https://www.freeagent.com) account: log time, create contacts and draft invoices, record supplier bills and read your accounting data, with safety rules built in.
+Lets AI agents such as Claude Code, Codex and ChatGPT work in your [FreeAgent](https://www.freeagent.com) account. They can log time, add contacts, draft invoices and estimates, record expenses and supplier bills, and read your accounts.
 
-Nothing here is specific to one business. Your contact, project and bank-account IDs, rates and client rules stay with you and are given to the agent alongside these docs (see "Your business details").
+The agent shows you what it plans to write and waits for your yes. It only creates drafts and leaves entries it did not make alone (`docs/agent-rules.md`).
 
-## What you get
+## What is in the repo
 
-- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), and draft estimates (`estimates`).
-- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills and draft estimates.
-- **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
-- **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
+- `Skills` for timesheets, invoicing, expenses, bills and estimates.
+- `An MCP server` with tools to read FreeAgent and create entries (`docs/mcp.md`).
+- `A CLI and Python client`: `freeagent-ai login`, `freeagent-ai status` and a `call()` helper that refreshes tokens for you.
 
-## Quick start
+## Install
 
-### Claude Code
+All options need [uv](https://docs.astral.sh/uv/).
 
-Requires [uv](https://docs.astral.sh/uv/).
+`Claude Code.` This sets up the skills and the MCP server:
 
 ```
 /plugin marketplace add avalou-co/freeagent-ai
 /plugin install freeagent-ai@freeagent-ai
 ```
 
-The skills appear as `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:expenses` and `/freeagent-ai:bills`, and the MCP server is set up for you.
+The skills appear as `/freeagent-ai:<name>`, for example `/freeagent-ai:timesheets`.
 
-### Codex
-
-Requires [uv](https://docs.astral.sh/uv/).
+`Codex.` Add the marketplace, then install `freeagent-ai` from the plugin list:
 
 ```bash
 codex plugin marketplace add avalou-co/freeagent-ai
 ```
 
-Then install `freeagent-ai` from the plugin list.
-
-### Other agents (skills.sh)
-
-Install just the skills into any agent supported by [skills.sh](https://skills.sh/avalou-co/freeagent-ai):
+`Other agents.` [skills.sh](https://skills.sh/avalou-co/freeagent-ai) copies the skills only:
 
 ```bash
 npx skills add avalou-co/freeagent-ai
 ```
 
-This copies the skills only. They need the `freeagent` MCP server's tools, so also add the server to your agent (requires [uv](https://docs.astral.sh/uv/)):
+The skills call the MCP server's tools, so add the server to your agent too:
 
 ```json
 {
@@ -57,37 +50,32 @@ This copies the skills only. They need the `freeagent` MCP server's tools, so al
 }
 ```
 
-See `docs/mcp.md` for client-specific setup.
-
-### ChatGPT and other MCP clients
-
-See `docs/mcp.md` for running the MCP server.
+`ChatGPT.` It needs the server over HTTPS. See `docs/mcp.md`.
 
 ## Connect your FreeAgent account
 
-1. Create an OAuth app in the [FreeAgent developer dashboard](https://dev.freeagent.com) and note its client ID.
-2. Log in once:
+Create an OAuth app in the [FreeAgent developer dashboard](https://dev.freeagent.com), then log in once:
 
-   ```bash
-   freeagent-ai login     # opens the approve page; log in and click Approve
-   freeagent-ai status    # confirms stored credentials work
-   ```
+```bash
+freeagent-ai login
+```
 
-Full steps, including the credentials file and re-login, are in `docs/auth.md`.
+```bash
+freeagent-ai status
+```
+
+`login` opens FreeAgent in your browser for you to approve, and `status` checks the saved credentials work. `docs/auth.md` covers the credentials file and redirect URI.
 
 ## Using it
 
-Ask your agent in plain language, for example:
+Ask your agent in plain language:
 
 - "Log 7.5 hours a day on the Acme project for last week."
 - "Create a draft invoice for this month's Acme timeslips."
-- "Record this supplier bill and attach the PDF." / "Which bills are overdue?"
+- "Record this supplier bill and attach the PDF."
+- "Which bills are overdue?"
 
-The agent shows you what it plans to create and waits for a clear yes before writing anything to FreeAgent.
-
-### Command line and Python
-
-Install the package to get the `freeagent-ai` command and the Python client:
+To use the Python client directly:
 
 ```bash
 pip install "freeagent-ai[mcp] @ git+https://github.com/avalou-co/freeagent-ai"
@@ -97,29 +85,19 @@ pip install "freeagent-ai[mcp] @ git+https://github.com/avalou-co/freeagent-ai"
 from freeagent_ai import call
 
 call("GET", "users/me")
-call("POST", "timeslips", {"timeslip": {...}})
 ```
 
 ## Your business details
 
-Give your agent the specifics it needs, wherever you keep them (a repo, a prompt, a wiki):
+Nothing in this repo is specific to one business. Give your agent the rest wherever you keep it, such as a repo, a prompt or a wiki:
 
-- Fixed IDs (user, contacts, projects, tasks, bank account, categories) and your OAuth app's client ID.
-- Defaults (hours per day, billing rate, VAT, payment terms, invoice reference format).
-- Client-specific delivery rules (e.g. a portal instead of email).
-- Rules such as "invoices are drafts only, never sent" and any approvals beyond `docs/agent-rules.md`.
+- IDs for your user, contacts, projects, tasks, bank account and categories, plus your OAuth client ID.
+- Defaults such as hours per day, rates, VAT, payment terms and invoice reference format.
+- Client rules, for example "submit through their portal, not by email".
+- Any approvals you want on top of `docs/agent-rules.md`.
 
-If something is missing, the agent should ask rather than guess.
-
-## More documentation
-
-| Doc | What |
-|-----|------|
-| `docs/auth.md` | OAuth setup, credentials file, refresh, re-login |
-| `docs/mcp.md` | MCP server for Claude Code, Codex and ChatGPT |
-| `docs/agent-rules.md` | Safety rules every agent should follow |
-| `docs/api-notes.md` | API behaviours and gotchas learned the hard way |
+The agent asks when something is missing.
 
 ## Contributing
 
-Developer setup and checks are in `AGENTS.md`.
+`AGENTS.md` has the developer setup and the checks CI runs.

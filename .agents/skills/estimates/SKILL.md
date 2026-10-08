@@ -4,13 +4,11 @@ description: Create a draft FreeAgent estimate (quote) for a contact or project 
 argument-hint: "[contact or project]"
 ---
 
-# Estimates workflow
+# Estimates
 
-Generic. The business supplies the contact, project, line items (description, unit, quantity, price), currency and reference format. Ask for them or find them in the business's own instructions.
+Follow `docs/agent-rules.md`. The business's own instructions give the contact, project, line items, currency and reference format.
 
-1. Read the contact's latest estimate (`GET estimates?contact=...`) to copy reference style and currency.
-2. Show the plan, get a clear yes, then call `create_draft_estimate`. It is always Draft and never sent.
-3. Verify the returned status, line count and totals (net = quantity x price).
-4. Report reference, lines and totals. Say the reference is an assumption if you inferred it.
-
-Follow `docs/agent-rules.md` throughout.
+1. Read the contact's latest estimate (`estimates?contact=...`) to copy its reference style and currency.
+2. Show the plan and wait for a yes, then call `create_draft_estimate`. It always creates a Draft and never sends it.
+3. Check the status, line count and totals (net = quantity × price).
+4. Report the reference, lines and totals. Say so if you guessed the reference.

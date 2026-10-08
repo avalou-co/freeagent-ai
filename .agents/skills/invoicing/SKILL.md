@@ -4,14 +4,12 @@ description: Create a draft FreeAgent invoice for a project, optionally from its
 argument-hint: "[project]"
 ---
 
-# Invoicing workflow
+# Invoicing
 
-Generic. The business supplies the contact, project, bank account, reference format, payment terms, whether timeslips go on the invoice, and how invoices are delivered. Those are business decisions; ask for them or find them in the business's own instructions.
+Follow `docs/agent-rules.md`. The business's own instructions give the contact, project, bank account, reference format, payment terms, whether to bill from timeslips and how invoices reach the client.
 
-0. If the client is new, `find_contacts` first, then `create_contact` (after the user confirms the details) and use its URL as the contact.
-1. Read the latest invoice for the project to copy reference style, terms, bank account and settings.
-2. `POST invoices`. If the business bills from timeslips, set `include_timeslips` (e.g. `"billed_grouped_by_timeslip"`); FreeAgent bills each timeslip only once, so no double-billing check is needed. Add no placeholder items (see `docs/api-notes.md`).
-3. `GET` the invoice and verify its status, line count and totals.
-4. Report reference, due date, lines and totals. Say the reference number is an assumption if you inferred it.
-
-Follow `docs/agent-rules.md` throughout.
+1. For a new client, search with `find_contacts`. If there is no match, confirm the details and call `create_contact`.
+2. Read the project's latest invoice to copy its reference style, terms, bank account and settings.
+3. Call `create_draft_invoice`. To bill from timeslips, set `include_timeslips` to `"billed_grouped_by_timeslip"` and add no other items (see `docs/api-notes.md`).
+4. Check the status, line count and totals.
+5. Report the reference, due date, lines and totals. Say so if you guessed the reference.

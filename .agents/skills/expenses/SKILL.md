@@ -4,17 +4,15 @@ description: Record expense claims in FreeAgent with receipts (e.g. "log these r
 argument-hint: "[receipts or date range]"
 ---
 
-# Expenses workflow
+# Expenses
 
-Generic. The business supplies the category and VAT rules; ask for them or find them in the business's own instructions.
+Follow `docs/agent-rules.md`. The business's own instructions give the categories and VAT rules.
 
-1. Read each receipt for date, amount, VAT and a short description. Ask if any is unreadable; do not guess.
-2. `GET users/me` for the user and `GET categories` to pick the category. Ask if unclear.
-3. `GET expenses` for the dates and skip any that already exist. Report skips.
-4. Show the plan (date, category, gross, VAT, description, receipt file) and wait for approval, unless the user already gave the exact details and said to do it.
-5. `create_expense` once per receipt, passing `receipt_path` for the file.
-6. Report what FreeAgent holds, including whether each attachment is present.
+1. Read the date, amount, VAT and a short description off each receipt. Ask about any you cannot read.
+2. Get the user from `users/me` and pick a category from `categories`.
+3. Check `expenses` for those dates and skip any already recorded. Report the skips.
+4. Show the date, category, gross, VAT, description and receipt file for each, and wait for a yes.
+5. Call `create_expense` once per receipt, with `receipt_path` set to the file.
+6. Report what FreeAgent holds, including whether each receipt attached.
 
-Mileage claims are not covered yet.
-
-Follow `docs/agent-rules.md` throughout.
+Mileage claims are not supported yet.
