@@ -24,6 +24,12 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Match invoices/bills by amount and contact: `GET invoices?view=open` / `GET bills?view=open`. A partial explanation may leave the transaction partly unexplained; re-read it afterwards.
 - Category URLs and any VAT treatment come from the business's own instructions; never guess them.
 
+## Contacts
+
+- `POST contacts` body: `{"contact": {...}}`. Needs `organisation_name`, or both `first_name` and `last_name`. Address fields are `address1`, `town`, `postcode`, `country`; terms are `default_payment_terms_in_days`.
+- `GET contacts?view=all&per_page=100&page=N` lists contacts; there is no name search, so filter client-side (`find_contacts` does) and check for duplicates before creating.
+- Use the created contact's URL as `contact` when creating invoices.
+
 ## Estimates
 
 - `POST estimates` body: `{"estimate": {"contact", "dated_on", "currency", "estimate_items": [{"description", "item_type", "quantity", "price"}]}}`; `project` is optional. Amounts are strings.
