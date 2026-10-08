@@ -23,6 +23,14 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Reading past invoices (`GET invoices?project=...`, then `GET invoices/<id>`) is the best source for reference format, terms, description style and VAT.
 - Verify after creating: status, line count, net = quantity x rate, VAT, emails off.
 
+## Expenses
+
+- `POST expenses` body: `{"expense": {"user", "category", "dated_on", "gross_value", "description"}}` with full resource URLs and `gross_value` as a string including VAT. Expenses are negative (`"-12.50"`).
+- `sales_tax_rate` (e.g. `"20.0"`) sets VAT; the category may need to allow it.
+- Receipt: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF with a size limit; the tool allows only those types.
+- Categories: `GET categories`; admin expenses categories are the ones valid for expense claims.
+- Check `GET expenses?from_date=&to_date=` for duplicates before posting.
+
 ## Contacts
 
 - `POST contacts` body: `{"contact": {...}}`. Needs `organisation_name`, or both `first_name` and `last_name`. Address fields are `address1`, `town`, `postcode`, `country`; terms are `default_payment_terms_in_days`.
