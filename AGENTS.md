@@ -16,6 +16,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 |-------|---------|
 | `timesheets` | Logging time as timeslips for a date range |
 | `invoicing` | Creating draft invoices, optionally from timeslips |
+| `estimates` | Creating draft estimates/quotes with line items |
 
 ## Calling the API
 
