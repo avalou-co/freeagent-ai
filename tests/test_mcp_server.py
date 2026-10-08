@@ -35,8 +35,28 @@ def test_draft_invoice_turns_emails_off_and_reads_back(monkeypatch):
     assert out["invoice"]["status"] == "Draft"
 
 
+def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"bank_transaction_explanation": {"url": BASE + "bank_transaction_explanations/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    args = (BASE + "bank_transactions/1", "2026-10-07", "-12.50")
+    for kw in ({}, {"category": "c", "paid_bill": "b"}):
+        with pytest.raises(ValueError):
+            mcp_server.explain_bank_transaction(*args, **kw)
+    assert not calls
+    mcp_server.explain_bank_transaction(*args, paid_bill=BASE + "bills/2")
+    exp = calls[0][2]["bank_transaction_explanation"]
+    assert calls[0][:2] == ("POST", "bank_transaction_explanations")
+    assert exp["paid_bill"] == BASE + "bills/2" and "category" not in exp
+    assert calls[1][:2] == ("GET", "bank_transaction_explanations/5")
+
+
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
-    assert set(tools) == {"freeagent_get", "create_timeslip", "create_draft_invoice"}
+    assert set(tools) == {"freeagent_get", "create_timeslip", "create_draft_invoice", "explain_bank_transaction"}
     assert tools["freeagent_get"].annotations.read_only_hint
     assert not tools["create_timeslip"].annotations.read_only_hint
