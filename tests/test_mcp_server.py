@@ -53,8 +53,36 @@ def test_create_project_and_task_read_back(monkeypatch):
     assert calls[3][:2] == ("GET", "tasks/6")
 
 
+def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"estimate": {"url": BASE + "estimates/4"}} if method == "POST" else {"estimate": {"status": "Draft"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    items = [{"description": "Design", "item_type": "Days", "quantity": "2", "price": "400"}]
+    out = mcp_server.create_draft_estimate(BASE + "contacts/1", "2026-10-07", items, reference="EST-1")
+    est = calls[0][2]["estimate"]
+    assert calls[0][:2] == ("POST", "estimates")
+    assert est["status"] == "Draft"
+    assert est["estimate_items"] == items
+    assert est["reference"] == "EST-1"
+    assert "project" not in est
+    assert "currency" not in est
+    assert calls[1][:2] == ("GET", "estimates/4")
+    assert out["estimate"]["status"] == "Draft"
+
+
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
-    assert set(tools) == {"freeagent_get", "create_timeslip", "create_draft_invoice", "create_project", "create_task"}
+    assert set(tools) == {
+        "freeagent_get",
+        "create_timeslip",
+        "create_draft_invoice",
+        "create_draft_estimate",
+        "create_project",
+        "create_task",
+    }
     assert tools["freeagent_get"].annotations.read_only_hint
     assert not tools["create_timeslip"].annotations.read_only_hint
