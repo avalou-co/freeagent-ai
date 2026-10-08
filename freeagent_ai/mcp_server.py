@@ -258,6 +258,32 @@ def create_bill(
     return call("GET", _path(created["url"]))
 
 
+@mcp.tool(annotations=WRITE)
+def explain_bank_transaction(
+    bank_transaction: str,
+    dated_on: str,
+    gross_value: str,
+    category: str = "",
+    paid_invoice: str = "",
+    paid_bill: str = "",
+    description: str = "",
+) -> dict:
+    """Create one explanation for a bank transaction and return it as FreeAgent holds it.
+    `bank_transaction` and exactly one of `category`, `paid_invoice`, `paid_bill` are resource
+    URLs; `dated_on` is YYYY-MM-DD; `gross_value` a decimal string with the transaction's sign
+    (e.g. '-12.50'). Find candidates with freeagent_get 'bank_transactions?bank_account=<url>&view=unexplained'.
+    Needs a clear yes per transaction."""
+    targets = {"category": category, "paid_invoice": paid_invoice, "paid_bill": paid_bill}
+    chosen = {k: v for k, v in targets.items() if v}
+    if len(chosen) != 1:
+        raise ValueError("give exactly one of category, paid_invoice, paid_bill")
+    exp = {"bank_transaction": bank_transaction, "dated_on": dated_on, "gross_value": gross_value, **chosen}
+    if description:
+        exp["description"] = description
+    created = call("POST", "bank_transaction_explanations", {"bank_transaction_explanation": exp})
+    return call("GET", _path(created["bank_transaction_explanation"]["url"]))
+
+
 def run(http=False, host="127.0.0.1", port=8000):
     """Serve over stdio, or streamable HTTP behind bearer-token auth (FREEAGENT_MCP_TOKEN required)."""
     if not http:

@@ -19,6 +19,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `expenses` | Recording expense claims with receipts |
 | `estimates` | Creating draft estimates/quotes with line items |
 | `bills` | Recording supplier bills, listing unpaid or overdue ones |
+| `bank-reconcile` | Listing unexplained bank transactions and proposing explanations |
 
 ## Calling the API
 

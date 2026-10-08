@@ -8,8 +8,8 @@ Nothing here is specific to one business. Your contact, project and bank-account
 
 ## What you get
 
-- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), and draft estimates (`estimates`).
-- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills and draft estimates.
+- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), draft estimates (`estimates`), and explaining bank transactions (`bank-reconcile`).
+- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills, draft estimates and bank explanations.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
 
@@ -82,6 +82,7 @@ Ask your agent in plain language, for example:
 - "Log 7.5 hours a day on the Acme project for last week."
 - "Create a draft invoice for this month's Acme timeslips."
 - "Record this supplier bill and attach the PDF." / "Which bills are overdue?"
+- "List my unexplained bank transactions and suggest explanations."
 
 The agent shows you what it plans to create and waits for a clear yes before writing anything to FreeAgent.
 
