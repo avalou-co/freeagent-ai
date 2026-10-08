@@ -34,6 +34,15 @@ def _path(ref):
     return path
 
 
+def _attachment(path):
+    """Encode a local PDF/PNG/JPG/GIF file as a FreeAgent attachment."""
+    file = Path(path)
+    kind = mimetypes.guess_type(file.name)[0]
+    if kind not in RECEIPT_TYPES:
+        raise ValueError(f"attachment must be PDF, PNG, JPG or GIF: {path}")
+    return {"file_name": file.name, "content_type": kind, "data": base64.b64encode(file.read_bytes()).decode()}
+
+
 @mcp.tool(annotations=READ)
 def freeagent_get(path: str) -> dict:
     """GET any FreeAgent API resource. `path` is relative to /v2/ (e.g. 'users/me',
@@ -112,15 +121,7 @@ def create_expense(
     if sales_tax_rate:
         exp["sales_tax_rate"] = sales_tax_rate
     if receipt_path:
-        file = Path(receipt_path)
-        kind = mimetypes.guess_type(file.name)[0]
-        if kind not in RECEIPT_TYPES:
-            raise ValueError(f"receipt must be PDF, PNG, JPG or GIF: {receipt_path}")
-        exp["attachment"] = {
-            "file_name": file.name,
-            "content_type": kind,
-            "data": base64.b64encode(file.read_bytes()).decode(),
-        }
+        exp["attachment"] = _attachment(receipt_path)
     created = call("POST", "expenses", {"expense": exp})["expense"]
     return call("GET", _path(created["url"]))
 
