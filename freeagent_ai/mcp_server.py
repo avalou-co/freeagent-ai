@@ -129,6 +129,44 @@ def create_draft_invoice(
 
 
 @mcp.tool(annotations=WRITE)
+def create_project(
+    contact: str,
+    name: str,
+    currency: str,
+    normal_billing_rate: str,
+    billing_period: str = "day",
+    budget: str = "",
+    budget_units: str = "Days",
+) -> dict:
+    """Create an Active project for a contact and return it as FreeAgent holds it. `contact` is a
+    resource URL; `normal_billing_rate` a decimal string; `billing_period` 'hour' or 'day';
+    `budget_units` 'Hours', 'Days' or 'Monetary' (only used with `budget`). To find the
+    contact's existing projects first, use freeagent_get 'projects?contact=<url>&view=active'."""
+    project = {
+        "contact": contact,
+        "name": name,
+        "status": "Active",
+        "currency": currency,
+        "normal_billing_rate": normal_billing_rate,
+        "billing_period": billing_period,
+    }
+    if budget:
+        project.update(budget=budget, budget_units=budget_units)
+    created = call("POST", "projects", {"project": project})["project"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_task(project: str, name: str, billing_rate: str, billing_period: str = "day") -> dict:
+    """Create an Active task on a project and return it as FreeAgent holds it. `project` is a
+    resource URL; `billing_rate` a decimal string; `billing_period` 'hour' or 'day'. To list the
+    project's tasks first, use freeagent_get 'tasks?project=<url>&view=active'."""
+    task = {"name": name, "status": "Active", "billing_rate": billing_rate, "billing_period": billing_period}
+    created = call("POST", f"tasks?project={project}", {"task": task})["task"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
 def create_draft_estimate(
     contact: str, dated_on: str, items: list[dict], project: str = "", reference: str = "", currency: str = ""
 ) -> dict:
