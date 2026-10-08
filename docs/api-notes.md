@@ -2,6 +2,12 @@
 
 Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`.
 
+## Projects and tasks
+
+- List with `GET projects?contact=<contact url>&view=active` and `GET tasks?project=<project url>&view=active`; match names there before creating, so timeslips and invoices can use the URLs.
+- `POST projects` body: `{"project": {"contact", "name", "status": "Active", "currency", "normal_billing_rate", "billing_period"}}`, plus `budget` and `budget_units` (`Hours`, `Days` or `Monetary`) if budgeted. Rates and budget are strings.
+- `POST tasks?project=<project url>` body: `{"task": {"name", "status": "Active", "billing_rate", "billing_period"}}`. The project goes in the query string, not the body. `billing_period` is `hour` or `day`.
+
 ## Timeslips
 
 - `POST timeslips` body: `{"timeslip": {"task", "project", "user", "dated_on", "hours"}}` with full resource URLs and `hours` as a string.
