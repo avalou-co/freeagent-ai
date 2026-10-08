@@ -19,12 +19,10 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Estimates
 
-All unverified against a live account; check the first real response and correct these notes.
-
 - `POST estimates` body: `{"estimate": {"contact", "dated_on", "currency", "estimate_items": [{"description", "item_type", "quantity", "price"}]}}`; `project` is optional. Amounts are strings.
 - Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
 - List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
-- Not yet supported: converting an approved estimate to an invoice (the API's mechanism is unverified).
+- Not yet supported: converting an approved estimate to an invoice.
 - Verify after creating: status, line count, net = quantity x price.
 
 ## General
