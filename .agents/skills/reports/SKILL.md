@@ -6,7 +6,7 @@ argument-hint: "[report] [from] [to]"
 
 # Reports workflow
 
-Read-only: use `freeagent_get` only, never write. The business supplies the date range and accounting period (e.g. financial year start); ask if missing. Endpoint details are unverified, see `docs/api-notes.md`.
+Read-only: use `freeagent_get` only, never write. The business supplies the date range and accounting period (e.g. financial year start); ask if missing. Endpoints: see `docs/api-notes.md`.
 
 1. Profit and loss: `accounting/profit_and_loss/summary?from_date=&to_date=`.
 2. Balance sheet: `accounting/balance_sheet?as_at_date=`.

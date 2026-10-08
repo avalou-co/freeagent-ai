@@ -22,12 +22,12 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Rate-limit and server errors raise `urllib.error.HTTPError`; the body usually names the problem.
 - Always read back after a write and report what FreeAgent holds, not what you sent.
 
-## Reports (unverified)
+## Reports
 
-Read-only via `freeagent_get`. These endpoints and parameters are from FreeAgent's API docs and have **not** been checked against a live account; confirm the response shape on first use.
+Read-only via `freeagent_get`.
 
 - `accounting/profit_and_loss/summary?from_date=&to_date=`
 - `accounting/balance_sheet?as_at_date=`
 - `accounting/trial_balance/summary?from_date=&to_date=`
 - `invoices?view=overdue`, `bills?view=overdue` (paged; follow pages and total per currency)
-- `bank_accounts` for balances (cash). Whether it matches the dashboard cash figure is unverified.
+- `bank_accounts` for balances (cash).
