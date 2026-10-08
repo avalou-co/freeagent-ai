@@ -1,7 +1,7 @@
 {
   "name": "freeagent-ai",
   "version": "0.1.0",
-  "description": "Generic FreeAgent API workflows for agents: timesheets, invoicing and bank reconciliation.",
+  "description": "Generic FreeAgent API workflows for agents: timesheets, invoicing, bills and bank reconciliation.",
   "repository": "https://github.com/avalou-co/freeagent-ai",
   "skills": "./.agents/skills/",
   "mcpServers": "./.mcp.json"

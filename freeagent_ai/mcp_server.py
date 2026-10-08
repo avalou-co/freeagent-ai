@@ -4,6 +4,10 @@ Run over stdio for Claude Code or Codex (`freeagent-ai mcp`), or over
 streamable HTTP for ChatGPT (`freeagent-ai mcp --http`). Needs the `mcp` extra.
 """
 
+import base64
+import mimetypes
+from pathlib import Path
+
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
@@ -19,6 +23,7 @@ mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
+RECEIPT_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/gif"}
 
 
 def _path(ref):
@@ -27,6 +32,15 @@ def _path(ref):
     if "://" in path or path.startswith("/") or ".." in path:
         raise ValueError(f"not a FreeAgent API path: {ref}")
     return path
+
+
+def _attachment(path):
+    """Encode a local PDF/PNG/JPG/GIF file as a FreeAgent attachment."""
+    file = Path(path)
+    kind = mimetypes.guess_type(file.name)[0]
+    if kind not in RECEIPT_TYPES:
+        raise ValueError(f"attachment must be PDF, PNG, JPG or GIF: {path}")
+    return {"file_name": file.name, "content_type": kind, "data": base64.b64encode(file.read_bytes()).decode()}
 
 
 @mcp.tool(annotations=READ)
@@ -129,6 +143,122 @@ def create_draft_invoice(
 
 
 @mcp.tool(annotations=WRITE)
+def create_expense(
+    user: str,
+    category: str,
+    dated_on: str,
+    gross_value: str,
+    description: str,
+    sales_tax_rate: str = "",
+    receipt_path: str = "",
+) -> dict:
+    """Create one expense claim and return it as FreeAgent holds it. `user` and `category` are
+    resource URLs (list categories with freeagent_get 'categories'); `dated_on` is YYYY-MM-DD;
+    `gross_value` is the total including VAT as a decimal string, negative for money spent
+    (e.g. '-12.50'; check the sign against an existing expense); `sales_tax_rate` e.g. '20.0'.
+    `receipt_path` is an optional local PDF/PNG/JPG/GIF file to attach. Check for an existing
+    expense on that date first."""
+    exp: dict = {
+        "user": user,
+        "category": category,
+        "dated_on": dated_on,
+        "gross_value": gross_value,
+        "description": description,
+    }
+    if sales_tax_rate:
+        exp["sales_tax_rate"] = sales_tax_rate
+    if receipt_path:
+        exp["attachment"] = _attachment(receipt_path)
+    created = call("POST", "expenses", {"expense": exp})["expense"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_project(
+    contact: str,
+    name: str,
+    currency: str,
+    normal_billing_rate: str,
+    billing_period: str = "day",
+    budget: str = "",
+    budget_units: str = "Days",
+) -> dict:
+    """Create an Active project for a contact and return it as FreeAgent holds it. `contact` is a
+    resource URL; `normal_billing_rate` a decimal string; `billing_period` 'hour' or 'day';
+    `budget_units` 'Hours', 'Days' or 'Monetary' (only used with `budget`). To find the
+    contact's existing projects first, use freeagent_get 'projects?contact=<url>&view=active'."""
+    project = {
+        "contact": contact,
+        "name": name,
+        "status": "Active",
+        "currency": currency,
+        "normal_billing_rate": normal_billing_rate,
+        "billing_period": billing_period,
+    }
+    if budget:
+        project.update(budget=budget, budget_units=budget_units)
+    created = call("POST", "projects", {"project": project})["project"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_task(project: str, name: str, billing_rate: str, billing_period: str = "day") -> dict:
+    """Create an Active task on a project and return it as FreeAgent holds it. `project` is a
+    resource URL; `billing_rate` a decimal string; `billing_period` 'hour' or 'day'. To list the
+    project's tasks first, use freeagent_get 'tasks?project=<url>&view=active'."""
+    task = {"name": name, "status": "Active", "billing_rate": billing_rate, "billing_period": billing_period}
+    created = call("POST", f"tasks?project={project}", {"task": task})["task"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_draft_estimate(
+    contact: str, dated_on: str, items: list[dict], project: str = "", reference: str = "", currency: str = ""
+) -> dict:
+    """Create a Draft estimate (never sent) and return it as FreeAgent holds it. `contact` and
+    `project` are resource URLs; `items` are lines like {"description": "Design", "item_type": "Days",
+    "quantity": "2", "price": "400"}. Currency defaults to FreeAgent's; copy reference style and currency from the contact's latest estimate."""
+    est = {"contact": contact, "dated_on": dated_on, "status": "Draft", "estimate_items": items}
+    if project:
+        est["project"] = project
+    if currency:
+        est["currency"] = currency
+    if reference:
+        est["reference"] = reference
+    created = call("POST", "estimates", {"estimate": est})["estimate"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_bill(
+    contact: str,
+    reference: str,
+    dated_on: str,
+    due_on: str,
+    items: list[dict],
+    attachment_path: str = "",
+) -> dict:
+    """Create one supplier bill and return it as FreeAgent holds it. `contact` is the supplier's
+    resource URL; `dated_on` and `due_on` are YYYY-MM-DD. `items` are lines, each
+    {"category": <category URL>, "description": str, "total_value": "120.00", "sales_tax_rate": "20.0"}
+    (`total_value` is the line net before VAT; `sales_tax_rate` optional; list categories with
+    freeagent_get 'categories'). `attachment_path` is an optional local PDF/PNG/JPG/GIF file to attach.
+    Check for an existing bill with that reference first (freeagent_get 'bills?view=open'
+    lists unpaid bills, 'bills?view=overdue' overdue ones)."""
+    bill: dict = {
+        "contact": contact,
+        "reference": reference,
+        "dated_on": dated_on,
+        "due_on": due_on,
+        "bill_items": items,
+    }
+    if attachment_path:
+        bill["attachment"] = _attachment(attachment_path)
+    created = call("POST", "bills", {"bill": bill})["bill"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
 def explain_bank_transaction(
     bank_transaction: str,
     dated_on: str,
@@ -152,24 +282,6 @@ def explain_bank_transaction(
         exp["description"] = description
     created = call("POST", "bank_transaction_explanations", {"bank_transaction_explanation": exp})
     return call("GET", _path(created["bank_transaction_explanation"]["url"]))
-
-
-@mcp.tool(annotations=WRITE)
-def create_draft_estimate(
-    contact: str, dated_on: str, items: list[dict], project: str = "", reference: str = "", currency: str = ""
-) -> dict:
-    """Create a Draft estimate (never sent) and return it as FreeAgent holds it. `contact` and
-    `project` are resource URLs; `items` are lines like {"description": "Design", "item_type": "Days",
-    "quantity": "2", "price": "400"}. Currency defaults to FreeAgent's; copy reference style and currency from the contact's latest estimate."""
-    est = {"contact": contact, "dated_on": dated_on, "status": "Draft", "estimate_items": items}
-    if project:
-        est["project"] = project
-    if currency:
-        est["currency"] = currency
-    if reference:
-        est["reference"] = reference
-    created = call("POST", "estimates", {"estimate": est})["estimate"]
-    return call("GET", _path(created["url"]))
 
 
 def run(http=False, host="127.0.0.1", port=8000):
