@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from .client import BASE, call
+from .mcp_auth import BearerAuth, load_token
 
 INSTRUCTIONS = """Generic FreeAgent API tools. Business IDs, rates and rules come from the user's own instructions; ask if missing, never guess.
 Rules: reads are free. Before any create_* call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
@@ -81,7 +82,14 @@ def create_draft_invoice(
 
 
 def run(http=False, host="127.0.0.1", port=8000):
-    if http:
-        mcp.run("streamable-http", host=host, port=port)
-    else:
+    """Serve over stdio, or streamable HTTP behind bearer-token auth (FREEAGENT_MCP_TOKEN required)."""
+    if not http:
         mcp.run()
+        return
+    import anyio
+    import uvicorn
+
+    token = load_token()  # raises before binding anything if unset or weak
+    app = BearerAuth(mcp.streamable_http_app(host=host), token)
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    anyio.run(server.serve)

@@ -29,14 +29,20 @@ def status():
 
 @app.command()
 def mcp(
-    http: bool = typer.Option(False, help="Serve streamable HTTP (for ChatGPT) instead of stdio."),
+    http: bool = typer.Option(
+        False, help="Serve streamable HTTP (for ChatGPT) instead of stdio. Needs FREEAGENT_MCP_TOKEN."
+    ),
     host: str = "127.0.0.1",
     port: int = 8000,
 ):
     """Run the MCP server (stdio by default)."""
     from .mcp_server import run
 
-    run(http=http, host=host, port=port)
+    try:
+        run(http=http, host=host, port=port)
+    except ValueError as e:  # e.g. FREEAGENT_MCP_TOKEN missing: fail closed with a clear message
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1) from e
 
 
 def main():
