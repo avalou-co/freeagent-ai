@@ -1,52 +1,70 @@
 # freeagent-ai
 
-Generic mechanics and concepts for AI agents working with a FreeAgent account through the API.
-Nothing here is specific to one business: no contact, project or bank-account IDs, no rates, no client rules.
-The business keeps those wherever it likes (see "Business-specific configuration").
+Let AI agents (Claude Code, Codex, ChatGPT) work with your [FreeAgent](https://www.freeagent.com) account: log time, create draft invoices and read your accounting data, with safety rules built in.
 
-## Contents
+Nothing here is specific to one business. Your contact, project and bank-account IDs, rates and client rules stay with you and are given to the agent alongside these docs (see "Your business details").
 
-| Path | What |
-|------|------|
-| `freeagent_ai/` | Python client: credentials file, 401 auto-refresh, `login`, `status` |
-| `docs/auth.md` | OAuth setup, credentials file, refresh, re-login |
-| `docs/api-notes.md` | API behaviours and gotchas learned the hard way |
-| `.agents/skills/timesheets/` | Skill: generic workflow for logging time |
-| `.agents/skills/invoicing/` | Skill: generic workflow for draft invoices from timeslips |
-| `AGENTS.md` | Agent entry point (`CLAUDE.md` points to it) |
-| `docs/mcp.md` | MCP server for Claude Code, Codex and ChatGPT |
-| `docs/agent-rules.md` | Safety rules every agent should follow |
+## What you get
 
-## Install
+- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`).
+- **MCP server**: tools for reading FreeAgent data and creating timeslips and draft invoices.
+- **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
+- **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
 
-```bash
-pip install -e ~/projects/freeagent-ai    # provides the `freeagent-ai` command and `import freeagent_ai`
-```
+## Quick start
 
-## Plugin (Claude Code and Codex)
+### Claude Code
 
-Installs the skills and the MCP server (run via `uvx`, so install [uv](https://docs.astral.sh/uv/) first). No checkout needed.
+Requires [uv](https://docs.astral.sh/uv/).
 
-Claude Code:
 ```
 /plugin marketplace add avalou-co/freeagent-ai
 /plugin install freeagent-ai@freeagent-ai
 ```
-Skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`.
 
-Codex:
+The skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`, and the MCP server is set up for you.
+
+### Codex
+
+Requires [uv](https://docs.astral.sh/uv/).
+
 ```bash
 codex plugin marketplace add avalou-co/freeagent-ai
 ```
-then install `freeagent-ai` from the plugin list.
 
-Manifests: `.claude-plugin/` (Claude Code), `.codex-plugin/` and `.agents/plugins/marketplace.json` (Codex), shared `.mcp.json` and `.agents/skills/`.
+Then install `freeagent-ai` from the plugin list.
 
-## Use
+### ChatGPT and other MCP clients
+
+See `docs/mcp.md` for running the MCP server.
+
+## Connect your FreeAgent account
+
+1. Create an OAuth app in the [FreeAgent developer dashboard](https://dev.freeagent.com) and note its client ID.
+2. Log in once:
+
+   ```bash
+   freeagent-ai login     # opens the approve page; log in and click Approve
+   freeagent-ai status    # confirms stored credentials work
+   ```
+
+Full steps, including the credentials file and re-login, are in `docs/auth.md`.
+
+## Using it
+
+Ask your agent in plain language, for example:
+
+- "Log 7.5 hours a day on the Acme project for last week."
+- "Create a draft invoice for this month's Acme timeslips."
+
+The agent shows you what it plans to create and waits for a clear yes before writing anything to FreeAgent.
+
+### Command line and Python
+
+Install the package to get the `freeagent-ai` command and the Python client:
 
 ```bash
-freeagent-ai login     # opens the approve page; the user logs in and clicks Approve
-freeagent-ai status    # confirms stored credentials work
+pip install "freeagent-ai[mcp] @ git+https://github.com/avalou-co/freeagent-ai"
 ```
 
 ```python
@@ -56,13 +74,26 @@ call("GET", "users/me")
 call("POST", "timeslips", {"timeslip": {...}})
 ```
 
-## Business-specific configuration
+## Your business details
 
-The business owns the specifics, wherever it keeps them (a repo, a prompt, a wiki), and gives agents that context alongside these docs:
+Give your agent the specifics it needs, wherever you keep them (a repo, a prompt, a wiki):
 
 - Fixed IDs (user, contacts, projects, tasks, bank account, categories) and your OAuth app's client ID.
 - Defaults (hours per day, billing rate, VAT, payment terms, invoice reference format).
 - Client-specific delivery rules (e.g. a portal instead of email).
-- Rules such as "invoices are drafts only, never sent" and approval requirements beyond `docs/agent-rules.md`.
+- Rules such as "invoices are drafts only, never sent" and any approvals beyond `docs/agent-rules.md`.
 
-Install dev tools with `pip install -e ".[mcp,dev]"`, then run the checks CI runs on every PR: `ruff check .`, `ruff format --check .`, `pyright`, `pytest`.
+If something is missing, the agent should ask rather than guess.
+
+## More documentation
+
+| Doc | What |
+|-----|------|
+| `docs/auth.md` | OAuth setup, credentials file, refresh, re-login |
+| `docs/mcp.md` | MCP server for Claude Code, Codex and ChatGPT |
+| `docs/agent-rules.md` | Safety rules every agent should follow |
+| `docs/api-notes.md` | API behaviours and gotchas learned the hard way |
+
+## Contributing
+
+Developer setup and checks are in `AGENTS.md`.
