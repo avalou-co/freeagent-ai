@@ -14,6 +14,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
   **Do not also send a placeholder `invoice_items` entry**: it is added on top as an extra line and inflates the total.
 - A created invoice is `Draft`. Set all three `send_new_invoice_emails`, `send_reminder_emails`, `send_thank_you_emails` to `false`.
 - Removing a line: `DELETE invoice_items/<id>` works. `PUT` with `_destroy` (`1` or `true`) did not remove it.
+- Listing (**unverified**, check against a live account): `GET invoices?view=` `open_or_overdue`, `open`, `overdue`, `draft`, `paid`; filters `contact=<url>`, `from_date`, `to_date`. Payment fields `status`, `due_on`, `total_value`, `due_value`, `currency`. Paginate with `per_page=100&page=N`.
 - Reading past invoices (`GET invoices?project=...`, then `GET invoices/<id>`) is the best source for reference format, terms, description style and VAT.
 - Verify after creating: status, line count, net = quantity x rate, VAT, emails off.
 
