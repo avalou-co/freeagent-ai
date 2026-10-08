@@ -5,7 +5,7 @@
     {
       "name": "freeagent-ai",
       "source": "./",
-      "description": "Generic FreeAgent API workflows for agents: timesheets and invoicing."
+      "description": "Generic FreeAgent API workflows for agents: timesheets, invoicing, expenses, bills, bank reconciliation and reports."
     }
   ]
 }
