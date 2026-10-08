@@ -6,8 +6,20 @@ The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see 
 
 For local development: `pip install -e '.[mcp]'` and `freeagent-ai mcp`.
 
-## ChatGPT
+## ChatGPT / remote HTTP
 
 ChatGPT connects to remote servers only, so it needs `freeagent-ai mcp --http` (serves `http://127.0.0.1:8000/mcp`) reachable over public HTTPS, added as a custom connector in developer mode.
 
-**The HTTP server has no authentication.** Anyone who reaches the URL can read and write your FreeAgent account. Do not expose it through a public tunnel until auth is added.
+**HTTP mode requires a bearer token and fails closed.** Set `FREEAGENT_MCP_TOKEN` to a random secret of at least 32 ASCII characters before starting; without it the server refuses to start. Every request must send `Authorization: Bearer <token>`; others get `401` before any FreeAgent call. stdio mode needs no token.
+
+```sh
+export FREEAGENT_MCP_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+freeagent-ai mcp --http
+```
+
+Secure remote setup:
+
+- Keep the default `--host 127.0.0.1` and expose it only through an HTTPS tunnel or reverse proxy. The token is sent in a header, so never serve it over plain HTTP across a network.
+- Treat the token like a password: keep it out of shell history, repos and logs, and rotate it (restart with a new value) if it may have leaked. Anyone holding it can read and write your FreeAgent account.
+- The connector client must be able to send a custom `Authorization: Bearer` header. If it cannot, do not use remote mode.
+- This is a single static shared secret, not OAuth. Get an independent security review before relying on it for remote use.
