@@ -4,6 +4,10 @@ Run over stdio for Claude Code or Codex (`freeagent-ai mcp`), or over
 streamable HTTP for ChatGPT (`freeagent-ai mcp --http`). Needs the `mcp` extra.
 """
 
+import base64
+import mimetypes
+from pathlib import Path
+
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
@@ -19,6 +23,7 @@ mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
+RECEIPT_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/gif"}
 
 
 def _path(ref):
@@ -27,6 +32,15 @@ def _path(ref):
     if "://" in path or path.startswith("/") or ".." in path:
         raise ValueError(f"not a FreeAgent API path: {ref}")
     return path
+
+
+def _attachment(path):
+    """Encode a local PDF/PNG/JPG/GIF file as a FreeAgent attachment."""
+    file = Path(path)
+    kind = mimetypes.guess_type(file.name)[0]
+    if kind not in RECEIPT_TYPES:
+        raise ValueError(f"attachment must be PDF, PNG, JPG or GIF: {path}")
+    return {"file_name": file.name, "content_type": kind, "data": base64.b64encode(file.read_bytes()).decode()}
 
 
 @mcp.tool(annotations=READ)
@@ -125,6 +139,37 @@ def create_draft_invoice(
     if include_timeslips:
         inv["include_timeslips"] = "billed_grouped_by_timeslip"
     created = call("POST", "invoices", {"invoice": inv})["invoice"]
+    return call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_expense(
+    user: str,
+    category: str,
+    dated_on: str,
+    gross_value: str,
+    description: str,
+    sales_tax_rate: str = "",
+    receipt_path: str = "",
+) -> dict:
+    """Create one expense claim and return it as FreeAgent holds it. `user` and `category` are
+    resource URLs (list categories with freeagent_get 'categories'); `dated_on` is YYYY-MM-DD;
+    `gross_value` is the total including VAT as a decimal string, negative for money spent
+    (e.g. '-12.50'; check the sign against an existing expense); `sales_tax_rate` e.g. '20.0'.
+    `receipt_path` is an optional local PDF/PNG/JPG/GIF file to attach. Check for an existing
+    expense on that date first."""
+    exp: dict = {
+        "user": user,
+        "category": category,
+        "dated_on": dated_on,
+        "gross_value": gross_value,
+        "description": description,
+    }
+    if sales_tax_rate:
+        exp["sales_tax_rate"] = sales_tax_rate
+    if receipt_path:
+        exp["attachment"] = _attachment(receipt_path)
+    created = call("POST", "expenses", {"expense": exp})["expense"]
     return call("GET", _path(created["url"]))
 
 

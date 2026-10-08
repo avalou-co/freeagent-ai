@@ -79,6 +79,36 @@ def test_create_contact_posts_only_given_fields_and_reads_back(monkeypatch):
         mcp_server.create_contact(first_name="Bob")
 
 
+def test_expense_attaches_receipt_and_reads_back(monkeypatch, tmp_path):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"expense": {"url": BASE + "expenses/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    receipt = tmp_path / "r.pdf"
+    receipt.write_bytes(b"%PDF")
+    mcp_server.create_expense(
+        BASE + "users/1", BASE + "categories/285", "2026-10-07", "-12.50", "Train", "20.0", str(receipt)
+    )
+    exp = calls[0][2]["expense"]
+    assert exp["attachment"] == {"file_name": "r.pdf", "content_type": "application/pdf", "data": "JVBERg=="}
+    assert exp["sales_tax_rate"] == "20.0"
+    assert calls[1][:2] == ("GET", "expenses/5")
+
+
+def test_expense_rejects_other_receipt_types(tmp_path):
+    bad = tmp_path / "x.exe"
+    bad.write_bytes(b"x")
+    with pytest.raises(ValueError):
+        mcp_server.create_expense("u", "c", "2026-10-07", "-1", "d", receipt_path=str(bad))
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+
+
 def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
     calls = []
 
@@ -108,6 +138,7 @@ def test_tools_registered_with_hints():
         "create_contact",
         "create_timeslip",
         "create_draft_invoice",
+        "create_expense",
         "create_draft_estimate",
         "create_project",
         "create_task",

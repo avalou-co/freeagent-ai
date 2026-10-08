@@ -8,8 +8,8 @@ Nothing here is specific to one business. Your contact, project and bank-account
 
 ## What you get
 
-- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`) and draft estimates (`estimates`).
-- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices and draft estimates.
+- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and draft estimates (`estimates`).
+- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses and draft estimates.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
 
@@ -24,7 +24,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 /plugin install freeagent-ai@freeagent-ai
 ```
 
-The skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`, and the MCP server is set up for you.
+The skills appear as `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing` and `/freeagent-ai:expenses`, and the MCP server is set up for you.
 
 ### Codex
 
