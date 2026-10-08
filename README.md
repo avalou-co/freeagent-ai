@@ -2,14 +2,14 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-freeagent--ai-black)](https://skills.sh/avalou-co/freeagent-ai)
 
-Let AI agents (Claude Code, Codex, ChatGPT) work with your [FreeAgent](https://www.freeagent.com) account: log time, create draft invoices and read your accounting data, with safety rules built in.
+Let AI agents (Claude Code, Codex, ChatGPT) work with your [FreeAgent](https://www.freeagent.com) account: log time, create contacts and draft invoices and read your accounting data, with safety rules built in.
 
 Nothing here is specific to one business. Your contact, project and bank-account IDs, rates and client rules stay with you and are given to the agent alongside these docs (see "Your business details").
 
 ## What you get
 
 - **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`).
-- **MCP server**: tools for reading FreeAgent data and creating timeslips and draft invoices.
+- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating timeslips and draft invoices.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
 
