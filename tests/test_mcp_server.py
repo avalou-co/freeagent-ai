@@ -44,6 +44,24 @@ def test_find_contacts_filters_across_pages(monkeypatch):
     assert len(mcp_server.find_contacts("acme")) == 2
 
 
+def test_create_project_and_task_read_back(monkeypatch):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"project": {"url": BASE + "projects/5"}, "task": {"url": BASE + "tasks/6"}} if method == "POST" else {}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    mcp_server.create_project(BASE + "contacts/1", "Acme", "GBP", "500", budget="20")
+    project = calls[0][2]["project"]
+    assert (calls[0][1], project["status"], project["budget_units"]) == ("projects", "Active", "Days")
+    assert calls[1][:2] == ("GET", "projects/5")
+    mcp_server.create_task(BASE + "projects/5", "Dev", "500")
+    assert calls[2][1] == f"tasks?project={BASE}projects/5"
+    assert calls[2][2]["task"]["billing_period"] == "day"
+    assert calls[3][:2] == ("GET", "tasks/6")
+
+
 def test_create_contact_posts_only_given_fields_and_reads_back(monkeypatch):
     calls = []
 
@@ -91,24 +109,6 @@ def test_expense_rejects_other_receipt_types(tmp_path):
         calls.append((method, path, body))
 
 
-def test_create_bill_attaches_file_and_reads_back(monkeypatch, tmp_path):
-    calls = []
-
-    def fake(method, path, body=None):
-        calls.append((method, path, body))
-        return {"bill": {"url": BASE + "bills/5"}}
-
-    monkeypatch.setattr(mcp_server, "call", fake)
-    pdf = tmp_path / "inv.pdf"
-    pdf.write_bytes(b"%PDF")
-    items = [{"category": BASE + "categories/285", "description": "Hosting", "total_value": "100.00"}]
-    mcp_server.create_bill(BASE + "contacts/1", "INV-1", "2026-10-01", "2026-10-31", items, str(pdf))
-    bill = calls[0][2]["bill"]
-    assert bill["bill_items"] == items
-    assert bill["attachment"] == {"file_name": "inv.pdf", "content_type": "application/pdf", "data": "JVBERg=="}
-    assert calls[1][:2] == ("GET", "bills/5")
-
-
 def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
     calls = []
 
@@ -130,6 +130,24 @@ def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
     assert out["estimate"]["status"] == "Draft"
 
 
+def test_create_bill_attaches_file_and_reads_back(monkeypatch, tmp_path):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"bill": {"url": BASE + "bills/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    pdf = tmp_path / "inv.pdf"
+    pdf.write_bytes(b"%PDF")
+    items = [{"category": BASE + "categories/285", "description": "Hosting", "total_value": "100.00"}]
+    mcp_server.create_bill(BASE + "contacts/1", "INV-1", "2026-10-01", "2026-10-31", items, str(pdf))
+    bill = calls[0][2]["bill"]
+    assert bill["bill_items"] == items
+    assert bill["attachment"] == {"file_name": "inv.pdf", "content_type": "application/pdf", "data": "JVBERg=="}
+    assert calls[1][:2] == ("GET", "bills/5")
+
+
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
@@ -139,8 +157,10 @@ def test_tools_registered_with_hints():
         "create_timeslip",
         "create_draft_invoice",
         "create_expense",
-        "create_bill",
         "create_draft_estimate",
+        "create_project",
+        "create_task",
+        "create_bill",
     }
     assert tools["freeagent_get"].annotations.read_only_hint
     assert not tools["create_timeslip"].annotations.read_only_hint
