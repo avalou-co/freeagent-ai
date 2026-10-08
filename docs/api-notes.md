@@ -33,6 +33,14 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Unpaid and overdue: `GET bills?view=open` and `GET bills?view=overdue`.
 - Categories: `GET categories`. Check `GET bills?from_date=&to_date=` for the same reference before posting.
 
+## Estimates
+
+- `POST estimates` body: `{"estimate": {"contact", "dated_on", "currency", "estimate_items": [{"description", "item_type", "quantity", "price"}]}}`; `project` is optional. Amounts are strings.
+- Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
+- List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
+- Not yet supported: converting an approved estimate to an invoice.
+- Verify after creating: status, line count, net = quantity x price.
+
 ## General
 
 - Rate-limit and server errors raise `urllib.error.HTTPError`; the body usually names the problem.
