@@ -1,5 +1,7 @@
 # freeagent-ai
 
+[![skills.sh](https://img.shields.io/badge/skills.sh-freeagent--ai-black)](https://skills.sh/avalou-co/freeagent-ai)
+
 Let AI agents (Claude Code, Codex, ChatGPT) work with your [FreeAgent](https://www.freeagent.com) account: log time, create draft invoices and read your accounting data, with safety rules built in.
 
 Nothing here is specific to one business. Your contact, project and bank-account IDs, rates and client rules stay with you and are given to the agent alongside these docs (see "Your business details").
@@ -33,6 +35,29 @@ codex plugin marketplace add avalou-co/freeagent-ai
 ```
 
 Then install `freeagent-ai` from the plugin list.
+
+### Other agents (skills.sh)
+
+Install just the skills into any agent supported by [skills.sh](https://skills.sh/avalou-co/freeagent-ai):
+
+```bash
+npx skills add avalou-co/freeagent-ai
+```
+
+This copies the skills only. They need the `freeagent` MCP server's tools, so also add the server to your agent (requires [uv](https://docs.astral.sh/uv/)):
+
+```json
+{
+  "mcpServers": {
+    "freeagent": {
+      "command": "uvx",
+      "args": ["--from", "freeagent-ai[mcp] @ git+https://github.com/avalou-co/freeagent-ai", "freeagent-ai", "mcp"]
+    }
+  }
+}
+```
+
+See `docs/mcp.md` for client-specific setup.
 
 ### ChatGPT and other MCP clients
 
