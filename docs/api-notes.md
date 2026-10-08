@@ -19,10 +19,8 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Bank explanations
 
-All details here are unverified against the live API; check the first response.
-
 - `GET bank_accounts` lists accounts; `GET bank_transactions?bank_account=<url>&view=unexplained` lists transactions still needing explanation.
-- `POST bank_transaction_explanations` body: `{"bank_transaction_explanation": {"bank_transaction", "dated_on", "gross_value", ...}}` plus one of `category` (URL), `paid_invoice` (URL) or `paid_bill` (URL). `gross_value` is assumed to carry the transaction's sign.
+- `POST bank_transaction_explanations` body: `{"bank_transaction_explanation": {"bank_transaction", "dated_on", "gross_value", ...}}` plus one of `category` (URL), `paid_invoice` (URL) or `paid_bill` (URL). `gross_value` carries the transaction's sign.
 - Match invoices/bills by amount and contact: `GET invoices?view=open` / `GET bills?view=open`. A partial explanation may leave the transaction partly unexplained; re-read it afterwards.
 - Category URLs and any VAT treatment come from the business's own instructions; never guess them.
 

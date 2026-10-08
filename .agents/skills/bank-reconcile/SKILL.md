@@ -14,4 +14,4 @@ Generic. The business supplies which bank account to use, its categories, and an
 4. Show the proposals as a table and get a clear yes per item. Never batch-approve unless the user says so.
 5. For each approved item, call `explain_bank_transaction`. Report what FreeAgent holds from the read-back, and any transaction left partly unexplained.
 
-Only explain transactions the user approved; do not edit or delete existing explanations. See `docs/api-notes.md` (bank explanations are unverified) and follow `docs/agent-rules.md` throughout.
+Only explain transactions the user approved; do not edit or delete existing explanations. See `docs/api-notes.md` and follow `docs/agent-rules.md` throughout.
