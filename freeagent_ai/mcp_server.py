@@ -37,6 +37,53 @@ def freeagent_get(path: str) -> dict:
     return call("GET", _path(path))
 
 
+@mcp.tool(annotations=READ)
+def find_contacts(query: str) -> list:
+    """List contacts whose organisation, name or email contains `query` (case-insensitive).
+    Use before create_contact to avoid duplicates, and to get the contact URL for invoicing."""
+    q, found, page = query.lower(), [], 1
+    while True:
+        batch = call("GET", f"contacts?view=all&per_page=100&page={page}")["contacts"]
+        fields = ("organisation_name", "first_name", "last_name", "email")
+        found += [c for c in batch if any(q in (c.get(f) or "").lower() for f in fields)]
+        if len(batch) < 100:
+            return found
+        page += 1
+
+
+@mcp.tool(annotations=WRITE)
+def create_contact(
+    organisation_name: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    email: str = "",
+    address1: str = "",
+    town: str = "",
+    postcode: str = "",
+    country: str = "",
+    payment_terms_in_days: int = 0,
+) -> dict:
+    """Create one contact and return it as FreeAgent holds it. Needs an organisation name or
+    both first and last name. Run find_contacts first to avoid duplicates."""
+    if not (organisation_name or (first_name and last_name)):
+        raise ValueError("give organisation_name, or both first_name and last_name")
+    fields = {
+        "organisation_name": organisation_name,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+        "address1": address1,
+        "town": town,
+        "postcode": postcode,
+        "country": country,
+    }
+    contact: dict = {k: v for k, v in fields.items() if v}
+    if payment_terms_in_days:
+        contact["default_payment_terms_in_days"] = payment_terms_in_days
+    created = call("POST", "contacts", {"contact": contact})["contact"]
+    return call("GET", _path(created["url"]))
+
+
 @mcp.tool(annotations=WRITE)
 def create_timeslip(user: str, project: str, task: str, dated_on: str, hours: str, comment: str = "") -> dict:
     """Create one timeslip and return it as FreeAgent holds it. `user`, `project`, `task`
