@@ -8,8 +8,8 @@ Nothing here is specific to one business. Your contact, project and bank-account
 
 ## What you get
 
-- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`) and explaining bank transactions (`bank-reconcile`).
-- **MCP server**: tools for reading FreeAgent data and creating timeslips, draft invoices and bank explanations.
+- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), explaining bank transactions (`bank-reconcile`) and draft estimates (`estimates`).
+- **MCP server**: tools for reading FreeAgent data and creating timeslips, draft invoices, bank explanations and draft estimates.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
 

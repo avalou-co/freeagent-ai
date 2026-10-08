@@ -24,6 +24,14 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Match invoices/bills by amount and contact: `GET invoices?view=open` / `GET bills?view=open`. A partial explanation may leave the transaction partly unexplained; re-read it afterwards.
 - Category URLs and any VAT treatment come from the business's own instructions; never guess them.
 
+## Estimates
+
+- `POST estimates` body: `{"estimate": {"contact", "dated_on", "currency", "estimate_items": [{"description", "item_type", "quantity", "price"}]}}`; `project` is optional. Amounts are strings.
+- Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
+- List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
+- Not yet supported: converting an approved estimate to an invoice.
+- Verify after creating: status, line count, net = quantity x price.
+
 ## General
 
 - Rate-limit and server errors raise `urllib.error.HTTPError`; the body usually names the problem.
