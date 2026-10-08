@@ -16,8 +16,11 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 |-------|---------|
 | `timesheets` | Logging time as timeslips for a date range |
 | `invoicing` | Creating draft invoices, optionally from timeslips |
-| `reports` | Read-only P&L, balance sheet, trial balance, cash, overdue invoices and bills |
+| `expenses` | Recording expense claims with receipts |
 | `estimates` | Creating draft estimates/quotes with line items |
+| `bills` | Recording supplier bills, listing unpaid or overdue ones |
+| `bank-reconcile` | Listing unexplained bank transactions and proposing explanations |
+| `reports` | Read-only P&L, balance sheet, trial balance, cash, overdue invoices and bills |
 
 ## Calling the API
 
