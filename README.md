@@ -29,14 +29,14 @@ Installs the skills and the MCP server (run via `uvx`, so install [uv](https://d
 
 Claude Code:
 ```
-/plugin marketplace add QuatechOrg/freeagent-ai
+/plugin marketplace add avalou/freeagent-ai
 /plugin install freeagent-ai@freeagent-ai
 ```
 Skills appear as `/freeagent-ai:timesheets` and `/freeagent-ai:invoicing`.
 
 Codex:
 ```bash
-codex plugin marketplace add QuatechOrg/freeagent-ai
+codex plugin marketplace add avalou/freeagent-ai
 ```
 then install `freeagent-ai` from the plugin list.
 
