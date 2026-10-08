@@ -27,12 +27,10 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Bills
 
-Unverified against the live API (written from the FreeAgent docs, not yet tried); confirm on first real use.
-
 - `POST bills` body: `{"bill": {"contact", "reference", "dated_on", "due_on", "bill_items": [{"category", "description", "total_value", "sales_tax_rate"}]}}` with full resource URLs and decimal strings. Whether `total_value` is net or gross, and the sign convention, need checking against an existing bill.
 - `sales_tax_rate` (e.g. `"20.0"`) sets VAT per line; the category may need to allow it.
-- Attachment: `attachment: {file_name, content_type, data}` with `data` base64. Believed to accept PDF, PNG, JPG, GIF with a size limit; the tool allows only those types.
-- Unpaid and overdue: `GET bills?view=open` and `GET bills?view=overdue` (view names unverified; also try `bills?view=open_or_overdue`).
+- Attachment: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF with a size limit; the tool allows only those types.
+- Unpaid and overdue: `GET bills?view=open` and `GET bills?view=overdue`.
 - Categories: `GET categories`. Check `GET bills?from_date=&to_date=` for the same reference before posting.
 
 ## General

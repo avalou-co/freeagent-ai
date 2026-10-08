@@ -8,7 +8,7 @@ argument-hint: "[supplier]"
 
 Generic. The business supplies the supplier, categories, VAT treatment and how bills are attached. Ask for them or find them in the business's own instructions.
 
-Listing: `freeagent_get` `bills?view=open` (unpaid) or `bills?view=overdue` (view names unverified, see `docs/api-notes.md`).
+Listing: `freeagent_get` `bills?view=open` (unpaid) or `bills?view=overdue`.
 
 Recording:
 
