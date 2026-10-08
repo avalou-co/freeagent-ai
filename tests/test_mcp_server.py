@@ -51,6 +51,7 @@ def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
     assert est["estimate_items"] == items
     assert est["reference"] == "EST-1"
     assert "project" not in est
+    assert "currency" not in est
     assert calls[1][:2] == ("GET", "estimates/4")
     assert out["estimate"]["status"] == "Draft"
 

@@ -83,14 +83,16 @@ def create_draft_invoice(
 
 @mcp.tool(annotations=WRITE)
 def create_draft_estimate(
-    contact: str, dated_on: str, items: list[dict], project: str = "", reference: str = "", currency: str = "GBP"
+    contact: str, dated_on: str, items: list[dict], project: str = "", reference: str = "", currency: str = ""
 ) -> dict:
     """Create a Draft estimate (never sent) and return it as FreeAgent holds it. `contact` and
     `project` are resource URLs; `items` are lines like {"description": "Design", "item_type": "Days",
-    "quantity": "2", "price": "400"}. Copy reference style and currency from the contact's latest estimate."""
-    est = {"contact": contact, "dated_on": dated_on, "currency": currency, "status": "Draft", "estimate_items": items}
+    "quantity": "2", "price": "400"}. Currency defaults to FreeAgent's; copy reference style and currency from the contact's latest estimate."""
+    est = {"contact": contact, "dated_on": dated_on, "status": "Draft", "estimate_items": items}
     if project:
         est["project"] = project
+    if currency:
+        est["currency"] = currency
     if reference:
         est["reference"] = reference
     created = call("POST", "estimates", {"estimate": est})["estimate"]
