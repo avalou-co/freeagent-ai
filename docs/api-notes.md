@@ -17,6 +17,16 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Reading past invoices (`GET invoices?project=...`, then `GET invoices/<id>`) is the best source for reference format, terms, description style and VAT.
 - Verify after creating: status, line count, net = quantity x rate, VAT, emails off.
 
+## Estimates
+
+All unverified against a live account; check the first real response and correct these notes.
+
+- `POST estimates` body: `{"estimate": {"contact", "dated_on", "currency", "estimate_items": [{"description", "item_type", "quantity", "price"}]}}`; `project` is optional. Amounts are strings.
+- Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
+- List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
+- Not yet supported: converting an approved estimate to an invoice (the API's mechanism is unverified).
+- Verify after creating: status, line count, net = quantity x price.
+
 ## General
 
 - Rate-limit and server errors raise `urllib.error.HTTPError`; the body usually names the problem.
