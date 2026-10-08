@@ -19,11 +19,9 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Expenses
 
-Unverified against the live API (written from the FreeAgent docs, not yet tried); confirm on first real use.
-
-- `POST expenses` body: `{"expense": {"user", "category", "dated_on", "gross_value", "description"}}` with full resource URLs and `gross_value` as a string including VAT. Expenses are probably negative (`"-12.50"`): check the sign on an existing expense.
+- `POST expenses` body: `{"expense": {"user", "category", "dated_on", "gross_value", "description"}}` with full resource URLs and `gross_value` as a string including VAT. Expenses are negative (`"-12.50"`).
 - `sales_tax_rate` (e.g. `"20.0"`) sets VAT; the category may need to allow it.
-- Receipt: `attachment: {file_name, content_type, data}` with `data` base64. Believed to accept PDF, PNG, JPG, GIF with a size limit; the tool allows only those types.
+- Receipt: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF with a size limit; the tool allows only those types.
 - Categories: `GET categories`; admin expenses categories are the ones valid for expense claims.
 - Check `GET expenses?from_date=&to_date=` for duplicates before posting.
 
