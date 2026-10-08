@@ -14,6 +14,7 @@ import datetime
 import hmac
 import json
 import os
+import re
 import secrets
 import tempfile
 import time
@@ -21,6 +22,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BASE = "https://api.freeagent.com/v2/"
@@ -97,33 +99,99 @@ def token_expiry():
     return datetime.datetime.fromisoformat(exp) if exp else None
 
 
-def call(method, path, body=None, _retry=True):
-    """Call the API. `path` is relative to /v2/ (e.g. 'timeslips?from_date=...').
-
-    Returns parsed JSON, or the status code for empty responses. Refreshes the
-    access token once on a 401. Raises urllib.error.HTTPError otherwise,
-    including for any redirect (never followed, so credentials stay on the API origin).
-    """
-    creds = _load()
-    req = urllib.request.Request(
-        BASE + path,
-        data=json.dumps(body).encode() if body is not None else None,
-        method=method,
-        headers={
-            "Authorization": "Bearer " + creds["access_token"],
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        },
-    )
+def _retry_delay(value, attempt):
+    """Return a Retry-After delay, or exponential backoff for missing/invalid headers."""
     try:
-        resp = _opener.open(req)
-        raw = resp.read()
-        return json.loads(raw) if raw else resp.status
-    except urllib.error.HTTPError as e:
-        if e.code == 401 and _retry:
-            _refresh(creds)
-            return call(method, path, body, _retry=False)
-        raise
+        delay = float(value)
+    except (TypeError, ValueError):
+        try:
+            date = parsedate_to_datetime(value)
+            delay = (date - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
+        except (TypeError, ValueError, OverflowError):
+            delay = 2**attempt
+    return max(0, delay)
+
+
+def _request(method, path, body, refresh=True):
+    creds = _load()
+    attempt = 0
+    while True:
+        req = urllib.request.Request(
+            BASE + path,
+            data=json.dumps(body).encode() if body is not None else None,
+            method=method,
+            headers={
+                "Authorization": "Bearer " + creds["access_token"],
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with _opener.open(req) as resp:
+                raw = resp.read()
+                return (json.loads(raw) if raw else resp.status), resp.headers.get("Link", "")
+        except urllib.error.HTTPError as e:
+            if e.code == 401 and refresh:
+                e.close()
+                creds = _refresh(creds)
+                refresh = False
+                continue
+            if e.code == 429 and method == "GET" and attempt < 3:
+                delay = _retry_delay(e.headers.get("Retry-After"), attempt)
+                # Never retry earlier than requested; surface waits beyond our budget.
+                if not delay <= 60:
+                    raise
+                e.close()
+                time.sleep(delay)
+                attempt += 1
+                continue
+            raise
+
+
+def _next_path(link, current):
+    for target, params in re.findall(r"<([^>]+)>([^,]*)", link):
+        rel = re.search(r';\s*rel\s*=\s*(?:"([^"]*)"|([^;\s]+))', params, re.IGNORECASE)
+        if rel and "next" in (rel.group(1) or rel.group(2)).split():
+            url = urllib.parse.urljoin(BASE + current, target)
+            base, parsed = urllib.parse.urlsplit(BASE), urllib.parse.urlsplit(url)
+            if (
+                parsed.scheme != base.scheme
+                or parsed.netloc != base.netloc
+                or not parsed.path.startswith(base.path)
+                or parsed.fragment
+                or ".." in urllib.parse.unquote(parsed.path).split("/")
+            ):
+                raise ValueError("Pagination link is outside the FreeAgent API")
+            return url[len(BASE) :]
+    return None
+
+
+def call(method, path, body=None, _retry=True, *, paginate=True):
+    """Call a /v2/-relative API path, returning JSON or an empty response's status.
+
+    GETs aggregate list fields across Link rel=next pages by default. Set paginate=False
+    for one page. GET 429s retry at most three times with waits of at most 60 seconds;
+    writes are never retried on 429. Refreshes once per page on 401; refuses redirects.
+    """
+    method = method.upper()
+    result, link = _request(method, path, body, _retry)
+    if method != "GET" or not paginate:
+        return result
+    seen = {path}
+    while next_path := _next_path(link, path):
+        if next_path in seen or len(seen) >= 1000:
+            raise ValueError("Pagination cycle or page limit exceeded")
+        seen.add(next_path)
+        page, link = _request(method, next_path, body, _retry)
+        if not isinstance(result, dict) or not isinstance(page, dict):
+            raise ValueError("Expected object responses for pagination")
+        lists = [key for key, value in result.items() if isinstance(value, list)]
+        if not lists or any(not isinstance(page.get(key), list) for key in lists):
+            raise ValueError("Inconsistent pagination response")
+        for key in lists:
+            result[key].extend(page[key])
+        path = next_path
+    return result
 
 
 def login(timeout=300):

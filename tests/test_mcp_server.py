@@ -40,7 +40,7 @@ def test_find_contacts_filters_across_pages(monkeypatch):
         1: [{"organisation_name": "Other"}] * 99 + [{"organisation_name": "Acme Ltd"}],
         2: [{"first_name": "Bob", "email": "ACME@x.com"}, {"organisation_name": None}],
     }
-    monkeypatch.setattr(mcp_server, "call", lambda m, path, body=None: {"contacts": pages[int(path[-1])]})
+    monkeypatch.setattr(mcp_server, "call", lambda m, path, body=None: {"contacts": pages[1] + pages[2]})
     assert len(mcp_server.find_contacts("acme")) == 2
 
 
@@ -185,3 +185,16 @@ def test_tools_registered_with_hints():
     }
     assert tools["freeagent_get"].annotations.read_only_hint
     assert not tools["create_timeslip"].annotations.read_only_hint
+
+
+def test_freeagent_get_exposes_pagination(monkeypatch):
+    calls = []
+
+    def fake(method, path, **kwargs):
+        calls.append((method, path, kwargs))
+        return {"invoices": []}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    mcp_server.freeagent_get("invoices")
+    mcp_server.freeagent_get("invoices?page=2", paginate=False)
+    assert calls == [("GET", "invoices", {"paginate": True}), ("GET", "invoices?page=2", {"paginate": False})]

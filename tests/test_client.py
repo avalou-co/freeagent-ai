@@ -251,3 +251,157 @@ def test_login_times_out_and_releases_port(login_env):
     assert exchanges == []
     with HTTPServer(("127.0.0.1", client.PORT), BaseHTTPRequestHandler):
         pass  # listener closed: port can be bound again
+
+
+@pytest.fixture
+def responses(monkeypatch):
+    from email.message import Message
+    from io import BytesIO
+
+    queue, requests, sleeps = [], [], []
+
+    class Response(BytesIO):
+        status = 200
+
+        def __init__(self, data, link):
+            super().__init__(json.dumps(data).encode())
+            self.headers = Message()
+            if link:
+                self.headers["Link"] = link
+
+    def open_request(req):
+        requests.append(req)
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return Response(*item)
+
+    monkeypatch.setattr(client, "_load", lambda: dict(CREDS))
+    monkeypatch.setattr(client._opener, "open", open_request)
+    monkeypatch.setattr(client.time, "sleep", sleeps.append)
+    return queue, requests, sleeps
+
+
+def test_paginate_preserves_filters_and_combines_pages(responses):
+    queue, requests, _ = responses
+    queue.extend(
+        [
+            ({"invoices": [{"id": 1}]}, '<?view=overdue&page=2>; rel="next", <invoices?page=1>; rel="prev"'),
+            ({"invoices": [{"id": 2}]}, ""),
+        ]
+    )
+    assert client.call("GET", "invoices?view=overdue") == {"invoices": [{"id": 1}, {"id": 2}]}
+    assert requests[1].full_url == client.BASE + "invoices?view=overdue&page=2"
+
+
+def test_single_page_opt_out(responses):
+    queue, requests, _ = responses
+    queue.append(({"timeslips": []}, '<timeslips?page=2>; rel="next"'))
+    assert client.call("GET", "timeslips", paginate=False) == {"timeslips": []}
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "target", ["https://evil.example/v2/invoices", "http://api.freeagent.com/v2/invoices", "/token_endpoint"]
+)
+def test_unsafe_next_link_rejected(responses, target):
+    queue, requests, _ = responses
+    queue.append(({"invoices": []}, f'<{target}>; rel="next"'))
+    with pytest.raises(ValueError, match="outside"):
+        client.call("GET", "invoices")
+    assert len(requests) == 1
+
+
+def test_pagination_cycle_rejected(responses):
+    queue, requests, _ = responses
+    queue.append(({"invoices": []}, '<invoices>; rel="next"'))
+    with pytest.raises(ValueError, match="cycle"):
+        client.call("GET", "invoices")
+    assert len(requests) == 1
+
+
+def rate_limit(value=None):
+    from email.message import Message
+
+    headers = Message()
+    if value is not None:
+        headers["Retry-After"] = value
+    return urllib.error.HTTPError(client.BASE + "invoices", 429, "limited", headers, None)
+
+
+@pytest.mark.parametrize("header,delay", [("2", 2), ("60", 60), (None, 1), ("invalid", 1)])
+def test_rate_limit_then_success(responses, header, delay):
+    queue, requests, sleeps = responses
+    queue.extend([rate_limit(header), ({"invoices": []}, "")])
+    assert client.call("GET", "invoices") == {"invoices": []}
+    assert sleeps == [delay]
+    assert len(requests) == 2
+
+
+def test_rate_limit_exhaustion(responses):
+    queue, requests, sleeps = responses
+    queue.extend([rate_limit()] * 4)
+    with pytest.raises(urllib.error.HTTPError):
+        client.call("GET", "invoices")
+    assert sleeps == [1, 2, 4]
+    assert len(requests) == 4
+
+
+@pytest.mark.parametrize("method,header", [("POST", "1"), ("GET", "61")])
+def test_write_or_long_delay_is_not_retried(responses, method, header):
+    queue, requests, sleeps = responses
+    queue.append(rate_limit(header))
+    with pytest.raises(urllib.error.HTTPError):
+        client.call(method, "invoices")
+    assert len(requests) == 1
+    assert sleeps == []
+
+
+def test_retry_after_http_date():
+    from email.utils import format_datetime
+
+    future = client.datetime.datetime.now(client.datetime.timezone.utc) + client.datetime.timedelta(seconds=10)
+    assert 8 <= client._retry_delay(format_datetime(future, usegmt=True), 0) <= 10
+
+
+def test_rate_limit_on_later_page(responses):
+    queue, _, sleeps = responses
+    queue.extend(
+        [
+            ({"bank_transactions": [1]}, '<bank_transactions?page=2>; rel="next"'),
+            rate_limit("0"),
+            ({"bank_transactions": [2]}, ""),
+        ]
+    )
+    assert client.call("GET", "bank_transactions") == {"bank_transactions": [1, 2]}
+    assert sleeps == [0]
+
+
+def test_refresh_on_later_page_uses_new_token(responses, monkeypatch):
+    from email.message import Message
+
+    queue, requests, _ = responses
+    creds = dict(CREDS)
+    monkeypatch.setattr(client, "_load", lambda: creds)
+
+    def refresh(current):
+        current["access_token"] = "new"
+        return current
+
+    monkeypatch.setattr(client, "_refresh", refresh)
+    queue.extend(
+        [
+            ({"invoices": [1]}, '<invoices?page=2>; rel="next"'),
+            urllib.error.HTTPError(client.BASE + "invoices?page=2", 401, "expired", Message(), None),
+            ({"invoices": [2]}, ""),
+        ]
+    )
+    assert client.call("GET", "invoices") == {"invoices": [1, 2]}
+    assert [req.get_header("Authorization") for req in requests] == ["Bearer c", "Bearer c", "Bearer new"]
+
+
+def test_inconsistent_page_raises_instead_of_returning_partial_results(responses):
+    queue, _, _ = responses
+    queue.extend([({"invoices": [1]}, '<invoices?page=2>; rel="next"'), ({"error": "bad response"}, "")])
+    with pytest.raises(ValueError, match="Inconsistent"):
+        client.call("GET", "invoices")
