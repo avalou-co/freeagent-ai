@@ -1,6 +1,6 @@
 # MCP server
 
-Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `update_created_entry` and `delete_created_entry` correct eligible entries created in the same task. Writes read back and return what FreeAgent holds.
+Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `freeagent_post`, `freeagent_put` and `freeagent_delete` expose API writes directly. Convenience create tools read back automatically; generic write tools return the API response and the agent follows with `freeagent_get`.
 
 The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
 
@@ -37,51 +37,34 @@ Secure remote setup:
 
 ## Correcting entries created in a task
 
-Follow the [shared correction rules](agent-rules.md#correcting-entries-created-in-the-current-task).
-After approval, pass `confirmed=True`:
+`freeagent_post(path, body, confirmed)`, `freeagent_put(path, body, confirmed)` and
+`freeagent_delete(path, confirmed)` are thin API wrappers. Paths are relative to
+`/v2/` or full FreeAgent API URLs, as with `freeagent_get`. Request bodies are
+passed unchanged, including the API's root object. The tools constrain requests
+to FreeAgent's API origin and reject path traversal; accounting, model, field and
+relationship validation belong to FreeAgent.
+
+Follow the [shared agent rules](agent-rules.md#correcting-entries-created-in-the-current-task).
+After approval, send the exact API payload and read back the resource:
 
 ```python
-update_created_entry("timeslip", timeslip_url, {"hours": "7.5"}, True)
-delete_created_entry("invoice", invoice_url, True)
+freeagent_put(invoice_url, {"invoice": {"reference": "INV-2"}}, True)
+freeagent_get(invoice_url)
+freeagent_delete(invoice_url, True)
+freeagent_get(invoice_url)  # HTTP 404 verifies absence
 ```
 
-The agent must verify that it created the entry during the current user request.
-Ownership and human approval are governed by agent instructions, not server
-provenance tracking. `confirmed` records the agent's assertion of user approval.
-The server re-reads the entry before writing and applies these status gates:
+Use the provider's documented endpoint for line-item edits or status transitions;
+there is no local line orchestration. For endpoints whose state is visible on a
+parent resource, read that parent after writing. Generic write tools return the
+API JSON response or the HTTP status for an empty response. They do not override
+email settings, impose field allowlists, check billing/payment status, track task
+ownership or verify readback automatically. Existing named create tools remain
+convenience wrappers for their documented workflows.
 
-- Timeslips: not billed on any invoice, and no running timer.
-- Invoices and estimates: exactly `Draft`; no sending or status changes.
-- Expenses: not rebilled on an invoice.
-- Bills: wholly unpaid (zero `paid_value`), `Open`, `Overdue` or `Zero Value`, and not rebilled.
-
-Supported changes:
-
-| Type | Fields |
-|------|--------|
-| `timeslip` | `dated_on`, `hours`, `comment` |
-| `invoice` | `dated_on`, `payment_terms_in_days`, `reference`, `comments`, `invoice_items` |
-| `estimate` | `dated_on`, `reference`, `notes`, `estimate_items` |
-| `expense` | `dated_on`, `gross_value`, `description`, `sales_tax_rate` |
-| `bill` | `reference`, `dated_on`, `due_on`, `comments`, `bill_items` |
-
-Invoice/estimate lines accept `id`, `description`, `item_type`, `quantity`, `price`
-and `sales_tax_rate`. Estimate lines use the documented separate item POST/PUT
-endpoints, followed by parent readback. An existing line's ID must belong to this entry; omitting
-`id` adds a new line. Bill lines require an existing `url` belonging to this bill
-and accept `description`, `total_value`, `total_value_ex_tax`, `sales_tax_rate`.
-Bill values follow FreeAgent's documented tax semantics; do not guess tax treatment.
-Line removal, relationship changes, attachments and status transitions are excluded.
-Invoice updates always turn all three automatic email flags off.
-
-Updates return a GET readback. Deletes return `deleted=True` only after GET reports
-404; a 403, timeout or surviving record is an unverified outcome. A write or
-readback failure returns an error directing the agent to inspect FreeAgent without
-retrying or recreating the entry. Estimate line corrections can partially succeed
-before a failure. The tools do not retry correction writes automatically or
-remember prior attempts; the agent must reconcile any uncertain outcome.
-
-There is no stored snapshot or atomic status check-and-write: the agent must
-report conflicting edits, and external changes between the final GET and write
-remain a race. These checks do not replace FreeAgent's permissions or built-in
-duplicate-time protection.
+`confirmed=True` records the agent's assertion of approval. Ownership follows agent
+instructions. FreeAgent's HTTP status and JSON `errors` for 400, 409 and 422 are
+reported as MCP tool errors; authentication response bodies are not exposed.
+`freeagent_get` also exposes HTTP status, including 404 for deletion readback.
+Inspect uncertain writes before retrying. The client does not retry writes on 429
+or timeouts; it can refresh credentials once after a rejected 401.

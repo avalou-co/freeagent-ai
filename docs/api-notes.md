@@ -79,18 +79,19 @@ Read-only via `freeagent_get`.
 - `invoices?view=overdue`, `bills?view=overdue` (client aggregates linked pages; total per currency)
 - `bank_accounts` for balances (cash).
 
-## Corrections
+## Direct API writes
 
-Corrections use partial PUT payloads with the resource as their root, followed by
-GET. Estimate lines use separate item POST/PUT endpoints, then parent readback.
-Deletion is verified only by a subsequent GET returning 404.
-See [shared correction rules](agent-rules.md#correcting-entries-created-in-the-current-task)
-and [MCP tool fields and limits](mcp.md#correcting-entries-created-in-a-task).
+Use `freeagent_post`, `freeagent_put` or `freeagent_delete` with the provider's
+path and payload. They return the API response; follow with `freeagent_get` on the
+resource or parent to verify the write. FreeAgent owns accounting validation,
+including duplicate-time-billing protection. No local status, payment or line
+relationship checks are applied.
 
-Official contracts: [timeslips](https://dev.freeagent.com/docs/timeslips),
+See [agent rules](agent-rules.md#correcting-entries-created-in-the-current-task) and
+[MCP write tools](mcp.md#correcting-entries-created-in-a-task).
+API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
+[timeslips](https://dev.freeagent.com/docs/timeslips),
 [invoices](https://dev.freeagent.com/docs/invoices),
 [estimates](https://dev.freeagent.com/docs/estimates),
 [expenses](https://dev.freeagent.com/docs/expenses),
-[bills](https://dev.freeagent.com/docs/bills). Timeslips expose `billed_on_invoice`,
-expenses expose `rebilled_on_invoice`, and bills expose `paid_value` plus rebilling
-links. Bills have payment statuses rather than a Draft status.
+[bills](https://dev.freeagent.com/docs/bills).

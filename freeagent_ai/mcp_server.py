@@ -5,35 +5,45 @@ streamable HTTP for ChatGPT (`freeagent-ai mcp --http`). Needs the `mcp` extra.
 """
 
 import base64
+import json
 import mimetypes
+import urllib.error
 from pathlib import Path
-from typing import Literal
+from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from . import corrections
 from .client import BASE, call
 from .mcp_auth import BearerAuth, load_token
 
 INSTRUCTIONS = """Generic FreeAgent API tools. Business IDs, rates and rules come from the user's own instructions; ask if missing, never guess.
-Rules: reads are free. Before any create_*, update_* or delete_* call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
-Never touch entries you did not create in this task. Report what FreeAgent holds (the tools read back for you), not what you sent.
+Rules: reads are free. Before any write call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
+Never touch entries you did not create in this task. After every write, read back with freeagent_get and report what FreeAgent holds, not what you sent. FreeAgent validates accounting rules and resource relationships.
 Pass resources as full URLs (e.g. https://api.freeagent.com/v2/projects/123) as returned by freeagent_get."""
 
 mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
-CorrectionResource = Literal["timeslip", "invoice", "estimate", "expense", "bill"]
-CORRECTION = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True)
+API_WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True)
 RECEIPT_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/gif"}
 
 
 def _path(ref):
     """Accept a /v2/-relative path or a full FreeAgent URL; reject anything else."""
     path = ref[len(BASE) :] if ref.startswith(BASE) else ref
-    if "://" in path or path.startswith("/") or ".." in path:
+    parsed = urlsplit(path)
+    if (
+        parsed.scheme
+        or parsed.netloc
+        or not parsed.path
+        or parsed.path.startswith("/")
+        or parsed.fragment
+        or ".." in unquote(parsed.path).split("/")
+    ):
         raise ValueError(f"not a FreeAgent API path: {ref}")
     return path
 
@@ -53,7 +63,7 @@ def freeagent_get(path: str, paginate: bool = True) -> dict:
     'projects?view=active', 'timeslips?from_date=2026-01-05&to_date=2026-01-11&per_page=100')
     or a full resource URL. Lists include all pages by default; set `paginate=False`
     to fetch only the requested page. GET rate limits use bounded Retry-After retries."""
-    return call("GET", _path(path), paginate=paginate)
+    return _api_call("GET", path, paginate=paginate)
 
 
 @mcp.tool(annotations=READ)
@@ -80,8 +90,6 @@ def create_contact(
 ) -> dict:
     """Create one contact and return it as FreeAgent holds it. Needs an organisation name or
     both first and last name. Run find_contacts first to avoid duplicates."""
-    if not (organisation_name or (first_name and last_name)):
-        raise ValueError("give organisation_name, or both first_name and last_name")
     fields = {
         "organisation_name": organisation_name,
         "first_name": first_name,
@@ -129,7 +137,9 @@ def create_draft_invoice(
         "project": project,
         "dated_on": dated_on,
         "payment_terms_in_days": payment_terms_in_days,
-        **corrections.INVOICE_EMAILS_OFF,
+        "send_new_invoice_emails": False,
+        "send_reminder_emails": False,
+        "send_thank_you_emails": False,
     }
     if reference:
         inv["reference"] = reference
@@ -279,8 +289,6 @@ def explain_bank_transaction(
     Needs a clear yes per transaction."""
     targets = {"category": category, "paid_invoice": paid_invoice, "paid_bill": paid_bill}
     chosen = {k: v for k, v in targets.items() if v}
-    if len(chosen) != 1:
-        raise ValueError("give exactly one of category, paid_invoice, paid_bill")
     exp = {"bank_transaction": bank_transaction, "dated_on": dated_on, "gross_value": gross_value, **chosen}
     if description:
         exp["description"] = description
@@ -288,28 +296,52 @@ def explain_bank_transaction(
     return call("GET", _path(created["bank_transaction_explanation"]["url"]))
 
 
-@mcp.tool(annotations=CORRECTION)
-def update_created_entry(resource_type: CorrectionResource, resource: str, changes: dict, confirmed: bool) -> dict:
-    """Correct an entry the agent created during the current user request after showing the changes and
-    getting a clear yes (confirmed=True). Types: timeslip, invoice, estimate, expense, bill.
-    Only Draft invoices/estimates, unbilled stopped timeslips, unrebilled expenses and wholly
-    unpaid/unrebilled bills. Ownership follows agent rules. Returns FreeAgent's readback.
-    Fields: timeslip dated_on/hours/comment; invoice dated_on/payment_terms_in_days/reference/
-    comments/invoice_items; estimate dated_on/reference/notes/estimate_items; expense dated_on/
-    gross_value/description/sales_tax_rate; bill reference/dated_on/due_on/comments/bill_items.
-    Invoice/estimate lines: id (existing line only), description/item_type/quantity/price/sales_tax_rate;
-    omit id to add a new line. Bill lines: existing url, description/total_value/total_value_ex_tax/
-    sales_tax_rate. No status, relationship, attachment or line-deletion changes.
-    Never retries an uncertain write; inspect uncertain outcomes without retrying."""
-    return corrections.correct(resource_type, resource, confirmed, changes, call, BASE)
+def _api_call(method, path, body=None, **kwargs):
+    """Expose API status and validation errors without exposing authentication responses."""
+    try:
+        return call(method, _path(path), body, **kwargs)
+    except urllib.error.HTTPError as error:
+        detail = ""
+        if error.code in {400, 409, 422}:
+            try:
+                response = json.loads(error.read(8192))
+                if isinstance(response, dict) and "errors" in response:
+                    detail = ": " + json.dumps(response["errors"])
+            except (ValueError, AttributeError):
+                pass
+        raise ToolError(f"FreeAgent HTTP {error.code}{detail}") from error
 
 
-@mcp.tool(annotations=CORRECTION)
-def delete_created_entry(resource_type: CorrectionResource, resource: str, confirmed: bool) -> dict:
-    """Delete an eligible entry the agent created during the current user request only after a clear yes
-    to the exact deletion plan (confirmed=True). Same restrictions as update_created_entry.
-    Verifies deletion with GET returning 404. Unknown outcomes require manual reconciliation."""
-    return corrections.correct(resource_type, resource, confirmed, None, call, BASE)
+def _write(method, path, confirmed, body=None):
+    if confirmed is not True:
+        raise ToolError("Show the write plan and obtain user confirmation first")
+    return _api_call(method, path, body)
+
+
+@mcp.tool(annotations=API_WRITE)
+def freeagent_post(path: str, body: dict, confirmed: bool) -> Any:
+    """POST the exact JSON body to a FreeAgent API path or resource URL after user approval.
+    FreeAgent validates the payload. Returns its response or empty-response HTTP status.
+    Read back using freeagent_get. Inspect uncertain outcomes before any retry."""
+    return _write("POST", path, confirmed, body)
+
+
+@mcp.tool(annotations=API_WRITE)
+def freeagent_put(path: str, body: dict, confirmed: bool) -> Any:
+    """PUT the exact JSON body to a FreeAgent API path or resource URL after user approval.
+    Only modify entries created during the current user request, per agent rules.
+    FreeAgent validates the payload. Returns its response or empty-response HTTP status.
+    Read back using freeagent_get. Inspect uncertain outcomes before any retry."""
+    return _write("PUT", path, confirmed, body)
+
+
+@mcp.tool(annotations=API_WRITE)
+def freeagent_delete(path: str, confirmed: bool) -> Any:
+    """DELETE a FreeAgent API path or resource URL after user approval. Only delete entries
+    created during the current user request, per agent rules. FreeAgent validates the operation.
+    Returns its response or empty-response HTTP status; this alone does not verify absence.
+    Read back the resource or its parent using freeagent_get. Inspect uncertain outcomes before retrying."""
+    return _write("DELETE", path, confirmed)
 
 
 def run(http=False, host="127.0.0.1", port=8000):

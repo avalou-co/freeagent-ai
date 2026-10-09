@@ -75,8 +75,8 @@ def test_create_contact_posts_only_given_fields_and_reads_back(monkeypatch):
         "contact": {"organisation_name": "Acme", "email": "a@x.com", "default_payment_terms_in_days": 30}
     }
     assert calls[1][:2] == ("GET", "contacts/5")
-    with pytest.raises(ValueError):
-        mcp_server.create_contact(first_name="Bob")
+    mcp_server.create_contact(first_name="Bob")
+    assert calls[2][2] == {"contact": {"first_name": "Bob"}}
 
 
 def test_expense_attaches_receipt_and_reads_back(monkeypatch, tmp_path):
@@ -148,7 +148,7 @@ def test_create_bill_attaches_file_and_reads_back(monkeypatch, tmp_path):
     assert calls[1][:2] == ("GET", "bills/5")
 
 
-def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch):
+def test_explain_bank_transaction_reads_back(monkeypatch):
     calls = []
 
     def fake(method, path, body=None):
@@ -157,10 +157,6 @@ def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch
 
     monkeypatch.setattr(mcp_server, "call", fake)
     args = (BASE + "bank_transactions/1", "2026-10-07", "-12.50")
-    for kw in ({}, {"category": "c", "paid_bill": "b"}):
-        with pytest.raises(ValueError):
-            mcp_server.explain_bank_transaction(*args, **kw)
-    assert not calls
     mcp_server.explain_bank_transaction(*args, paid_bill=BASE + "bills/2")
     exp = calls[0][2]["bank_transaction_explanation"]
     assert calls[0][:2] == ("POST", "bank_transaction_explanations")
@@ -171,8 +167,9 @@ def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
-        "update_created_entry",
-        "delete_created_entry",
+        "freeagent_post",
+        "freeagent_put",
+        "freeagent_delete",
         "freeagent_get",
         "find_contacts",
         "create_contact",
@@ -192,7 +189,7 @@ def test_tools_registered_with_hints():
 def test_freeagent_get_exposes_pagination(monkeypatch):
     calls = []
 
-    def fake(method, path, **kwargs):
+    def fake(method, path, body=None, **kwargs):
         calls.append((method, path, kwargs))
         return {"invoices": []}
 
@@ -202,9 +199,9 @@ def test_freeagent_get_exposes_pagination(monkeypatch):
     assert calls == [("GET", "invoices", {"paginate": True}), ("GET", "invoices?page=2", {"paginate": False})]
 
 
-def test_correction_tools_are_destructive_and_non_idempotent():
+def test_api_write_tools_are_destructive_and_non_idempotent():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
-    for name in ("update_created_entry", "delete_created_entry"):
+    for name in ("freeagent_post", "freeagent_put", "freeagent_delete"):
         assert tools[name].annotations.destructive_hint
         assert not tools[name].annotations.idempotent_hint
         assert not tools[name].annotations.read_only_hint
