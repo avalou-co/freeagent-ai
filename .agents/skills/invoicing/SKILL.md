@@ -15,3 +15,5 @@ Generic. The business supplies the contact, project, bank account, reference for
 4. Report reference, due date, lines and totals. Say the reference number is an assumption if you inferred it.
 
 Follow `docs/agent-rules.md` throughout.
+
+For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).

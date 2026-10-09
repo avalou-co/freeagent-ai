@@ -18,3 +18,5 @@ Generic. The business supplies the category and VAT rules; ask for them or find 
 Mileage claims are not covered yet.
 
 Follow `docs/agent-rules.md` throughout.
+
+For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).
