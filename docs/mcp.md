@@ -46,7 +46,8 @@ it in public logs. This is a single-account server; the handle does not provide
 user authentication or tenant isolation. Restart the server if its FreeAgent account
 or credentials change.
 
-Show the exact changes or deletion, get a clear yes, then pass `confirmed=True`:
+Follow the [shared correction rules](agent-rules.md#correcting-entries-created-in-the-current-task).
+After approval, pass `confirmed=True`:
 
 ```python
 update_created_entry("timeslip", timeslip_url, {"hours": "7.5"}, True, task_id)

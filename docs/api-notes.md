@@ -81,13 +81,11 @@ Read-only via `freeagent_get`.
 
 ## Corrections
 
-The MCP correction tools restrict PUT/DELETE to entries created with a live task
-handle, and check current status plus the last readback before writing. Draft
-invoices/estimates, unbilled timeslips, unrebilled expenses and wholly unpaid,
-unrebilled bills are eligible. They never reset status or unlink billed work.
-Updates are partial payloads with the resource as their root, followed by GET.
-Deletion is verified only by a subsequent GET returning 404. Write errors and
-failed readbacks revoke correction rights; inspect rather than retry.
+Corrections use partial PUT payloads with the resource as their root, followed by
+GET. Estimate lines use separate item POST/PUT endpoints, then parent readback.
+Deletion is verified only by a subsequent GET returning 404.
+See [shared correction rules](agent-rules.md#correcting-entries-created-in-the-current-task)
+and [MCP tool fields and limits](mcp.md#correcting-entries-created-in-a-task).
 
 Official contracts: [timeslips](https://dev.freeagent.com/docs/timeslips),
 [invoices](https://dev.freeagent.com/docs/invoices),
@@ -96,4 +94,3 @@ Official contracts: [timeslips](https://dev.freeagent.com/docs/timeslips),
 [bills](https://dev.freeagent.com/docs/bills). Timeslips expose `billed_on_invoice`,
 expenses expose `rebilled_on_invoice`, and bills expose `paid_value` plus rebilling
 links. Bills have payment statuses rather than a Draft status.
-See [MCP correction limits](mcp.md#correcting-entries-created-in-a-task).

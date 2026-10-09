@@ -26,6 +26,8 @@ mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
 CorrectionResource = Literal["timeslip", "invoice", "estimate", "expense", "bill"]
+LOCAL_STATE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
+CORRECTION = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True)
 RECEIPT_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/gif"}
 
 
@@ -130,9 +132,7 @@ def create_draft_invoice(
         "project": project,
         "dated_on": dated_on,
         "payment_terms_in_days": payment_terms_in_days,
-        "send_new_invoice_emails": False,
-        "send_reminder_emails": False,
-        "send_thank_you_emails": False,
+        **corrections.INVOICE_EMAILS_OFF,
     }
     if reference:
         inv["reference"] = reference
@@ -290,7 +290,7 @@ def explain_bank_transaction(
     return call("GET", _path(created["bank_transaction_explanation"]["url"]))
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False))
+@mcp.tool(annotations=LOCAL_STATE)
 def begin_task(previous_task_id: str = "") -> dict:
     """Start a user task and return an opaque task_id valid for one hour. Pass that handle
     to create and correction tools. When starting the next task, pass previous_task_id
@@ -298,17 +298,13 @@ def begin_task(previous_task_id: str = "") -> dict:
     return corrections.begin(previous_task_id)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False))
+@mcp.tool(annotations=LOCAL_STATE)
 def finish_task(task_id: str) -> dict:
     """Close a completed user task, discarding its correction rights. No FreeAgent writes."""
     return corrections.finish(task_id)
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True
-    )
-)
+@mcp.tool(annotations=CORRECTION)
 def update_created_entry(
     resource_type: CorrectionResource, resource: str, changes: dict, confirmed: bool, task_id: str
 ) -> dict:
@@ -326,11 +322,7 @@ def update_created_entry(
     return corrections.correct(task_id, resource_type, resource, confirmed, changes, call, BASE)
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True
-    )
-)
+@mcp.tool(annotations=CORRECTION)
 def delete_created_entry(resource_type: CorrectionResource, resource: str, confirmed: bool, task_id: str) -> dict:
     """Delete an eligible entry created with this task_id only after a clear yes
     to the exact deletion plan (confirmed=True). Same restrictions as update_created_entry.

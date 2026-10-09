@@ -28,17 +28,13 @@ FIELDS = {
     "expense": {"dated_on", "gross_value", "description", "sales_tax_rate"},
     "bill": {"reference", "dated_on", "due_on", "comments", "bill_items"},
 }
-COLLECTIONS = {
-    "timeslip": "timeslips",
-    "invoice": "invoices",
-    "estimate": "estimates",
-    "expense": "expenses",
-    "bill": "bills",
-}
+COLLECTIONS = {kind: kind + "s" for kind in FIELDS}
+INVOICE_EMAILS_OFF = dict.fromkeys(("send_new_invoice_emails", "send_reminder_emails", "send_thank_you_emails"), False)
+TIME_LINE_FIELDS = frozenset({"id", "description", "item_type", "quantity", "price", "sales_tax_rate"})
 LINE_FIELDS = {
-    "invoice": {"id", "description", "item_type", "quantity", "price", "sales_tax_rate"},
-    "estimate": {"id", "description", "item_type", "quantity", "price", "sales_tax_rate"},
-    "bill": {"url", "description", "total_value", "total_value_ex_tax", "sales_tax_rate"},
+    "invoice": TIME_LINE_FIELDS,
+    "estimate": TIME_LINE_FIELDS,
+    "bill": frozenset({"url", "description", "total_value", "total_value_ex_tax", "sales_tax_rate"}),
 }
 
 
@@ -139,7 +135,7 @@ def _changes(kind, changes, entry):
                 raise CorrectionError("Bill line corrections require an existing line URL")
     result = copy.deepcopy(changes)
     if kind == "invoice":
-        result.update(send_new_invoice_emails=False, send_reminder_emails=False, send_thank_you_emails=False)
+        result.update(INVOICE_EMAILS_OFF)
     return result
 
 
