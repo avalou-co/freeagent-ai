@@ -7,15 +7,17 @@ streamable HTTP for ChatGPT (`freeagent-ai mcp --http`). Needs the `mcp` extra.
 import base64
 import mimetypes
 from pathlib import Path
+from typing import Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from . import corrections
 from .client import BASE, call
 from .mcp_auth import BearerAuth, load_token
 
 INSTRUCTIONS = """Generic FreeAgent API tools. Business IDs, rates and rules come from the user's own instructions; ask if missing, never guess.
-Rules: reads are free. Before any create_* call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
+Rules: reads are free. Call begin_task at the start of each user task, pass its task_id to create/correction tools, and finish_task when done. Pass previous_task_id when starting the next task. Before any create_*, update_* or delete_* call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
 Never touch entries you did not create in this task. Report what FreeAgent holds (the tools read back for you), not what you sent.
 Pass resources as full URLs (e.g. https://api.freeagent.com/v2/projects/123) as returned by freeagent_get."""
 
@@ -23,6 +25,7 @@ mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
+CorrectionResource = Literal["timeslip", "invoice", "estimate", "expense", "bill"]
 RECEIPT_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/gif"}
 
 
@@ -96,15 +99,16 @@ def create_contact(
 
 
 @mcp.tool(annotations=WRITE)
-def create_timeslip(user: str, project: str, task: str, dated_on: str, hours: str, comment: str = "") -> dict:
+def create_timeslip(
+    user: str, project: str, task: str, dated_on: str, hours: str, comment: str = "", task_id: str = ""
+) -> dict:
     """Create one timeslip and return it as FreeAgent holds it. `user`, `project`, `task`
     are resource URLs; `dated_on` is YYYY-MM-DD; `hours` a decimal string (e.g. '7.5').
     Check for an existing timeslip on that date first."""
     slip = {"user": user, "project": project, "task": task, "dated_on": dated_on, "hours": hours}
     if comment:
         slip["comment"] = comment
-    created = call("POST", "timeslips", {"timeslip": slip})["timeslip"]
-    return call("GET", _path(created["url"]))
+    return corrections.create(task_id, "timeslip", "timeslips", {"timeslip": slip}, call, BASE)
 
 
 @mcp.tool(annotations=WRITE)
@@ -116,6 +120,7 @@ def create_draft_invoice(
     reference: str = "",
     bank_account: str = "",
     include_timeslips: bool = True,
+    task_id: str = "",
 ) -> dict:
     """Create a Draft invoice with all automatic emails off, and return it as FreeAgent holds it.
     With `include_timeslips`, the project's unbilled timeslips become the lines (no placeholder
@@ -135,8 +140,7 @@ def create_draft_invoice(
         inv["bank_account"] = bank_account
     if include_timeslips:
         inv["include_timeslips"] = "billed_grouped_by_timeslip"
-    created = call("POST", "invoices", {"invoice": inv})["invoice"]
-    return call("GET", _path(created["url"]))
+    return corrections.create(task_id, "invoice", "invoices", {"invoice": inv}, call, BASE)
 
 
 @mcp.tool(annotations=WRITE)
@@ -148,6 +152,7 @@ def create_expense(
     description: str,
     sales_tax_rate: str = "",
     receipt_path: str = "",
+    task_id: str = "",
 ) -> dict:
     """Create one expense claim and return it as FreeAgent holds it. `user` and `category` are
     resource URLs (list categories with freeagent_get 'categories'); `dated_on` is YYYY-MM-DD;
@@ -166,8 +171,7 @@ def create_expense(
         exp["sales_tax_rate"] = sales_tax_rate
     if receipt_path:
         exp["attachment"] = _attachment(receipt_path)
-    created = call("POST", "expenses", {"expense": exp})["expense"]
-    return call("GET", _path(created["url"]))
+    return corrections.create(task_id, "expense", "expenses", {"expense": exp}, call, BASE)
 
 
 @mcp.tool(annotations=WRITE)
@@ -210,7 +214,13 @@ def create_task(project: str, name: str, billing_rate: str, billing_period: str 
 
 @mcp.tool(annotations=WRITE)
 def create_draft_estimate(
-    contact: str, dated_on: str, items: list[dict], project: str = "", reference: str = "", currency: str = ""
+    contact: str,
+    dated_on: str,
+    items: list[dict],
+    project: str = "",
+    reference: str = "",
+    currency: str = "",
+    task_id: str = "",
 ) -> dict:
     """Create a Draft estimate (never sent) and return it as FreeAgent holds it. `contact` and
     `project` are resource URLs; `items` are lines like {"description": "Design", "item_type": "Days",
@@ -222,8 +232,7 @@ def create_draft_estimate(
         est["currency"] = currency
     if reference:
         est["reference"] = reference
-    created = call("POST", "estimates", {"estimate": est})["estimate"]
-    return call("GET", _path(created["url"]))
+    return corrections.create(task_id, "estimate", "estimates", {"estimate": est}, call, BASE)
 
 
 @mcp.tool(annotations=WRITE)
@@ -234,11 +243,12 @@ def create_bill(
     due_on: str,
     items: list[dict],
     attachment_path: str = "",
+    task_id: str = "",
 ) -> dict:
     """Create one supplier bill and return it as FreeAgent holds it. `contact` is the supplier's
     resource URL; `dated_on` and `due_on` are YYYY-MM-DD. `items` are lines, each
     {"category": <category URL>, "description": str, "total_value": "120.00", "sales_tax_rate": "20.0"}
-    (`total_value` is the line net before VAT; `sales_tax_rate` optional; list categories with
+    (`total_value` includes taxes; use `total_value_ex_tax` for net amounts; `sales_tax_rate` optional; list categories with
     freeagent_get 'categories'). `attachment_path` is an optional local PDF/PNG/JPG/GIF file to attach.
     Check for an existing bill with that reference first (freeagent_get 'bills?view=open'
     lists unpaid bills, 'bills?view=overdue' overdue ones)."""
@@ -251,8 +261,7 @@ def create_bill(
     }
     if attachment_path:
         bill["attachment"] = _attachment(attachment_path)
-    created = call("POST", "bills", {"bill": bill})["bill"]
-    return call("GET", _path(created["url"]))
+    return corrections.create(task_id, "bill", "bills", {"bill": bill}, call, BASE)
 
 
 @mcp.tool(annotations=WRITE)
@@ -279,6 +288,54 @@ def explain_bank_transaction(
         exp["description"] = description
     created = call("POST", "bank_transaction_explanations", {"bank_transaction_explanation": exp})
     return call("GET", _path(created["bank_transaction_explanation"]["url"]))
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False))
+def begin_task(previous_task_id: str = "") -> dict:
+    """Start a user task and return an opaque task_id valid for one hour. Pass that handle
+    to create and correction tools. When starting the next task, pass previous_task_id
+    to revoke the old handle. Never reuse a handle from another user task."""
+    return corrections.begin(previous_task_id)
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False))
+def finish_task(task_id: str) -> dict:
+    """Close a completed user task, discarding its correction rights. No FreeAgent writes."""
+    return corrections.finish(task_id)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True
+    )
+)
+def update_created_entry(
+    resource_type: CorrectionResource, resource: str, changes: dict, confirmed: bool, task_id: str
+) -> dict:
+    """Correct an entry created with this task_id after showing the changes and
+    getting a clear yes (confirmed=True). Types: timeslip, invoice, estimate, expense, bill.
+    Only Draft invoices/estimates, unbilled stopped timeslips, unrebilled expenses and wholly
+    unpaid/unrebilled bills. Refuses external changes. Returns FreeAgent's readback.
+    Fields: timeslip dated_on/hours/comment; invoice dated_on/payment_terms_in_days/reference/
+    comments/invoice_items; estimate dated_on/reference/notes/estimate_items; expense dated_on/
+    gross_value/description/sales_tax_rate; bill reference/dated_on/due_on/comments/bill_items.
+    Invoice/estimate lines: id (existing line only), description/item_type/quantity/price/sales_tax_rate;
+    omit id to add a new line. Bill lines: existing url, description/total_value/total_value_ex_tax/
+    sales_tax_rate. No status, relationship, attachment or line-deletion changes.
+    Never retries an uncertain write; task must still be live."""
+    return corrections.correct(task_id, resource_type, resource, confirmed, changes, call, BASE)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True
+    )
+)
+def delete_created_entry(resource_type: CorrectionResource, resource: str, confirmed: bool, task_id: str) -> dict:
+    """Delete an eligible entry created with this task_id only after a clear yes
+    to the exact deletion plan (confirmed=True). Same restrictions as update_created_entry.
+    Verifies deletion with GET returning 404. Unknown outcomes require manual reconciliation."""
+    return corrections.correct(task_id, resource_type, resource, confirmed, None, call, BASE)
 
 
 def run(http=False, host="127.0.0.1", port=8000):

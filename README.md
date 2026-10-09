@@ -125,3 +125,11 @@ If something is missing, the agent should ask rather than guess.
 ## Contributing
 
 Developer setup and checks are in `AGENTS.md`.
+
+### Correcting a draft or unbilled entry
+
+MCP workflows can correct or delete eligible entries they created in the current
+task after user confirmation. Start with `begin_task`, pass its returned `task_id`
+to create/correction calls, and close it with `finish_task`. Existing entries,
+sent invoices/estimates, billed time, rebilled expenses and paid bills are refused.
+See [correction tools and limits](docs/mcp.md#correcting-entries-created-in-a-task).

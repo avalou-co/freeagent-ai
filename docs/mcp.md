@@ -1,6 +1,6 @@
 # MCP server
 
-Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). Writes read back and return what FreeAgent holds.
+Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `begin_task` and `finish_task` manage temporary correction rights. `update_created_entry` and `delete_created_entry` correct eligible entries created in the same task. Writes read back and return what FreeAgent holds.
 
 The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
 
@@ -34,3 +34,63 @@ Secure remote setup:
 - Treat the token like a password: keep it out of shell history, repos and logs, and rotate it (restart with a new value) if it may have leaked. Anyone holding it can read and write your FreeAgent account.
 - The connector client must be able to send a custom `Authorization: Bearer` header. If it cannot, do not use remote mode.
 - This is a single static shared secret, not OAuth. Get an independent security review before relying on it for remote use.
+
+## Correcting entries created in a task
+
+Call `begin_task()` at the start of each user task. Pass the returned `task_id` to
+`create_timeslip`, `create_draft_invoice`, `create_draft_estimate`, `create_expense`
+or `create_bill`. Only successful creates with successful readback are registered.
+An omitted handle preserves the existing create API but grants no correction rights.
+The handle is a random capability: keep it within the task, do not share it or put
+it in public logs. This is a single-account server; the handle does not provide
+user authentication or tenant isolation. Restart the server if its FreeAgent account
+or credentials change.
+
+Show the exact changes or deletion, get a clear yes, then pass `confirmed=True`:
+
+```python
+update_created_entry("timeslip", timeslip_url, {"hours": "7.5"}, True, task_id)
+delete_created_entry("invoice", invoice_url, True, task_id)
+```
+
+`confirmed` records the agent's assertion of user approval; the tool cannot verify
+that a human approved the conversation. Existing create approval rules still apply.
+Corrections require a fresh GET matching the last successful readback and these gates:
+
+- Timeslips: not billed on any invoice, and no running timer.
+- Invoices and estimates: exactly `Draft`; no sending or status changes.
+- Expenses: not rebilled on an invoice.
+- Bills: wholly unpaid (zero `paid_value`), `Open`, `Overdue` or `Zero Value`, and not rebilled.
+
+Supported changes:
+
+| Type | Fields |
+|------|--------|
+| `timeslip` | `dated_on`, `hours`, `comment` |
+| `invoice` | `dated_on`, `payment_terms_in_days`, `reference`, `comments`, `invoice_items` |
+| `estimate` | `dated_on`, `reference`, `notes`, `estimate_items` |
+| `expense` | `dated_on`, `gross_value`, `description`, `sales_tax_rate` |
+| `bill` | `reference`, `dated_on`, `due_on`, `comments`, `bill_items` |
+
+Invoice/estimate lines accept `id`, `description`, `item_type`, `quantity`, `price`
+and `sales_tax_rate`. Estimate lines use the documented separate item POST/PUT
+endpoints, followed by parent readback. An existing line's ID must belong to this entry; omitting
+`id` adds a new line. Bill lines require an existing `url` belonging to this bill
+and accept `description`, `total_value`, `total_value_ex_tax`, `sales_tax_rate`.
+Bill values follow FreeAgent's documented tax semantics; do not guess tax treatment.
+Line removal, relationship changes, attachments and status transitions are excluded.
+Invoice updates always turn all three automatic email flags off.
+
+Updates return a GET readback. Deletes return `deleted=True` only after GET reports
+404; a 403, timeout or surviving record is an unverified outcome. Correction rights
+are revoked before the write and restored only after a successful update readback.
+For any uncertain create/update/delete, inspect FreeAgent without retrying or
+recreating the entry. There is no tool to adopt an existing entry.
+
+Call `finish_task(task_id)` when done. Starting the next task with
+`begin_task(previous_task_id=task_id)` also revokes the old handle. Handles expire
+one hour after creation and are lost on server restart; they cannot be recovered.
+The in-memory ledger allows at most 100 active tasks and 1,000 entries per task.
+Calls within this server are serialized, but FreeAgent offers no atomic status
+check-and-write here: external edits between the final GET and write remain a race.
+These checks do not replace FreeAgent's own permissions and duplicate-time protection.

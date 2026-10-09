@@ -48,7 +48,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Bills
 
-- `POST bills` body: `{"bill": {"contact", "reference", "dated_on", "due_on", "bill_items": [{"category", "description", "total_value", "sales_tax_rate"}]}}` with full resource URLs and decimal strings; `total_value` is the line net before VAT.
+- `POST bills` body: `{"bill": {"contact", "reference", "dated_on", "due_on", "bill_items": [{"category", "description", "total_value", "sales_tax_rate"}]}}` with full resource URLs and decimal strings; `total_value` includes taxes; use `total_value_ex_tax` for a net line amount.
 - `sales_tax_rate` (e.g. `"20.0"`) sets VAT per line; the category may need to allow it.
 - Attachment: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF; the tool allows only those types.
 - Unpaid and overdue: `GET bills?view=open` and `GET bills?view=overdue`.
@@ -78,3 +78,22 @@ Read-only via `freeagent_get`.
 - `accounting/trial_balance/summary?from_date=&to_date=`
 - `invoices?view=overdue`, `bills?view=overdue` (client aggregates linked pages; total per currency)
 - `bank_accounts` for balances (cash).
+
+## Corrections
+
+The MCP correction tools restrict PUT/DELETE to entries created with a live task
+handle, and check current status plus the last readback before writing. Draft
+invoices/estimates, unbilled timeslips, unrebilled expenses and wholly unpaid,
+unrebilled bills are eligible. They never reset status or unlink billed work.
+Updates are partial payloads with the resource as their root, followed by GET.
+Deletion is verified only by a subsequent GET returning 404. Write errors and
+failed readbacks revoke correction rights; inspect rather than retry.
+
+Official contracts: [timeslips](https://dev.freeagent.com/docs/timeslips),
+[invoices](https://dev.freeagent.com/docs/invoices),
+[estimates](https://dev.freeagent.com/docs/estimates),
+[expenses](https://dev.freeagent.com/docs/expenses),
+[bills](https://dev.freeagent.com/docs/bills). Timeslips expose `billed_on_invoice`,
+expenses expose `rebilled_on_invoice`, and bills expose `paid_value` plus rebilling
+links. Bills have payment statuses rather than a Draft status.
+See [MCP correction limits](mcp.md#correcting-entries-created-in-a-task).

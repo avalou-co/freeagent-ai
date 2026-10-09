@@ -171,6 +171,10 @@ def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
+        "begin_task",
+        "finish_task",
+        "update_created_entry",
+        "delete_created_entry",
         "freeagent_get",
         "find_contacts",
         "create_contact",
@@ -198,3 +202,11 @@ def test_freeagent_get_exposes_pagination(monkeypatch):
     mcp_server.freeagent_get("invoices")
     mcp_server.freeagent_get("invoices?page=2", paginate=False)
     assert calls == [("GET", "invoices", {"paginate": True}), ("GET", "invoices?page=2", {"paginate": False})]
+
+
+def test_correction_tools_are_destructive_and_non_idempotent():
+    tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
+    for name in ("update_created_entry", "delete_created_entry"):
+        assert tools[name].annotations.destructive_hint
+        assert not tools[name].annotations.idempotent_hint
+        assert not tools[name].annotations.read_only_hint
