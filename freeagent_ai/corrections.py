@@ -1,10 +1,7 @@
-"""Ephemeral, task-scoped provenance for corrections; never imports credentials."""
+"""Status checks, field validation and readback for FreeAgent corrections."""
 
 import copy
 import re
-import secrets
-import threading
-import time
 import urllib.error
 from decimal import Decimal, InvalidOperation
 
@@ -15,12 +12,6 @@ class CorrectionError(ValueError, ToolError):
     """An actionable safety refusal that MCP can expose without a traceback."""
 
 
-# Task handles are opaque capabilities issued here, never caller-chosen identifiers.
-_TASKS: dict = {}
-TASK_TTL = 3600
-MAX_TASKS = 100
-MAX_ENTRIES = 1000
-_LOCK = threading.RLock()
 FIELDS = {
     "timeslip": {"dated_on", "hours", "comment"},
     "invoice": {"dated_on", "payment_terms_in_days", "reference", "comments", "invoice_items"},
@@ -38,39 +29,6 @@ LINE_FIELDS = {
 }
 
 
-def begin(previous_task_id=""):
-    with _LOCK:
-        now = time.monotonic()
-        for key, (expires, _) in list(_TASKS.items()):
-            if expires <= now:
-                del _TASKS[key]
-        if previous_task_id:
-            _task(previous_task_id)
-            del _TASKS[previous_task_id]
-        if len(_TASKS) >= MAX_TASKS:
-            raise CorrectionError("Too many active tasks; close a task or wait for expiry")
-        task_id = secrets.token_urlsafe(32)
-        _TASKS[task_id] = (now + TASK_TTL, {})
-    return {"task_id": task_id, "expires_in_seconds": TASK_TTL}
-
-
-def finish(task_id):
-    with _LOCK:
-        _task(task_id)
-        del _TASKS[task_id]
-    return {"task_closed": True}
-
-
-def _task(task_id):
-    if task_id not in _TASKS:
-        raise CorrectionError("Unknown task; call begin_task before creating entries")
-    expires, entries = _TASKS[task_id]
-    if expires <= time.monotonic():
-        del _TASKS[task_id]
-        raise CorrectionError("Task expired; existing entries cannot be adopted by a new task")
-    return entries
-
-
 def _resource(kind, ref, base):
     if kind not in COLLECTIONS:
         raise CorrectionError("Unsupported correction resource")
@@ -78,20 +36,6 @@ def _resource(kind, ref, base):
     if not re.fullmatch(rf"{COLLECTIONS[kind]}/[1-9][0-9]*", path):
         raise CorrectionError("Expected an exact FreeAgent resource URL or collection/id path")
     return path
-
-
-def create(task_id, kind, path, body, call, base):
-    with _LOCK:
-        # Existing callers retain create compatibility but gain no correction rights.
-        task = _task(task_id) if task_id else None
-        if task is not None and len(task) >= MAX_ENTRIES:
-            raise CorrectionError("Task entry limit reached")
-        created = call("POST", path, body)[kind]
-        resource = _resource(kind, created["url"], base)
-        result = call("GET", resource)
-        if task is not None:
-            task[resource] = copy.deepcopy(result[kind])
-        return result
 
 
 def _eligible(kind, entry):
@@ -139,21 +83,14 @@ def _changes(kind, changes, entry):
     return result
 
 
-def correct(task_id, kind, ref, confirmed, changes, call, base):
+def correct(kind, ref, confirmed, changes, call, base):
     if confirmed is not True:
         raise CorrectionError("Show the exact correction plan and obtain user confirmation first")
     path = _resource(kind, ref, base)
-    with _LOCK:
-        task = _task(task_id)
-        if path not in task:
-            raise CorrectionError("Entry was not created in this task")
-        entry = call("GET", path)[kind]
-        _eligible(kind, entry)
-        if entry != task[path]:
-            raise CorrectionError("Entry changed outside this task; report the conflict instead of overwriting it")
-        body = {kind: _changes(kind, changes, entry)} if changes is not None else None
-        # Revoke before sending: timeout or failed readback must never enable a blind retry.
-        del task[path]
+    entry = call("GET", path)[kind]
+    _eligible(kind, entry)
+    body = {kind: _changes(kind, changes, entry)} if changes is not None else None
+    try:
         if changes is not None:
             assert body is not None
             if kind == "estimate" and "estimate_items" in body[kind]:
@@ -170,7 +107,6 @@ def correct(task_id, kind, ref, confirmed, changes, call, base):
                 call("PUT", path, body)
             result = call("GET", path)
             _eligible(kind, result[kind])
-            task[path] = copy.deepcopy(result[kind])
             return result
         call("DELETE", path)
         try:
@@ -179,4 +115,8 @@ def correct(task_id, kind, ref, confirmed, changes, call, base):
             if error.code == 404:
                 return {"deleted": True, "url": base + path}
             raise
-        raise CorrectionError("Delete could not be verified: entry still exists; inspect it without retrying")
+        raise CorrectionError("Entry still exists after deletion")
+    except Exception as error:
+        raise CorrectionError(
+            "Correction outcome could not be verified; inspect FreeAgent without retrying or recreating the entry"
+        ) from error

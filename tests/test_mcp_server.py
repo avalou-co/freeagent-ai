@@ -171,8 +171,6 @@ def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
-        "begin_task",
-        "finish_task",
         "update_created_entry",
         "delete_created_entry",
         "freeagent_get",

@@ -1,6 +1,6 @@
 # MCP server
 
-Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `begin_task` and `finish_task` manage temporary correction rights. `update_created_entry` and `delete_created_entry` correct eligible entries created in the same task. Writes read back and return what FreeAgent holds.
+Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `update_created_entry` and `delete_created_entry` correct eligible entries created in the same task. Writes read back and return what FreeAgent holds.
 
 The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
 
@@ -37,26 +37,18 @@ Secure remote setup:
 
 ## Correcting entries created in a task
 
-Call `begin_task()` at the start of each user task. Pass the returned `task_id` to
-`create_timeslip`, `create_draft_invoice`, `create_draft_estimate`, `create_expense`
-or `create_bill`. Only successful creates with successful readback are registered.
-An omitted handle preserves the existing create API but grants no correction rights.
-The handle is a random capability: keep it within the task, do not share it or put
-it in public logs. This is a single-account server; the handle does not provide
-user authentication or tenant isolation. Restart the server if its FreeAgent account
-or credentials change.
-
 Follow the [shared correction rules](agent-rules.md#correcting-entries-created-in-the-current-task).
 After approval, pass `confirmed=True`:
 
 ```python
-update_created_entry("timeslip", timeslip_url, {"hours": "7.5"}, True, task_id)
-delete_created_entry("invoice", invoice_url, True, task_id)
+update_created_entry("timeslip", timeslip_url, {"hours": "7.5"}, True)
+delete_created_entry("invoice", invoice_url, True)
 ```
 
-`confirmed` records the agent's assertion of user approval; the tool cannot verify
-that a human approved the conversation. Existing create approval rules still apply.
-Corrections require a fresh GET matching the last successful readback and these gates:
+The agent must verify that it created the entry during the current user request.
+Ownership and human approval are governed by agent instructions, not server
+provenance tracking. `confirmed` records the agent's assertion of user approval.
+The server re-reads the entry before writing and applies these status gates:
 
 - Timeslips: not billed on any invoice, and no running timer.
 - Invoices and estimates: exactly `Draft`; no sending or status changes.
@@ -83,15 +75,13 @@ Line removal, relationship changes, attachments and status transitions are exclu
 Invoice updates always turn all three automatic email flags off.
 
 Updates return a GET readback. Deletes return `deleted=True` only after GET reports
-404; a 403, timeout or surviving record is an unverified outcome. Correction rights
-are revoked before the write and restored only after a successful update readback.
-For any uncertain create/update/delete, inspect FreeAgent without retrying or
-recreating the entry. There is no tool to adopt an existing entry.
+404; a 403, timeout or surviving record is an unverified outcome. A write or
+readback failure returns an error directing the agent to inspect FreeAgent without
+retrying or recreating the entry. Estimate line corrections can partially succeed
+before a failure. The tools do not retry correction writes automatically or
+remember prior attempts; the agent must reconcile any uncertain outcome.
 
-Call `finish_task(task_id)` when done. Starting the next task with
-`begin_task(previous_task_id=task_id)` also revokes the old handle. Handles expire
-one hour after creation and are lost on server restart; they cannot be recovered.
-The in-memory ledger allows at most 100 active tasks and 1,000 entries per task.
-Calls within this server are serialized, but FreeAgent offers no atomic status
-check-and-write here: external edits between the final GET and write remain a race.
-These checks do not replace FreeAgent's own permissions and duplicate-time protection.
+There is no stored snapshot or atomic status check-and-write: the agent must
+report conflicting edits, and external changes between the final GET and write
+remain a race. These checks do not replace FreeAgent's permissions or built-in
+duplicate-time protection.

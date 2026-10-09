@@ -8,13 +8,13 @@
 
 ## Correcting entries created in the current task
 
-For MCP work, call `begin_task` once at the start and pass its `task_id` to supported
-create calls. To correct a mistake, show the exact changes or deletion and obtain
-a clear yes, then use `update_created_entry` or `delete_created_entry` with that
-handle and `confirmed=True`. Only entries created with this handle and still
-eligible can be corrected; report external changes or protected status instead.
-Never reset status or unlink billed work to bypass a refusal. Report the returned
-readback; deletion requires verified absence. If a write or readback fails,
-inspect without retrying. Call `finish_task` when done and never reuse the handle
-in another task. See [MCP correction tools](mcp.md#correcting-entries-created-in-a-task)
-for supported fields, status gates and expiry.
+Only correct entries you created during the current user request. Show the exact
+changes or deletion and obtain a clear yes, then use `update_created_entry` or
+`delete_created_entry` with `confirmed=True`. Ownership and approval are agent
+responsibilities; the server checks current status and supported fields, but does
+not track which conversation created an entry. Report conflicts instead of
+changing unrelated entries. Never reset status or unlink billed work to bypass a
+refusal. Report the readback; deletion requires verified absence. If a write or
+readback fails, inspect without retrying or recreating the entry.
+See [MCP correction tools](mcp.md#correcting-entries-created-in-a-task) for fields
+and status gates.
