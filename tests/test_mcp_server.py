@@ -1,4 +1,8 @@
 import asyncio
+import io
+import urllib.error
+from email.message import Message
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -57,7 +61,7 @@ def test_create_project_and_task_read_back(monkeypatch):
     assert (calls[0][1], project["status"], project["budget_units"]) == ("projects", "Active", "Days")
     assert calls[1][:2] == ("GET", "projects/5")
     mcp_server.create_task(BASE + "projects/5", "Dev", "500")
-    assert calls[2][1] == f"tasks?project={BASE}projects/5"
+    assert parse_qs(urlsplit(calls[2][1]).query) == {"project": [BASE + "projects/5"]}
     assert calls[2][2]["task"]["billing_period"] == "day"
     assert calls[3][:2] == ("GET", "tasks/6")
 
@@ -75,8 +79,8 @@ def test_create_contact_posts_only_given_fields_and_reads_back(monkeypatch):
         "contact": {"organisation_name": "Acme", "email": "a@x.com", "default_payment_terms_in_days": 30}
     }
     assert calls[1][:2] == ("GET", "contacts/5")
-    with pytest.raises(ValueError):
-        mcp_server.create_contact(first_name="Bob")
+    mcp_server.create_contact(first_name="Bob")
+    assert calls[2][2] == {"contact": {"first_name": "Bob"}}
 
 
 def test_expense_attaches_receipt_and_reads_back(monkeypatch, tmp_path):
@@ -98,15 +102,56 @@ def test_expense_attaches_receipt_and_reads_back(monkeypatch, tmp_path):
     assert calls[1][:2] == ("GET", "expenses/5")
 
 
-def test_expense_rejects_other_receipt_types(tmp_path):
-    bad = tmp_path / "x.exe"
-    bad.write_bytes(b"x")
-    with pytest.raises(ValueError):
-        mcp_server.create_expense("u", "c", "2026-10-07", "-1", "d", receipt_path=str(bad))
+def test_attachment_encodes_unknown_type_for_provider_validation(tmp_path):
+    receipt = tmp_path / "receipt.unknown_file_type"
+    receipt.write_bytes(b"x")
+    assert mcp_server._attachment(receipt) == {
+        "file_name": receipt.name,
+        "content_type": "application/octet-stream",
+        "data": "eA==",
+    }
+
+
+def test_contact_forwards_zero_payment_terms(monkeypatch):
     calls = []
 
     def fake(method, path, body=None):
         calls.append((method, path, body))
+        return {"contact": {"url": BASE + "contacts/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    mcp_server.create_contact(payment_terms_in_days=0)
+    assert calls[0][2] == {"contact": {"default_payment_terms_in_days": 0}}
+
+
+@pytest.mark.parametrize(
+    "name,args",
+    [
+        ("find_contacts", ("example",)),
+        ("create_contact", ()),
+        ("create_timeslip", ("u", "p", "t", "invalid", "invalid")),
+        ("create_draft_invoice", ("c", "p", "invalid", -1)),
+        ("create_expense", ("u", "c", "invalid", "invalid", "d")),
+        ("create_project", ("c", "n", "invalid", "invalid")),
+        ("create_task", ("p", "n", "invalid")),
+        ("create_draft_estimate", ("c", "invalid", [{}])),
+        ("create_bill", ("c", "r", "invalid", "invalid", [{}])),
+        ("explain_bank_transaction", ("b", "invalid", "invalid")),
+    ],
+)
+def test_convenience_tools_surface_provider_validation(monkeypatch, name, args):
+    calls = []
+
+    def reject(method, path, body=None):
+        calls.append((method, path, body))
+        raise urllib.error.HTTPError(
+            BASE + path, 422, "invalid", Message(), io.BytesIO(b'{"errors": {"provider": "rejected"}}')
+        )
+
+    monkeypatch.setattr(mcp_server, "call", reject)
+    with pytest.raises(mcp_server.ToolError, match="FreeAgent HTTP 422.*provider.*rejected"):
+        getattr(mcp_server, name)(*args)
+    assert len(calls) == 1
 
 
 def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
@@ -148,7 +193,7 @@ def test_create_bill_attaches_file_and_reads_back(monkeypatch, tmp_path):
     assert calls[1][:2] == ("GET", "bills/5")
 
 
-def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch):
+def test_explain_bank_transaction_reads_back(monkeypatch):
     calls = []
 
     def fake(method, path, body=None):
@@ -157,10 +202,6 @@ def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch
 
     monkeypatch.setattr(mcp_server, "call", fake)
     args = (BASE + "bank_transactions/1", "2026-10-07", "-12.50")
-    for kw in ({}, {"category": "c", "paid_bill": "b"}):
-        with pytest.raises(ValueError):
-            mcp_server.explain_bank_transaction(*args, **kw)
-    assert not calls
     mcp_server.explain_bank_transaction(*args, paid_bill=BASE + "bills/2")
     exp = calls[0][2]["bank_transaction_explanation"]
     assert calls[0][:2] == ("POST", "bank_transaction_explanations")
@@ -171,6 +212,9 @@ def test_explain_bank_transaction_requires_one_target_and_reads_back(monkeypatch
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
+        "freeagent_post",
+        "freeagent_put",
+        "freeagent_delete",
         "freeagent_get",
         "find_contacts",
         "create_contact",
@@ -190,7 +234,7 @@ def test_tools_registered_with_hints():
 def test_freeagent_get_exposes_pagination(monkeypatch):
     calls = []
 
-    def fake(method, path, **kwargs):
+    def fake(method, path, body=None, **kwargs):
         calls.append((method, path, kwargs))
         return {"invoices": []}
 
@@ -198,3 +242,11 @@ def test_freeagent_get_exposes_pagination(monkeypatch):
     mcp_server.freeagent_get("invoices")
     mcp_server.freeagent_get("invoices?page=2", paginate=False)
     assert calls == [("GET", "invoices", {"paginate": True}), ("GET", "invoices?page=2", {"paginate": False})]
+
+
+def test_api_write_tools_are_destructive_and_non_idempotent():
+    tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
+    for name in ("freeagent_post", "freeagent_put", "freeagent_delete"):
+        assert tools[name].annotations.destructive_hint
+        assert not tools[name].annotations.idempotent_hint
+        assert not tools[name].annotations.read_only_hint

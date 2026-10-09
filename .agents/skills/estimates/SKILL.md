@@ -14,3 +14,5 @@ Generic. The business supplies the contact, project, line items (description, un
 4. Report reference, lines and totals. Say the reference is an assumption if you inferred it.
 
 Follow `docs/agent-rules.md` throughout.
+
+For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).

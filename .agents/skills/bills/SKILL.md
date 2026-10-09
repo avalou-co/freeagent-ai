@@ -19,3 +19,5 @@ Recording:
 5. Report what FreeAgent holds: reference, dates, lines, totals, VAT, attachment. Flag any mismatch with the supplier's bill.
 
 Never modify bills you did not create in this task. Follow `docs/agent-rules.md` throughout.
+
+For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).

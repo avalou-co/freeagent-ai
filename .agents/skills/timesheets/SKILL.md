@@ -18,3 +18,5 @@ Generic. The business supplies the project, task and default hours; ask for them
 If the user omits project or hours, use the business's defaults and say so in the report.
 
 Follow `docs/agent-rules.md` throughout.
+
+For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).
