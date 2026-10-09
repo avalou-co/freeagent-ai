@@ -1,4 +1,8 @@
 import asyncio
+import io
+import urllib.error
+from email.message import Message
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -57,7 +61,7 @@ def test_create_project_and_task_read_back(monkeypatch):
     assert (calls[0][1], project["status"], project["budget_units"]) == ("projects", "Active", "Days")
     assert calls[1][:2] == ("GET", "projects/5")
     mcp_server.create_task(BASE + "projects/5", "Dev", "500")
-    assert calls[2][1] == f"tasks?project={BASE}projects/5"
+    assert parse_qs(urlsplit(calls[2][1]).query) == {"project": [BASE + "projects/5"]}
     assert calls[2][2]["task"]["billing_period"] == "day"
     assert calls[3][:2] == ("GET", "tasks/6")
 
@@ -98,15 +102,56 @@ def test_expense_attaches_receipt_and_reads_back(monkeypatch, tmp_path):
     assert calls[1][:2] == ("GET", "expenses/5")
 
 
-def test_expense_rejects_other_receipt_types(tmp_path):
-    bad = tmp_path / "x.exe"
-    bad.write_bytes(b"x")
-    with pytest.raises(ValueError):
-        mcp_server.create_expense("u", "c", "2026-10-07", "-1", "d", receipt_path=str(bad))
+def test_attachment_encodes_unknown_type_for_provider_validation(tmp_path):
+    receipt = tmp_path / "receipt.unknown_file_type"
+    receipt.write_bytes(b"x")
+    assert mcp_server._attachment(receipt) == {
+        "file_name": receipt.name,
+        "content_type": "application/octet-stream",
+        "data": "eA==",
+    }
+
+
+def test_contact_forwards_zero_payment_terms(monkeypatch):
     calls = []
 
     def fake(method, path, body=None):
         calls.append((method, path, body))
+        return {"contact": {"url": BASE + "contacts/5"}}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    mcp_server.create_contact(payment_terms_in_days=0)
+    assert calls[0][2] == {"contact": {"default_payment_terms_in_days": 0}}
+
+
+@pytest.mark.parametrize(
+    "name,args",
+    [
+        ("find_contacts", ("example",)),
+        ("create_contact", ()),
+        ("create_timeslip", ("u", "p", "t", "invalid", "invalid")),
+        ("create_draft_invoice", ("c", "p", "invalid", -1)),
+        ("create_expense", ("u", "c", "invalid", "invalid", "d")),
+        ("create_project", ("c", "n", "invalid", "invalid")),
+        ("create_task", ("p", "n", "invalid")),
+        ("create_draft_estimate", ("c", "invalid", [{}])),
+        ("create_bill", ("c", "r", "invalid", "invalid", [{}])),
+        ("explain_bank_transaction", ("b", "invalid", "invalid")),
+    ],
+)
+def test_convenience_tools_surface_provider_validation(monkeypatch, name, args):
+    calls = []
+
+    def reject(method, path, body=None):
+        calls.append((method, path, body))
+        raise urllib.error.HTTPError(
+            BASE + path, 422, "invalid", Message(), io.BytesIO(b'{"errors": {"provider": "rejected"}}')
+        )
+
+    monkeypatch.setattr(mcp_server, "call", reject)
+    with pytest.raises(mcp_server.ToolError, match="FreeAgent HTTP 422.*provider.*rejected"):
+        getattr(mcp_server, name)(*args)
+    assert len(calls) == 1
 
 
 def test_draft_estimate_is_draft_and_reads_back(monkeypatch):

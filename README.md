@@ -9,9 +9,12 @@ Nothing here is specific to one business. Your contact, project and bank-account
 ## What you get
 
 - **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), draft estimates (`estimates`), explaining bank transactions (`bank-reconcile`), read-only reports (`reports`), and listing outstanding or overdue invoices and drafting chasers for you to send (`invoice-status`, read-only).
-- **MCP server**: tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills, draft estimates and bank explanations.
+- **MCP server**: direct GET, POST, PUT and DELETE API tools, plus convenience tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills, draft estimates and bank explanations.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
+
+FreeAgent handles accounting and model validation. The server handles API mechanics;
+the agent handles approval and verification. See the [MCP design contract and tool audit](docs/mcp.md#design-contract).
 
 ## Quick start
 

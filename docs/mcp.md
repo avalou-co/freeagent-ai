@@ -6,6 +6,70 @@ The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see 
 
 For local development: `pip install -e '.[mcp]'` and `freeagent-ai mcp`.
 
+## Design contract
+
+The MCP server is a window into the FreeAgent API. FreeAgent is the authority for
+accounting and model validation: required fields, accepted values and attachments,
+dates, amounts, tax, resource relationships, status transitions, payments and
+whether a timeslip can be billed. Do not reproduce these rules locally, including
+duplicate-billing guards, eligibility checks, field allowlists or accounting locks.
+Send the request and report FreeAgent's response or validation error.
+
+The server owns API mechanics: authentication, keeping credentials private,
+restricting requests to the FreeAgent API, JSON serialization, query encoding,
+attachment encoding, pagination and bounded transport retries. MCP argument types
+specify the tool's input shape; they must not add accounting constraints. Local
+file-read failures and invalid API destinations are transport errors.
+
+The agent owns user intent: obtain the required approval, use the business's actual
+inputs, follow [agent rules](agent-rules.md), verify writes by reading back and
+inspect uncertain outcomes before retrying. These responsibilities do not require
+a server-side task ledger, reservation system or ownership lifecycle. Here,
+“current task” means the current user request; a FreeAgent `task` is a billing
+resource belonging to a project. Development work lives in GitHub issues and Projects.
+
+Generic GET, POST, PUT and DELETE tools expose the API directly. Generic write
+bodies are sent unchanged. Named convenience tools assemble documented API payloads
+and read back after creation; their explicit defaults are listed below. Optional
+empty strings in these helpers mean omission; use the generic tools when an explicit
+empty value, another field or a different default is needed. Convenience defaults
+must not become restrictions on the generic tools or local accounting validators.
+All tools use the same API error handling. A successful create followed by a failed
+readback must be investigated before another create.
+
+## Tool audit
+
+All 14 registered tools were reviewed against the design contract. None performs
+local accounting or model eligibility validation. This audit and the mocked tests
+verify wrapper behavior; they do not independently test FreeAgent's accounting rules.
+
+| Tool | API behavior and intentional convenience behavior |
+| --- | --- |
+| `freeagent_get` | GET any resource; aggregate pages by default, or return one page with `paginate=False`. |
+| `freeagent_post` | POST the unchanged JSON body after the agent asserts approval; return the API response. |
+| `freeagent_put` | PUT the unchanged JSON body after the agent asserts approval; return the API response. |
+| `freeagent_delete` | DELETE after the agent asserts approval; return the API response without claiming verified absence. |
+| `find_contacts` | GET all contacts and filter names and email locally, case-insensitively; no duplicate enforcement. |
+| `create_contact` | POST supplied contact fields and read back; omitted payment terms use provider defaults, explicit zero is preserved. |
+| `create_timeslip` | POST supplied timeslip fields and read back; no date, hours, relationship or duplicate checks. |
+| `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
+| `create_expense` | POST expense fields and optional encoded local attachment, then read back; no amount, tax or file-type validation. |
+| `create_project` | POST project fields with Active status, day billing and Days budget units by default, then read back. |
+| `create_task` | POST task fields with Active status and day billing by default; encode the project query parameter, then read back. |
+| `create_draft_estimate` | POST Draft status and supplied line items, then read back; no line-item validation or sending. |
+| `create_bill` | POST supplied bill fields and line items with an optional encoded local attachment, then read back. |
+| `explain_bank_transaction` | POST supplied explanation fields and targets, then read back; FreeAgent validates the target combination and relationships. |
+
+Attachments are base64 encoded with their filename and inferred MIME type
+(`application/octet-stream` if unknown). FreeAgent decides whether to accept them.
+Named create tools rely on the agent's approval workflow; generic write tools also
+require `confirmed=True`, which records the agent's assertion, not independent
+proof of user approval.
+
+When adding or changing a tool, preserve this boundary, document any convenience
+defaults here, and test that provider rejections are surfaced without local rules
+or automatic write retries.
+
 ## GET pagination and rate limits
 
 `freeagent_get(path)` aggregates all pages linked by the API. For example,
