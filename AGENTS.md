@@ -37,6 +37,11 @@ If the `freeagent` MCP tools are available, prefer them (`docs/mcp.md`). Or from
 
 This repo is generic. IDs, rates, defaults and client rules come from the business's own instructions. If they are missing, ask; never guess.
 
+## Work tracking
+
+Track development tasks in GitHub issues and GitHub Projects. Do not create
+repository milestone or task tracking files.
+
 ## Development
 
 Install dev tools with `pip install -e ".[mcp,dev]"`, then run the checks CI runs on every PR: `ruff check .`, `ruff format --check .`, `pyright`, `pytest`.
