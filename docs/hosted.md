@@ -27,10 +27,12 @@ a release tag, deployed endpoint or approved public listing already exists.
 
 ## Auth0 setup (owner prerequisite)
 
-The owner has created an Auth0 tenant; its hostname/application configuration and
-dedicated reviewer accounts still need to be connected to this deployment. Use a
-dedicated EU Auth0 free tenant with an email/password database connection. Disable
-social/enterprise connections for these applications and verify free-plan eligibility.
+The owner has created `avalou.uk.auth0.com`. Its verified issuer is
+`https://avalou.uk.auth0.com/` (including the trailing slash), and its public
+discovery advertises PKCE S256. Application configuration and dedicated reviewer
+accounts still need to be connected to this deployment. Use an email/password
+database connection. Disable social/enterprise connections for these applications
+and verify free-plan eligibility and tenant region in the dashboard.
 
 1. Create an API whose identifier is `https://freeagent-ai.avalou.co/mcp`. Use RS256,
    3600-second access tokens and scopes `freeagent:read`, `freeagent:write`. Enable
