@@ -29,16 +29,19 @@ a release tag, deployed endpoint or approved public listing already exists.
 
 Manage the existing tenant through `avalou-infrastructure/environments/auth0`,
 prepared in [infrastructure PR #3](https://github.com/avalou-co/avalou-infrastructure/pull/3).
-That owner-run root imports the original resource IDs and uses the existing GCS
-state bucket at prefix `auth0/`. Its README provides the one-time Management API
-credential bootstrap and state-only import instructions. No automation credential
+That CI-deployed root imports the original resource IDs and uses the existing GCS
+state bucket at prefix `auth0/`. Its README provides the one-time Management API credential/bootstrap setup for
+the `auth0-production` deployment environment and optional state-only diagnostics.
+The main-only workflow imports and updates existing resources using a saved plan;
+PR checks have no Auth0 credentials. No automation credential
 or live import exists yet; do not create replacement applications or rotate their
 secrets to perform this migration.
 
 The Action JavaScript and tests remain canonical here. Infrastructure pins a
 reviewed application commit and SHA-256 and stages those committed bytes before
 Terraform validation/deployment. Changes go through the application review/tests,
-then an infrastructure pin update and reviewed plan. Terraform also declares the
+then an infrastructure pin update reviewed in a PR; CI checks and applies the
+saved plan from main. Terraform also declares the
 single post-login binding, so routine deployment does not require dashboard drag
 and drop. Keep state/plan files private and omit Management API key/credential
 read scopes to avoid importing application secrets.
