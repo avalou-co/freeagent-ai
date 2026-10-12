@@ -135,3 +135,10 @@ Developer setup and checks are in `AGENTS.md`.
 FreeAgent unchanged. FreeAgent handles accounting and model validation. The agent
 then reads back with `freeagent_get` and follows the existing ownership rules.
 See [API write tools](docs/mcp.md#correcting-entries-created-in-a-task).
+# Hosted ChatGPT publication
+
+The hosted application and reproducible draft directory package are described in
+[docs/hosted.md](docs/hosted.md). Public origin: `https://freeagent-ai.avalou.co`.
+Local credentials/shared-token transport are not a public per-user deployment.
+Install the `hosted` extra for `freeagent-ai serve`. The public launch still needs
+Auth0 setup, reviewer accounts, approved policies and live mobile verification.

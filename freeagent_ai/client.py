@@ -21,6 +21,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from contextvars import ContextVar
 from email.message import Message
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -34,6 +35,14 @@ BASE = "https://api.freeagent.com/v2/"
 CREDS_PATH = os.path.expanduser(os.environ.get("FREEAGENT_CREDENTIALS", "~/.config/freeagent/credentials.json"))
 PORT = 47821
 REDIRECT = f"http://localhost:{PORT}/callback"
+
+# Only the hosted dispatcher sets this; local callers retain their credentials-file behavior.
+request_client: ContextVar[Any] = ContextVar("freeagent_request_client", default=None)
+
+
+def api_base():
+    client = request_client.get()
+    return client.base if client is not None else BASE
 
 
 def _load():
@@ -203,6 +212,9 @@ def call(method, path, body=None, _retry=True, *, paginate=True) -> Any:
     for one page. GET 429s retry at most three times with waits of at most 60 seconds;
     writes are never retried on 429. Refreshes once per page on 401; refuses redirects.
     """
+    hosted = request_client.get()
+    if hosted is not None:
+        return hosted.call(method, path, body, paginate=paginate)
     method = method.upper()
     result, link = _request(method, path, body, _retry)
     if method != "GET" or not paginate:

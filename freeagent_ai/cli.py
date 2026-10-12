@@ -49,5 +49,17 @@ def main():
     app()
 
 
+@app.command()
+def serve():
+    """Run the per-user OAuth hosted server. Requires the hosted extra and cloud configuration."""
+    from .hosted_app import run
+
+    try:
+        run()
+    except ValueError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(1) from error
+
+
 if __name__ == "__main__":
     main()
