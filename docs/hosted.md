@@ -27,24 +27,16 @@ a release tag, deployed endpoint or approved public listing already exists.
 
 ## Auth0 configuration as code
 
-Manage the existing tenant through `avalou-infrastructure/environments/auth0`,
+Manage recurring Auth0 configuration through `avalou-infrastructure/environments/auth0`,
 prepared in [infrastructure PR #3](https://github.com/avalou-co/avalou-infrastructure/pull/3).
-That CI-deployed root imports the original resource IDs and uses the existing GCS
-state bucket at prefix `auth0/`. Its README provides the one-time Management API credential/bootstrap setup for
-the `auth0-production` deployment environment and optional state-only diagnostics.
-The main-only workflow imports and updates existing resources using a saved plan;
-PR checks have no Auth0 credentials. No automation credential
-or live import exists yet; do not create replacement applications or rotate their
-secrets to perform this migration.
+CI deploys from main using the existing state bucket at prefix `auth0/`.
+The JavaScript and tests stay here; CI checks out a pinned application commit
+and Terraform reads the source directly. No Action metadata or staging layer is used.
 
-The Action JavaScript and tests remain canonical here. Infrastructure pins a
-reviewed application commit and SHA-256 and stages those committed bytes before
-Terraform validation/deployment. Changes go through the application review/tests,
-then an infrastructure pin update reviewed in a PR; CI checks and applies the
-saved plan from main. Terraform also declares the
-single post-login binding, so routine deployment does not require dashboard drag
-and drop. Keep state/plan files private and omit Management API key/credential
-read scopes to avoid importing application secrets.
+GitHub OIDC/permissions and the Management API credential are configured manually
+once. Existing Auth0 resources must be imported manually before the first CI apply.
+CI rejects creations/replacements and applies its checked saved plan; PR checks
+have no Auth0 credentials. See the infrastructure root README for deployment inputs.
 
 ## Auth0 setup reference
 
@@ -83,7 +75,7 @@ is its canonical owner after import.
 3. Use the separate regular web application for linking, using authorization code
    plus PKCE. Register `https://freeagent-ai.avalou.co/auth/callback`. Configure
    one-hour ID tokens. Store its client secret as `freeagent-auth0-web-secret`.
-4. Deploy the pinned `auth0/primary-auth-time.js` through Terraform as a Post Login
+4. Deploy `auth0/primary-auth-time.js` from the pinned CI checkout through Terraform as a Post Login
    Action. Supply the two public client IDs as Action secrets MCP_CLIENT_ID and
    WEB_CLIENT_ID. The Action requires
    exactly one `pwd` method timestamp, excludes refresh grants and other connections,
