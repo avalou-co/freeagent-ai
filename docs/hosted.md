@@ -38,7 +38,9 @@ Both clients use authorization-code grants only, database login and one-hour ID
 tokens. The API has one-hour access tokens, explicit consent, no offline access,
 per-app user authorization and no client-credentials access. The ChatGPT client has
 exactly the two declared scopes; resource parameter compatibility is enabled.
-The reviewed Action is deployed; confirm post-login trigger attachment before use.
+The reviewed Action is deployed and its post-login trigger attachment was verified
+in the dashboard with “All changes are live”. This is configuration evidence;
+fresh login, SSO, PKCE rejection and replacement journeys still require live tests.
 Its PKCE gate requires a valid S256 challenge and authorization-code flow, using
 [Auth0's documented Action approach](https://support.auth0.com/center/s/article/Enforce-PKCE-with-Actions).
 Secret provisioning, the exact OpenAI callback and dedicated reviewer accounts
