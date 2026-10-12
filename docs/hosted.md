@@ -25,7 +25,25 @@ to the named tools. No arbitrary API executor, local file reader, hook or creden
 is included. The local manifests and package version are 0.2.0; this does not mean
 a release tag, deployed endpoint or approved public listing already exists.
 
-## Auth0 setup (owner prerequisite)
+## Auth0 configuration as code
+
+Manage the existing tenant through `avalou-infrastructure/environments/auth0`,
+prepared in [infrastructure PR #3](https://github.com/avalou-co/avalou-infrastructure/pull/3).
+That owner-run root imports the original resource IDs and uses the existing GCS
+state bucket at prefix `auth0/`. Its README provides the one-time Management API
+credential bootstrap and state-only import instructions. No automation credential
+or live import exists yet; do not create replacement applications or rotate their
+secrets to perform this migration.
+
+The Action JavaScript and tests remain canonical here. Infrastructure pins a
+reviewed application commit and SHA-256 and stages those committed bytes before
+Terraform validation/deployment. Changes go through the application review/tests,
+then an infrastructure pin update and reviewed plan. Terraform also declares the
+single post-login binding, so routine deployment does not require dashboard drag
+and drop. Keep state/plan files private and omit Management API key/credential
+read scopes to avoid importing application secrets.
+
+## Auth0 setup reference
 
 The owner has created `avalou.uk.auth0.com`. Its verified issuer is
 `https://avalou.uk.auth0.com/` (including the trailing slash), and its public
@@ -48,19 +66,23 @@ still need to be connected to this deployment. Use an email/password
 database connection. Disable social/enterprise connections for these applications
 and verify free-plan eligibility and tenant region in the dashboard.
 
-1. Create an API whose identifier is `https://freeagent-ai.avalou.co/mcp`. Use RS256,
+The following describes the desired configuration for verification; Terraform
+is its canonical owner after import.
+
+1. Use an API whose identifier is `https://freeagent-ai.avalou.co/mcp`. Use RS256,
    3600-second access tokens and scopes `freeagent:read`, `freeagent:write`. Enable
    Resource Parameter Compatibility Profile. Disable offline access.
-2. Create a predefined confidential OAuth client for ChatGPT: authorization-code
+2. Use the predefined confidential OAuth client for ChatGPT: authorization-code
    grant only, PKCE S256 required, no refresh grant, token endpoint authentication
    `client_secret_basic`. Enter its secret privately in OpenAI's portal; never
    add it to Terraform, the ZIP, issue text or logs. Register the exact callback
    shown by OpenAI's connection flow, not an invented callback.
-3. Create a separate regular web application for linking, using authorization code
+3. Use the separate regular web application for linking, using authorization code
    plus PKCE. Register `https://freeagent-ai.avalou.co/auth/callback`. Configure
    one-hour ID tokens. Store its client secret as `freeagent-auth0-web-secret`.
-4. Deploy `auth0/primary-auth-time.js` as a Post Login Action. Supply the two public
-   client IDs as Action secrets MCP_CLIENT_ID and WEB_CLIENT_ID. The Action requires
+4. Deploy the pinned `auth0/primary-auth-time.js` through Terraform as a Post Login
+   Action. Supply the two public client IDs as Action secrets MCP_CLIENT_ID and
+   WEB_CLIENT_ID. The Action requires
    exactly one `pwd` method timestamp, excludes refresh grants and other connections,
    and signs `https://freeagent-ai.avalou.co/primary_auth_time` on both token types.
 5. Verify actual fresh login, reused SSO, multiple browsers, late code exchange and
