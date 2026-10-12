@@ -16,7 +16,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from .client import BASE, call
+from .client import BASE as BASE
+from .client import api_base, call
 from .mcp_auth import BearerAuth, load_token
 
 INSTRUCTIONS = """Generic FreeAgent API tools. Business IDs, rates and rules come from the user's own instructions; ask if missing, never guess.
@@ -33,7 +34,8 @@ API_WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempot
 
 def _path(ref):
     """Accept a /v2/-relative path or a full FreeAgent URL; reject anything else."""
-    path = ref[len(BASE) :] if ref.startswith(BASE) else ref
+    base = api_base()
+    path = ref[len(base) :] if ref.startswith(base) else ref
     parsed = urlsplit(path)
     if (
         parsed.scheme
