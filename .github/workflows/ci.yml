@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  auth0-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test auth0/primary-auth-time.test.js
+
   lint:
     runs-on: ubuntu-latest
     steps:

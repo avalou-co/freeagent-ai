@@ -29,8 +29,20 @@ a release tag, deployed endpoint or approved public listing already exists.
 
 The owner has created `avalou.uk.auth0.com`. Its verified issuer is
 `https://avalou.uk.auth0.com/` (including the trailing slash), and its public
-discovery advertises PKCE S256. Application configuration and dedicated reviewer
-accounts still need to be connected to this deployment. Use an email/password
+discovery advertises PKCE S256. The dedicated client IDs are:
+
+- ChatGPT: `T9wZakykbNwaGDNcUdXmbtxd9VJs3yA6`.
+- Account linking: `WHciYkjNGgnuasHgashUS4LLCya0iORz`.
+
+Both clients use authorization-code grants only, database login and one-hour ID
+tokens. The API has one-hour access tokens, explicit consent, no offline access,
+per-app user authorization and no client-credentials access. The ChatGPT client has
+exactly the two declared scopes; resource parameter compatibility is enabled.
+The reviewed Action is deployed; confirm post-login trigger attachment before use.
+Its PKCE gate requires a valid S256 challenge and authorization-code flow, using
+[Auth0's documented Action approach](https://support.auth0.com/center/s/article/Enforce-PKCE-with-Actions).
+Secret provisioning, the exact OpenAI callback and dedicated reviewer accounts
+still need to be connected to this deployment. Use an email/password
 database connection. Disable social/enterprise connections for these applications
 and verify free-plan eligibility and tenant region in the dashboard.
 
