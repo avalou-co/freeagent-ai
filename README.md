@@ -8,7 +8,7 @@ Nothing here is specific to one business. Your contact, project and bank-account
 
 ## What you get
 
-- **Skills**: ready-made workflows for logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), draft estimates (`estimates`), explaining bank transactions (`bank-reconcile`), read-only reports (`reports`), and listing outstanding or overdue invoices and drafting chasers for you to send (`invoice-status`, read-only).
+- **Skills**: ready-made workflows for setting up contacts, projects and tasks (`clients`), logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), draft estimates (`estimates`), explaining bank transactions (`bank-reconcile`), read-only reports (`reports`), and listing outstanding or overdue invoices and drafting chasers for you to send (`invoice-status`, read-only).
 - **MCP server**: direct GET, POST, PUT and DELETE API tools, plus convenience tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills, draft estimates and bank explanations.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
@@ -27,7 +27,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 /plugin install freeagent-ai@freeagent-ai
 ```
 
-The skills appear as `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:expenses`, `/freeagent-ai:bills`, `/freeagent-ai:estimates`, `/freeagent-ai:bank-reconcile`, `/freeagent-ai:reports` and `/freeagent-ai:invoice-status`, and the MCP server is set up for you.
+The skills appear as `/freeagent-ai:clients`, `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:expenses`, `/freeagent-ai:bills`, `/freeagent-ai:estimates`, `/freeagent-ai:bank-reconcile`, `/freeagent-ai:reports` and `/freeagent-ai:invoice-status`, and the MCP server is set up for you.
 
 ### Codex
 
@@ -82,6 +82,7 @@ Full steps, including the credentials file and re-login, are in `docs/auth.md`.
 
 Ask your agent in plain language, for example:
 
+- "Set up a new client with a project and tasks for logging time."
 - "Log 7.5 hours a day on the Acme project for last week."
 - "Create a draft invoice for this month's Acme timeslips."
 - "What invoices are outstanding or overdue?"
