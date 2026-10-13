@@ -371,7 +371,8 @@ def test_package_reproducible_and_release_gate(tmp_path):
     assert first.read_bytes() == second.read_bytes()
     files = package_files(root)
     assert json.loads(files["mcp.json"])["mcpServers"]["freeagent"]["url"] == ORIGIN + "/mcp"
-    assert len([key for key in files if key.startswith("skills/")]) == 8
+    expected_skills = {f"skills/{path.parent.name}/SKILL.md" for path in (root / ".agents/skills").glob("*/SKILL.md")}
+    assert {key for key in files if key.startswith("skills/")} == expected_skills
     with pytest.raises(ValueError):
         build(root, tmp_path / "release.zip")
     with pytest.raises(ValueError):
