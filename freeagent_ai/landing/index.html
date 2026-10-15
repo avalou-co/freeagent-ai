@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      FreeAgent AI | FreeAgent workflows for ChatGPT and Claude | Avalou
+    </title>
+    <meta
+      name="description"
+      content="FreeAgent AI connects ChatGPT and Claude to your UK FreeAgent account for timesheets, draft invoices, expenses and reports. Integrations for ChatGPT and Claude."
+    />
+    <meta name="theme-color" content="#1b3224" />
+    <meta
+      property="og:title"
+      content="FreeAgent AI | FreeAgent workflows for ChatGPT and Claude"
+    />
+    <meta
+      property="og:description"
+      content="FreeAgent workflows for ChatGPT and Claude. Built by Avalou."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://freeagent-ai.avalou.co/" />
+    <link rel="canonical" href="https://freeagent-ai.avalou.co/" />
+    <link rel="icon" href="/landing-assets/favicon.svg" type="image/svg+xml" />
+    <link
+      rel="preload"
+      href="/landing-assets/fonts/hanken-grotesk-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/landing-assets/fonts/libre-caslon-text-latin-regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/landing-assets/site.css?v=3" />
+    <script src="/landing-assets/site.js?v=2" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="header">
+      <a class="brand" href="https://avalou.co" aria-label="Avalou home"
+        ><span class="brand-mark" aria-hidden="true">A</span
+        ><span>Avalou</span></a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#workflows">What you can do</a>
+        <a href="#connection">How it works</a>
+        <a class="account-link" href="/account"
+          >Manage connection
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M7 17 17 7M7 7h10v10" /></svg
+        ></a>
+      </nav>
+      <button
+        class="theme-toggle"
+        type="button"
+        aria-label="Switch to dark theme"
+        hidden
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z" />
+        </svg>
+      </button>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-opening">
+          <div class="hero-copy">
+            <h1 id="hero-title">
+              Connect your assistant.<br /><em
+                >Keep your accounts in FreeAgent.</em
+              >
+            </h1>
+            <p class="hero-description">
+              Log time, draft invoices and check who owes you through ChatGPT or
+              Claude. Your accounts stay in FreeAgent, and you approve
+              accounting changes.
+            </p>
+            {{provider_buttons}}
+            <p class="hero-note">
+              For UK FreeAgent accounts. You approve accounting changes.
+            </p>
+          </div>
+          <div class="hero-visual">
+            <figure class="hero-photo">
+              <img
+                src="/landing-assets/studio-founder.webp"
+                width="1200"
+                height="900"
+                alt="Illustrative studio founder working at her laptop in a sunlit creative workspace."
+                fetchpriority="high"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+      <section
+        id="workflows"
+        class="workflows section"
+        aria-labelledby="workflows-title"
+      >
+        <div class="section-intro workflow-intro">
+          <h2 id="workflows-title">
+            A few ways to use<br /><em>FreeAgent AI.</em>
+          </h2>
+        </div>
+        <nav class="workflow-shortcuts" aria-label="Explore workflow examples">
+          <a id="tab-time-and-invoices" href="#time-and-invoices"
+            >Time &amp; invoices</a
+          >
+          <a id="tab-expenses-and-bills" href="#expenses-and-bills"
+            >Expenses &amp; bills</a
+          >
+          <a id="tab-quotes-and-payments" href="#quotes-and-payments"
+            >Quotes &amp; payments</a
+          >
+          <a id="tab-banking-and-reports" href="#banking-and-reports"
+            >Banking &amp; reports</a
+          >
+        </nav>
+        <div class="workflow-list">
+          <article class="workflow workflow-1" id="time-and-invoices">
+            <div class="workflow-body">
+              <div class="workflow-title">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+                <h3>Record time.<br />Prepare an invoice.</h3>
+              </div>
+              <div class="workflow-items">
+                <div>
+                  <h4>Timesheets</h4>
+                  <p>Record time against your projects and tasks.</p>
+                </div>
+                <div>
+                  <h4>Invoicing</h4>
+                  <p>Prepare draft invoices, including from unbilled time.</p>
+                </div>
+              </div>
+            </div>
+            <div class="workflow-visual visual-invoice">
+              <div class="paper invoice-paper">
+                <div class="paper-header">
+                  <span>INVOICE</span><span class="draft-tag">Draft</span>
+                </div>
+                <p class="artifact-title">Invoice for<br />unbilled time.</p>
+                <p>Example website project</p>
+                <dl>
+                  <div>
+                    <dt>Source</dt>
+                    <dd>Unbilled time</dd>
+                  </div>
+                  <div>
+                    <dt>Time</dt>
+                    <dd>7 hours</dd>
+                  </div>
+                  <div>
+                    <dt>Next step</dt>
+                    <dd>Your review</dd>
+                  </div>
+                </dl>
+                <div class="paper-footer">Prepared for approval</div>
+              </div>
+              <span class="visual-note">Illustrative invoice workflow</span>
+            </div>
+          </article>
+          <article class="workflow workflow-2" id="expenses-and-bills">
+            <div class="workflow-body">
+              <div class="workflow-title">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M6 3h12v18l-3-2-3 2-3-2-3 2ZM9 8h6m-6 4h6" />
+                </svg>
+                <h3>Record expenses<br />and supplier bills.</h3>
+              </div>
+              <div class="workflow-items">
+                <div>
+                  <h4>Expenses</h4>
+                  <p>Record expense claims with receipts.</p>
+                </div>
+                <div>
+                  <h4>Bills</h4>
+                  <p>Record supplier bills and check what is due.</p>
+                </div>
+              </div>
+            </div>
+            <div class="workflow-visual visual-expenses">
+              <div class="receipt-paper">
+                <div class="receipt-top">RECEIPT</div>
+                <p class="artifact-title">Record an<br />expense claim.</p>
+                <dl>
+                  <div>
+                    <dt>Receipt</dt>
+                    <dd>Attached</dd>
+                  </div>
+                  <div>
+                    <dt>Category</dt>
+                    <dd>To confirm</dd>
+                  </div>
+                  <div>
+                    <dt>Next step</dt>
+                    <dd>Your approval</dd>
+                  </div>
+                </dl>
+                <div class="receipt-lines" aria-hidden="true"></div>
+              </div>
+              <div class="attachment-pill">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="m8 12 5-5a3 3 0 0 1 4 4l-7 7a5 5 0 0 1-7-7l8-8" />
+                </svg>
+                Receipt attached
+              </div>
+              <span class="visual-note">Illustrative expense workflow</span>
+            </div>
+          </article>
+          <article class="workflow workflow-3" id="quotes-and-payments">
+            <div class="workflow-body">
+              <div class="workflow-title">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M5 3h10l4 4v14H5Zm10 0v5h4M8 12h8m-8 4h5" />
+                </svg>
+                <h3>Quote for the work.<br />Check who owes you.</h3>
+              </div>
+              <div class="workflow-items">
+                <div>
+                  <h4>Estimates</h4>
+                  <p>Prepare draft quotes for your clients.</p>
+                </div>
+                <div>
+                  <h4>Invoice status</h4>
+                  <p>See who owes you and draft payment reminders.</p>
+                </div>
+              </div>
+            </div>
+            <div class="workflow-visual visual-outstanding">
+              <div class="invoice-stack">
+                <div>
+                  <span class="stack-label">Invoice status</span
+                  ><span class="overdue-tag">Overdue</span>
+                </div>
+                <p class="artifact-title">Check overdue<br />invoices.</p>
+                <div class="stack-row">
+                  <span>Payment status</span><strong>Outstanding</strong>
+                </div>
+                <div class="stack-row">
+                  <span>Chaser</span><strong>Ready to review</strong>
+                </div>
+                <p>A reminder you can check<br />and send yourself.</p>
+              </div>
+              <span class="visual-note"
+                >Illustrative invoice-status workflow</span
+              >
+            </div>
+          </article>
+          <article class="workflow workflow-4" id="banking-and-reports">
+            <div class="workflow-body">
+              <div class="workflow-title">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M4 4v16h16M8 16v-4m5 4V8m5 8V5" />
+                </svg>
+                <h3>Check your bank<br />and business reports.</h3>
+              </div>
+              <div class="workflow-items">
+                <div>
+                  <h4>Bank reconciliation</h4>
+                  <p>
+                    Review unexplained transactions and suggested explanations.
+                  </p>
+                </div>
+                <div>
+                  <h4>Reports</h4>
+                  <p>Check profit and loss, your balance sheet and cash.</p>
+                </div>
+              </div>
+            </div>
+            <div class="workflow-visual visual-reports">
+              <div class="report-paper">
+                <div class="report-title">
+                  <span>Business reports</span
+                  ><svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M4 4v16h16M8 16v-4m5 4V8m5 8V5" />
+                  </svg>
+                </div>
+                <p class="artifact-title">Read your<br />business reports.</p>
+                <div class="report-bars" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span
+                  ><span></span><span></span>
+                </div>
+                <p>Profit &amp; loss · Cash · Balance sheet</p>
+              </div>
+              <span class="visual-note"
+                >Illustrative chart, not financial data</span
+              >
+            </div>
+          </article>
+        </div>
+      </section>
+      <section class="control-section" aria-labelledby="control-title">
+        <div class="control-inner">
+          <h2 id="control-title">
+            You review and approve accounting changes before we submit them to
+            FreeAgent.
+          </h2>
+          <img
+            class="approval-photo"
+            src="/landing-assets/accounting-review.webp"
+            width="1200"
+            height="800"
+            alt="A bookkeeper checking financial reports beside a laptop and calculator."
+            loading="lazy"
+          />
+        </div>
+      </section>
+      <section
+        id="connection"
+        class="section connection"
+        aria-labelledby="connection-title"
+      >
+        <div class="integration-intro">
+          <h2 id="connection-title">
+            How to connect<br /><em>your FreeAgent account.</em>
+          </h2>
+        </div>
+        <ol class="steps">
+          <li>
+            <h3>Link your FreeAgent account.</h3>
+            <p>
+              Open FreeAgent AI in your assistant and follow the account-linking
+              steps.
+            </p>
+          </li>
+          <li>
+            <h3>Describe the task.</h3>
+            <p>
+              Tell your assistant which task you need help with. Provide the
+              client, dates and rates where needed.
+            </p>
+          </li>
+          <li>
+            <h3>Approve and verify.</h3>
+            <p>
+              Approve proposed accounting changes, then check what FreeAgent
+              holds.
+            </p>
+          </li>
+        </ol>
+      </section>
+    </main>
+    <footer class="footer">
+      <div class="footer-top">
+        <div>
+          <a class="brand" href="https://avalou.co"
+            ><span class="brand-mark" aria-hidden="true">A</span
+            ><span>Avalou</span></a
+          >
+          <p>
+            Built by Avalou.<br />A partner-led technical studio based in
+            London.
+          </p>
+        </div>
+        <nav aria-label="Footer navigation">
+          <a href="{{privacy_url}}">Privacy</a><a href="{{terms_url}}">Terms</a
+          ><a href="{{support_url}}">Support</a
+          ><a href="/account">Manage connection</a
+          ><a href="https://avalou.co"
+            >Visit Avalou
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M7 17 17 7M7 7h10v10" /></svg
+          ></a>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>© Avalou</span>
+        <p>
+          FreeAgent AI is an independent product by Avalou. It is not endorsed
+          by OpenAI, Anthropic or FreeAgent. ChatGPT and its logo belong to
+          OpenAI. Claude and its logo belong to Anthropic.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

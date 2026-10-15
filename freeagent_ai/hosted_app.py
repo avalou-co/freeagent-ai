@@ -4,6 +4,7 @@ import base64
 import hashlib
 import html
 import json
+import os
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -15,12 +16,16 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
-from starlette.routing import Route
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
 from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import principal_context, request_json
 from .hosted_deadline import Deadline, deadline_context
+from .landing import ROOT as LANDING_ROOT
+from .landing import render as render_landing
+from .landing import validate_config as validate_landing_config
 from .public_tools import REGISTRY, Dispatcher, PublicToolsResult
 
 
@@ -37,6 +42,10 @@ class SecurityHeaders:
     async def __call__(self, scope, receive, send):
         async def headers(message):
             if message["type"] == "http.response.start":
+                marketing = scope.get("path") == "/" or scope.get("path", "").startswith("/landing-assets/")
+                csp = "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+                if marketing:
+                    csp += "; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self'"
                 message.setdefault("headers", []).extend(
                     [
                         (b"cache-control", b"no-store"),
@@ -44,7 +53,7 @@ class SecurityHeaders:
                         (b"referrer-policy", b"no-referrer"),
                         (
                             b"content-security-policy",
-                            b"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+                            csp.encode(),
                         ),
                     ]
                 )
@@ -134,6 +143,12 @@ class MCPAuth:
 
 
 def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
+    # An absent configuration leaves the existing service in its pre-launch state.
+    # A partial/malformed launch configuration fails startup rather than exposing
+    # a public page with guessed directory links or unapproved policies.
+    launch = os.environ.get("FREEAGENT_LANDING_CONFIG")
+    landing_config = validate_landing_config(json.loads(launch)) if launch else None
+    landing_html = render_landing(landing_config) if landing_config else None
     settings = settings or Settings.from_env()
     accounts = accounts or Accounts(
         FirestoreStore(settings.project), TokenCipher(settings.encryption_keys, settings.active_key)
@@ -187,6 +202,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         return token, record
 
     async def home(request):
+        if landing_html is not None:
+            return HTMLResponse(landing_html)
         return page(
             "FreeAgent AI",
             '<p>Connect your UK FreeAgent account to ChatGPT for timesheets, draft invoices, expenses, estimates, bills, bank reconciliation and reports.</p><p><a href="/account">Manage your connection</a></p><p><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/support">Support</a></p>',
@@ -347,6 +364,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         return PlainTextResponse(settings.challenge, status_code=200 if settings.challenge else 404)
 
     async def policy(request):
+        if landing_config is not None:
+            return RedirectResponse(landing_config[request.url.path.lstrip("/") + "_url"], status_code=302)
         # Drafts stay marked until the publisher approves real support/policy content.
         return page(
             "Publication setup pending",
@@ -364,6 +383,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
 
     routes = [
         Route("/", home),
+        Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),
         Route("/login", login),
         Route("/auth/callback", auth_callback),

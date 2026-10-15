@@ -143,3 +143,10 @@ The hosted application and reproducible draft directory package are described in
 Local credentials/shared-token transport are not a public per-user deployment.
 Install the `hosted` extra for `freeagent-ai serve`. The public launch still needs
 Auth0 setup, reviewer accounts, approved policies and live mobile verification.
+
+## Product landing page
+
+The Avalou-branded launch page, local preview command and publication configuration
+are documented in [docs/landing-page.md](docs/landing-page.md). It remains disabled
+until approved policy/support links are configured. ChatGPT and Claude remain
+disabled until each verified listing or connection URL is supplied.
