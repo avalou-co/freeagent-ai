@@ -148,3 +148,24 @@ buttons expose their expanded state and panel relationships. Details animate
 open and closed, with transitions removed for reduced-motion preferences. Without
 JavaScript, all instructions remain readable. The Avalou monogram matches the
 website hover rotation and also responds to keyboard focus.
+
+## Public static site
+
+`python -m freeagent_ai.landing --static --output build/landing` exports the
+marketing page with both connections disabled, the account navigation replaced
+with an on-page explanation, and local privacy/terms/support pages. These
+privacy notice covers the website; the terms describe product use. Review the
+wording in the implementation PR. Publishing these pages does not approve public
+OAuth access or complete the connected-service privacy review.
+The normal `--config` and `FREEAGENT_LANDING_CONFIG` launch gates are unchanged.
+
+The application's CI deploys this export after all checks pass on a push to main,
+using its existing production Workload Identity Federation identity. PR builds
+cannot deploy. `hosting.json` contains the website's headers and backend rewrite;
+`scripts/publish_landing.py` uploads and verifies the release. The infrastructure
+repository manages Firebase APIs, site, custom domain and the CI identity's IAM
+grant, and relinquishes the former config-only content version/release.
+
+Merge the infrastructure handover and apply its reviewed IAM grant before merging
+the application deployment. Cloud Run remains private. CI verifies public pages
+and protected backend routes after publishing. No server credentials enter the export.
