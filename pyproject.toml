@@ -20,6 +20,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["freeagent_ai"]
 
+[tool.setuptools.package-data]
+freeagent_ai = ["landing/*.html", "landing/assets/*", "landing/assets/fonts/*", "landing/assets/licenses/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
