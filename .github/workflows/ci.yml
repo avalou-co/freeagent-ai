@@ -48,3 +48,39 @@ jobs:
           cache: pip
       - run: pip install -e ".[hosted,dev]"
       - run: pytest
+
+  deploy-landing:
+    needs: [auth0-action, lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: production-landing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build static website
+        run: |
+          test ! -e "$RUNNER_TEMP/landing"
+          python3 freeagent_ai/landing.py --static --output "$RUNNER_TEMP/landing"
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.DELIVERY_IDENTITY_PROVIDER }}
+          service_account: example-delivery@example-project.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      - name: Publish merged website
+        run: |
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          python3 scripts/publish_landing.py --root "$RUNNER_TEMP/landing" --config hosting.json
+      - name: Verify public website and protected MCP
+        run: |
+          for path in / /privacy/ /terms/ /support/ /landing-assets/site.css; do
+            curl --fail --silent --show-error --max-time 15 --retry 5 --retry-delay 3 --retry-all-errors "https://freeagent-ai.avalou.co$path" --output /dev/null
+          done
+          status=$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' https://freeagent-ai.avalou.co/mcp)
+          test "$status" = 401 || test "$status" = 403

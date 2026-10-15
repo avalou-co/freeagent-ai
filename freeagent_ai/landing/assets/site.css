@@ -1587,3 +1587,7 @@ h1 {
     transition: none;
   }
 }
+
+.notice { max-width: 70ch; margin: 0 auto; padding: 56px 24px; }
+.notice h1 { font-size: clamp(2rem, 5vw, 3.5rem); margin: 32px 0; }
+.notice p { margin: 20px 0; }
