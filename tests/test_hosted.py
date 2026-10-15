@@ -412,3 +412,141 @@ def test_renewed_jwt_cannot_restore_disconnected_or_replaced_account(accounts):
     # A genuinely new primary login can bind only the replacement company.
     accounts.clock = lambda: now + 2
     assert accounts.bind(Principal("alice", renewed.scopes, now + 1)).company == "company-2"
+
+
+@pytest.fixture
+def landing_config():
+    return {
+        "listing_url": "https://chatgpt.com/apps/test-only-listing",
+        "privacy_url": "https://publisher.example/privacy",
+        "terms_url": "https://publisher.example/terms",
+        "support_url": "https://publisher.example/support",
+        "policies_approved": True,
+    }
+
+
+def test_landing_launch_gate_and_backend_routes(accounts, monkeypatch, landing_config):
+    monkeypatch.setenv("FREEAGENT_LANDING_CONFIG", json.dumps(landing_config))
+    verifier = SimpleNamespace(principal=lambda _: (_ for _ in ()).throw(AccessDenied("invalid")))
+    app = create_app(settings(), accounts, verifier)
+    with TestClient(app, base_url=ORIGIN) as client:
+        response = client.get("/")
+        assert "Connect in ChatGPT" in response.text
+        assert "Claude, coming soon" in response.text
+        assert landing_config["listing_url"] in response.text
+        assert "style-src 'self'" in response.headers["content-security-policy"]
+        for path in [
+            "/",
+            "/account",
+            "/login",
+            "/auth/callback",
+            "/freeagent/callback",
+            "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/openai-apps-challenge",
+            "/health",
+            "/mcp",
+        ]:
+            response = client.get(path, follow_redirects=False)
+            assert response.headers["cache-control"] == "no-store"
+            assert response.status_code != 405
+            if path not in ("/",):
+                assert "style-src" not in response.headers["content-security-policy"]
+                assert "Connect your assistant." not in response.text
+        for path in ["/link", "/disconnect"]:
+            response = client.post(path, follow_redirects=False)
+            assert response.status_code == 400
+            assert response.headers["cache-control"] == "no-store"
+        for path in ["/privacy", "/terms", "/support"]:
+            response = client.get(path, follow_redirects=False)
+            assert response.status_code == 302
+            assert response.headers["location"] == landing_config[path[1:] + "_url"]
+        response = client.get("/landing-assets/site.css")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/css")
+        assert client.get("/landing-assets/fonts/hanken-grotesk-latin.woff2").status_code == 200
+        assert client.get("/landing-assets/missing.css").status_code == 404
+        assert client.get("/landing-assets/../hosted_auth.py").status_code == 404
+        response = client.post("/mcp")
+        assert response.status_code == 401
+        assert "resource_metadata=" in response.headers["www-authenticate"]
+
+
+def test_landing_disabled_until_launch(accounts, monkeypatch):
+    monkeypatch.delenv("FREEAGENT_LANDING_CONFIG", raising=False)
+    with TestClient(create_app(settings(), accounts, SimpleNamespace()), base_url=ORIGIN) as client:
+        assert "Connect your assistant." not in client.get("/").text
+        assert "Publication setup pending" in client.get("/privacy").text
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"policies_approved": False},
+        {"policies_approved": "true"},
+        {"support_url": ""},
+        {"listing_url": "https://chatgpt.com/"},
+        {"listing_url": "https://chatgpt.com.evil.example/apps/test"},
+        {"listing_url": "javascript:alert(1)"},
+        {"claude_url": "https://claude.ai.evil.example/connectors/test"},
+        {"claude_url": "javascript:alert(1)"},
+        {"privacy_url": "http://publisher.example/privacy"},
+        {"privacy_url": "https://freeagent-ai.avalou.co/privacy"},
+        {"terms_url": "https://user:pass@publisher.example/terms"},
+        {"terms_url": "https://publisher.example:8443/terms"},
+        {"support_url": "https://publisher.example/\nheader"},
+    ],
+)
+def test_landing_refuses_incomplete_or_unsafe_launch(accounts, monkeypatch, landing_config, change):
+    monkeypatch.setenv("FREEAGENT_LANDING_CONFIG", json.dumps({**landing_config, **change}))
+    with pytest.raises(ValueError):
+        create_app(settings(), accounts, SimpleNamespace())
+
+
+def test_landing_static_export_and_escaping(tmp_path, landing_config):
+    from freeagent_ai.landing import build, load_config
+
+    landing_config["listing_url"] += '?value="quoted"&second=two'
+    config = tmp_path / "launch.json"
+    config.write_text(json.dumps(landing_config))
+    output = tmp_path / "static"
+    build(output, load_config(config))
+    document = (output / "index.html").read_text()
+    assert "?value=&quot;quoted&quot;&amp;second=two" in document
+    assert "{{" not in document
+    assert (output / "landing-assets/fonts/libre-caslon-text-latin-regular.woff2").is_file()
+    assert (output / "landing-assets/site.js").is_file()
+
+
+@pytest.mark.parametrize("enabled", [(), ("listing_url",), ("claude_url",), ("listing_url", "claude_url")])
+def test_provider_availability_is_independent(landing_config, enabled):
+    from html.parser import HTMLParser
+
+    from freeagent_ai.landing import render, validate_config
+
+    class Controls(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.providers = []
+
+        def handle_starttag(self, tag, attrs):
+            values = dict(attrs)
+            if "provider-button" in (values.get("class") or "").split():
+                self.providers.append((tag, values))
+
+    config = {key: value for key, value in landing_config.items() if key != "listing_url"}
+    urls = {"listing_url": landing_config["listing_url"], "claude_url": "https://claude.ai/connectors/test-only"}
+    config.update({key: urls[key] for key in enabled})
+    parser = Controls()
+    parser.feed(render(validate_config(config)))
+    assert len(parser.providers) == 2
+    for tag, attrs in parser.providers:
+        key = "listing_url" if "provider-chatgpt" in attrs["class"] else "claude_url"
+        if key in enabled:
+            assert tag == "a"
+            assert attrs["href"] == urls[key]
+        else:
+            assert tag == "button"
+            assert "disabled" in attrs
+            assert "href" not in attrs
+            assert "coming soon" in attrs["aria-label"]
