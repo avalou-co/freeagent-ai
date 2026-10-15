@@ -432,7 +432,7 @@ def test_landing_launch_gate_and_backend_routes(accounts, monkeypatch, landing_c
     with TestClient(app, base_url=ORIGIN) as client:
         response = client.get("/")
         assert "Connect in ChatGPT" in response.text
-        assert "Claude, coming soon" in response.text
+        assert "Claude, connection unavailable" in response.text
         assert landing_config["listing_url"] in response.text
         assert "style-src 'self'" in response.headers["content-security-policy"]
         for path in [
@@ -491,7 +491,7 @@ def test_landing_disabled_until_launch(accounts, monkeypatch):
         {"claude_url": "https://claude.ai.evil.example/connectors/test"},
         {"claude_url": "javascript:alert(1)"},
         {"privacy_url": "http://publisher.example/privacy"},
-        {"privacy_url": "https://freeagent-ai.avalou.co/privacy"},
+        {"privacy_url": "https://freeagent-ai.avalou.co/account"},
         {"terms_url": "https://user:pass@publisher.example/terms"},
         {"terms_url": "https://publisher.example:8443/terms"},
         {"support_url": "https://publisher.example/\nheader"},
@@ -549,20 +549,33 @@ def test_provider_availability_is_independent(landing_config, enabled):
             assert tag == "button"
             assert "disabled" in attrs
             assert "href" not in attrs
-            assert "coming soon" in attrs["aria-label"]
+            assert "connection unavailable" in attrs["aria-label"]
 
 
-def test_prelaunch_export_keeps_connections_unavailable(tmp_path):
-    from freeagent_ai.landing import build_prelaunch
+def test_static_export_keeps_connections_unavailable(tmp_path):
+    from freeagent_ai.landing import build_static
 
-    build_prelaunch(tmp_path)
+    build_static(tmp_path)
     index = (tmp_path / "index.html").read_text()
     assert index.count('type="button" disabled') == 2
     assert 'href="/account"' not in index
     assert "{{" not in index
+    for slug in ("index.html", "privacy/index.html", "terms/index.html", "support/index.html"):
+        content = (tmp_path / slug).read_text().lower()
+        assert "pre-launch" not in content
+        assert "coming soon" not in content
     for slug in ("privacy", "terms", "support"):
         assert f'href="/{slug}/"' in index
         assert "hello@avalou.co" in (tmp_path / slug / "index.html").read_text()
     assert not (tmp_path / "account").exists()
     assert not (tmp_path / "mcp").exists()
     assert (tmp_path / "landing-assets/site.css").is_file()
+
+
+def test_published_local_policy_routes_are_valid(landing_config):
+    from freeagent_ai.landing import validate_config
+
+    config = dict(landing_config)
+    for name in ("privacy", "terms", "support"):
+        config[name + "_url"] = "https://freeagent-ai.avalou.co/" + name + "/"
+    assert validate_config(config)["privacy_url"] == config["privacy_url"]

@@ -149,13 +149,14 @@ open and closed, with transitions removed for reduced-motion preferences. Withou
 JavaScript, all instructions remain readable. The Avalou monogram matches the
 website hover rotation and also responds to keyboard focus.
 
-## Public pre-launch site
+## Public static site
 
-`python -m freeagent_ai.landing --prelaunch --output build/landing` exports the
+`python -m freeagent_ai.landing --static --output build/landing` exports the
 marketing page with both connections disabled, the account navigation replaced
-with an on-page explanation, and local privacy/terms/support notices. These
-notices cover only the static pre-launch website and require publisher review in
-the implementation PR. They do not approve policies for the connected service.
+with an on-page explanation, and local privacy/terms/support pages. These
+privacy notice covers the website; the terms describe product use. Review the
+wording in the implementation PR. Publishing these pages does not approve public
+OAuth access or complete the connected-service privacy review.
 The normal `--config` and `FREEAGENT_LANDING_CONFIG` launch gates are unchanged.
 
 Infrastructure CI publishes this explicit export using Terraform-owned Firebase
