@@ -550,3 +550,19 @@ def test_provider_availability_is_independent(landing_config, enabled):
             assert "disabled" in attrs
             assert "href" not in attrs
             assert "coming soon" in attrs["aria-label"]
+
+
+def test_prelaunch_export_keeps_connections_unavailable(tmp_path):
+    from freeagent_ai.landing import build_prelaunch
+
+    build_prelaunch(tmp_path)
+    index = (tmp_path / "index.html").read_text()
+    assert index.count('type="button" disabled') == 2
+    assert 'href="/account"' not in index
+    assert "{{" not in index
+    for slug in ("privacy", "terms", "support"):
+        assert f'href="/{slug}/"' in index
+        assert "hello@avalou.co" in (tmp_path / slug / "index.html").read_text()
+    assert not (tmp_path / "account").exists()
+    assert not (tmp_path / "mcp").exists()
+    assert (tmp_path / "landing-assets/site.css").is_file()

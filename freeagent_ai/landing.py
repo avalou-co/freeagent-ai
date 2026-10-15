@@ -77,14 +77,84 @@ def build(output: Path, config: dict[str, str]) -> None:
     (output / "index.html").write_text(render(config))
 
 
+PRELAUNCH_NOTICES = {
+    "privacy": (
+        "Privacy — pre-launch website",
+        [
+            "Avalou operates this FreeAgent AI marketing website. For privacy questions, contact hello@avalou.co.",
+            "The public website does not connect to FreeAgent or receive accounting records. Both provider connections are currently unavailable.",
+            "All fonts, images and scripts are served from this site. We do not include analytics, advertising trackers or a contact form here. Your browser can store your light/dark theme choice under the theme key in local storage; you can remove it through your browser settings.",
+            "Google Firebase Hosting delivers this website and processes technical network information, including IP addresses, to serve and secure requests. If you email us, we receive the information you choose to include to answer your enquiry.",
+            "This notice covers the pre-launch marketing website only. A separate approved notice explaining account linking, accounting data, providers, retention and disconnection is required before the connected service launches.",
+        ],
+    ),
+    "terms": (
+        "Terms — pre-launch website",
+        [
+            "This website introduces FreeAgent AI, an experimental product being developed by Avalou. The ChatGPT and Claude connections are coming soon and cannot be installed from this page yet.",
+            "The examples describe intended workflows. They are not a promise of current availability, a paid service offer or confirmation of directory approval. Features and availability may change before launch.",
+            "FreeAgent, ChatGPT, OpenAI and Claude are third-party products and trademarks of their respective owners. This site does not claim their endorsement.",
+            "Terms for the connected service will be supplied for review before users are invited to link an accounting account. Questions about this website can be sent to hello@avalou.co.",
+        ],
+    ),
+    "support": (
+        "Support",
+        [
+            "For FreeAgent AI product questions or website feedback, email hello@avalou.co. Avalou is developing this experimental integration.",
+            "The public ChatGPT and Claude connections are not available yet. There is no account-linking or accounting support flow on this marketing website.",
+            "Please do not include passwords, OAuth secrets, access tokens, bank details or accounting documents in support email.",
+        ],
+    ),
+}
+
+
+def build_prelaunch(output: Path) -> None:
+    """Export a public marketing site, without enabling the connected service."""
+    config = {key: "" for key in PROVIDERS}
+    config.update({key + "_url": "/" + key + "/" for key in PRELAUNCH_NOTICES})
+    build(output, config)
+    for metadata in (output / "landing-assets").rglob("*.json"):
+        metadata.unlink()
+    index = output / "index.html"
+    index.write_text(
+        index.read_text()
+        .replace('href="/account"', 'href="#connection"')
+        .replace("Manage connection", "Connection coming soon")
+    )
+    for slug, (title, paragraphs) in PRELAUNCH_NOTICES.items():
+        directory = output / slug
+        directory.mkdir(exist_ok=True)
+        body = "".join("<p>" + html.escape(paragraph) + "</p>" for paragraph in paragraphs)
+        document = (
+            '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<link rel="stylesheet" href="/landing-assets/site.css?v=4">'
+            "<title>" + html.escape(title) + " | FreeAgent AI | Avalou</title></head>"
+            '<body><main class="notice"><a href="/">FreeAgent AI by Avalou</a><h1>'
+            + html.escape(title)
+            + "</h1>"
+            + body
+            + "</main></body></html>"
+        )
+        (directory / "index.html").write_text(document)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, help="Publisher-approved launch JSON")
+    parser.add_argument(
+        "--prelaunch",
+        action="store_true",
+        help="Public marketing export with local pre-launch notices and disabled connections",
+    )
     parser.add_argument("--preview", action="store_true", help="Local design preview only; never deploy this output")
     parser.add_argument("--output", type=Path, default=Path("build/landing"))
     args = parser.parse_args()
-    if bool(args.config) == args.preview:
-        parser.error("Choose exactly one of --config or --preview")
+    if sum((bool(args.config), args.preview, args.prelaunch)) != 1:
+        parser.error("Choose exactly one of --config, --preview or --prelaunch")
+    if args.prelaunch:
+        build_prelaunch(args.output)
+        return
     config: dict[str, str] = (
         {key: "" if key in PROVIDERS else "#connection" for key in LINKS} if args.preview else load_config(args.config)
     )

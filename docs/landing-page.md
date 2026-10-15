@@ -148,3 +148,18 @@ buttons expose their expanded state and panel relationships. Details animate
 open and closed, with transitions removed for reduced-motion preferences. Without
 JavaScript, all instructions remain readable. The Avalou monogram matches the
 website hover rotation and also responds to keyboard focus.
+
+## Public pre-launch site
+
+`python -m freeagent_ai.landing --prelaunch --output build/landing` exports the
+marketing page with both connections disabled, the account navigation replaced
+with an on-page explanation, and local privacy/terms/support notices. These
+notices cover only the static pre-launch website and require publisher review in
+the implementation PR. They do not approve policies for the connected service.
+The normal `--config` and `FREEAGENT_LANDING_CONFIG` launch gates are unchanged.
+
+Infrastructure CI publishes this explicit export using Terraform-owned Firebase
+routing. Terraform hands content-version/release ownership to that one CI pipeline
+without deleting the live site; do not add a second Firebase deployment workflow.
+Cloud Run remains private. After release, verify root/assets/notices return 200
+and backend routes remain protected. No server credentials enter the export.
