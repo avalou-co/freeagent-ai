@@ -134,12 +134,13 @@ def settings():
     )
 
 
-def test_jwt_signature_audience_scope_and_auth_time():
+def test_jwt_signature_audience_scope_and_auth_time(monkeypatch):
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     verifier = Verifier(
         settings(), SimpleNamespace(get_signing_key_from_jwt=lambda _: SimpleNamespace(key=private.public_key()))
     )
     now = int(time.time())
+    monkeypatch.setattr("freeagent_ai.hosted_auth.time.time", lambda: now)
     payload = {
         "iss": settings().issuer,
         "aud": ORIGIN + "/mcp",
@@ -155,6 +156,7 @@ def test_jwt_signature_audience_scope_and_auth_time():
         return jwt.encode(data, private, algorithm="RS256")
 
     assert verifier.principal(token(payload)).scopes == frozenset({"freeagent:read"})
+    assert verifier.principal(token({**payload, PRIMARY_AUTH_CLAIM: now - 30 * 86400 + 1}))
     for change in [
         {"aud": "other"},
         {"exp": now - 1},
@@ -162,6 +164,7 @@ def test_jwt_signature_audience_scope_and_auth_time():
         {PRIMARY_AUTH_CLAIM: True},
         {PRIMARY_AUTH_CLAIM: now + 100},
         {"exp": now + 7200},
+        {PRIMARY_AUTH_CLAIM: now - 30 * 86400},
     ]:
         with pytest.raises(AccessDenied):
             verifier.principal(token({**payload, **change}))
@@ -377,3 +380,35 @@ def test_package_reproducible_and_release_gate(tmp_path):
         build(root, tmp_path / "release.zip")
     with pytest.raises(ValueError):
         package_files(root, {"interface": {"clientSecret": "must-not-be-packaged"}})
+
+
+def test_renewed_jwt_cannot_restore_disconnected_or_replaced_account(accounts):
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    verifier = Verifier(
+        settings(), SimpleNamespace(get_signing_key_from_jwt=lambda _: SimpleNamespace(key=private.public_key()))
+    )
+    now = int(time.time())
+    accounts.clock = lambda: now - 86400 - 1
+    link(accounts)
+    payload = {
+        "iss": settings().issuer,
+        "aud": ORIGIN + "/mcp",
+        "sub": "alice",
+        "iat": now,
+        "exp": now + 3600,
+        "azp": "mcp-client",
+        "scope": "freeagent:read",
+        PRIMARY_AUTH_CLAIM: now - 86400,
+    }
+    renewed = verifier.principal(jwt.encode(payload, private, algorithm="RS256"))
+    assert accounts.bind(renewed).subject == "alice"
+    accounts.clock = lambda: now
+    accounts.disconnect("alice", 1)
+    with pytest.raises(AccessDenied):
+        accounts.bind(renewed)
+    accounts.replace("alice", "company-2", "production", {"access_token": "new"}, 2)
+    with pytest.raises(AccessDenied):
+        accounts.bind(renewed)
+    # A genuinely new primary login can bind only the replacement company.
+    accounts.clock = lambda: now + 2
+    assert accounts.bind(Principal("alice", renewed.scopes, now + 1)).company == "company-2"

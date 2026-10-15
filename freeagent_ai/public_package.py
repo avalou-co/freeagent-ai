@@ -46,7 +46,7 @@ Preserve the write preview, user approval, current-request ownership and readbac
 `confirmed` is an assertion of obtained user approval, not a replacement for approval.
 Corrections use the individually declared update/delete tool for that resource.
 Never retry an uncertain write. After linking/replacement, sign in again and reconnect.
-Authorization expires hourly. Ask for business-specific defaults; never guess.
+ChatGPT authorization lasts up to 30 days with automatic token renewal. Ask for business-specific defaults; never guess.
 
 """
         + "\n".join(f"- `{op.name}`: {op.method} {op.endpoint}" for op in REGISTRY.values())

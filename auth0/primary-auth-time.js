@@ -1,30 +1,46 @@
-// Deploy this reviewed Post Login Action to the dedicated Auth0 database tenant.
-// Set secrets MCP_CLIENT_ID and WEB_CLIENT_ID (public IDs, managed as Action secrets).
+// Deploy through private-deployment. Refresh-token metadata must be enabled.
+const MAX_SESSION_SECONDS = 30 * 24 * 60 * 60;
+const METADATA_KEY = "freeagent_primary_auth_time";
 exports.onExecutePostLogin = async (event, api) => {
-  const clients = [event.secrets.MCP_CLIENT_ID, event.secrets.WEB_CLIENT_ID];
-  if (!clients.includes(event.client.client_id)) return;
+  const mcp = event.client.client_id === event.secrets.MCP_CLIENT_ID;
+  if (!mcp && event.client.client_id !== event.secrets.WEB_CLIENT_ID) return;
+  const refresh = event.transaction?.protocol === "oauth2-refresh-token";
   const query = event.request?.query;
-  if (event.transaction?.protocol !== "oidc-basic-profile" ||
-      typeof query?.code_challenge !== "string" ||
-      !/^[A-Za-z0-9_-]{43}$/.test(query.code_challenge) ||
-      query.code_challenge_method !== "S256") {
-    api.access.deny("Authorization code with PKCE S256 is required.");
+  if (event.connection?.strategy !== "auth0" || (refresh && !mcp)) {
+    api.access.deny("Use the dedicated database login.");
     return;
   }
-  if (event.transaction.protocol === "oauth2-refresh-token" ||
-      event.connection.strategy !== "auth0") {
-    api.access.deny("Use a fresh database login; refresh grants are disabled.");
+  let timestamp;
+  if (refresh) {
+    // Never use current time, user metadata, or a new login to renew an old family.
+    const stored = event.refresh_token?.metadata?.[METADATA_KEY];
+    timestamp = typeof stored === "string" && /^[0-9]+$/.test(stored) ? Number(stored) : NaN;
+  } else {
+    if (event.transaction?.protocol !== "oidc-basic-profile" ||
+        typeof query?.code_challenge !== "string" ||
+        !/^[A-Za-z0-9_-]{43}$/.test(query.code_challenge) ||
+        query.code_challenge_method !== "S256") {
+      api.access.deny("Authorization code with PKCE S256 is required.");
+      return;
+    }
+    const methods = (event.authentication?.methods || []).filter(method => method.name === "pwd");
+    timestamp = methods.length === 1 ? Date.parse(methods[0].timestamp) / 1000 : NaN;
+    timestamp = Math.floor(timestamp);
+  }
+  const now = Date.now() / 1000;
+  if (!Number.isSafeInteger(timestamp) || timestamp <= 0 || timestamp > now ||
+      (mcp && now >= timestamp + MAX_SESSION_SECONDS)) {
+    api.access.deny("Primary authentication expired or unavailable; sign in again.");
     return;
   }
-  const methods = (event.authentication?.methods || []).filter(method => method.name === "pwd");
-  if (methods.length !== 1) {
-    api.access.deny("Primary authentication timestamp unavailable; sign in again.");
-    return;
-  }
-  const timestamp = Date.parse(methods[0].timestamp) / 1000;
-  if (!Number.isFinite(timestamp) || timestamp <= 0) {
-    api.access.deny("Invalid authentication timestamp.");
-    return;
+  if (mcp) {
+    // Auth0 carries this server-owned metadata through the rotating token family.
+    // Missing capability fails closed rather than issuing a renewable unbound session.
+    if (typeof api.refreshToken?.setMetadata !== "function") {
+      api.access.deny("Refresh-token metadata is unavailable; contact the operator.");
+      return;
+    }
+    api.refreshToken.setMetadata(METADATA_KEY, String(timestamp));
   }
   const claim = "https://freeagent-ai.avalou.co/primary_auth_time";
   api.accessToken.setCustomClaim(claim, timestamp);

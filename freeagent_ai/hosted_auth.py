@@ -4,6 +4,7 @@ import json
 import math
 import os
 import re
+import time
 from dataclasses import dataclass
 
 import jwt
@@ -13,6 +14,7 @@ from .hosted_deadline import Deadline, deadline_context
 
 ORIGIN = "https://freeagent-ai.avalou.co"
 PRIMARY_AUTH_CLAIM = ORIGIN + "/primary_auth_time"
+MAX_SESSION_SECONDS = 30 * 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -117,6 +119,9 @@ class Verifier:
 
     def principal(self, token):
         data = self.claims(token, ORIGIN + "/mcp")
+        # A refreshed access token must not extend the original authorization window.
+        if time.time() >= data[PRIMARY_AUTH_CLAIM] + MAX_SESSION_SECONDS:
+            raise AccessDenied("ChatGPT session expired; sign in again")
         if data.get("azp") != self.settings.mcp_client_id:
             raise AccessDenied("OAuth client is not authorized for this plugin")
         return Principal(data["sub"], frozenset(data.get("scope", "").split()), data[PRIMARY_AUTH_CLAIM])
