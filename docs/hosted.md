@@ -47,43 +47,64 @@ discovery advertises PKCE S256. The dedicated client IDs are:
 - ChatGPT: `T9wZakykbNwaGDNcUdXmbtxd9VJs3yA6`.
 - Account linking: `WHciYkjNGgnuasHgashUS4LLCya0iORz`.
 
-Both clients use authorization-code grants only, database login and one-hour ID
-tokens. The API has one-hour access tokens, explicit consent, no offline access,
-per-app user authorization and no client-credentials access. The ChatGPT client has
-exactly the two declared scopes; resource parameter compatibility is enabled.
-The reviewed Action is deployed and its post-login trigger attachment was verified
-in the dashboard with “All changes are live”. This is configuration evidence;
-fresh login, SSO, PKCE rejection and replacement journeys still require live tests.
-Its PKCE gate requires a valid S256 challenge and authorization-code flow, using
-[Auth0's documented Action approach](https://support.auth0.com/center/s/article/Enforce-PKCE-with-Actions).
-Secret provisioning, the exact OpenAI callback and dedicated reviewer accounts
-still need to be connected to this deployment. Use an email/password
-database connection. Disable social/enterprise connections for these applications
-and verify free-plan eligibility and tenant region in the dashboard.
+The desired configuration keeps access and ID tokens at 3600 seconds. Only the
+ChatGPT client accepts `refresh_token` grants; the account-linking client remains
+code-only with a one-hour browser session. The API permits offline access with
+explicit consent. ChatGPT must request `offline_access` alongside `freeagent:read`
+and `freeagent:write` in its OAuth connection configuration.
 
-The following describes the desired configuration for verification; Terraform
-is its canonical owner after import.
+1. Keep RS256 and the existing API audience, scopes, client authentication methods
+   and exact callback allowlists. Initial authorization still requires PKCE S256.
+2. Configure ChatGPT refresh tokens as rotating and expiring, with absolute and
+   idle lifetimes of 2592000 seconds, both infinite flags false and reuse leeway
+   zero. Auth0 owns rotation and family invalidation on reuse. Do not implement
+   a second token endpoint or store ChatGPT refresh tokens in this application.
+3. Deploy `auth0/primary-auth-time.js` from the pinned CI checkout. Set the two
+   public client IDs as Action secrets MCP_CLIENT_ID and WEB_CLIENT_ID. Database
+   login only; linking-client refresh grants are rejected.
+4. Enable/verify refresh-token metadata in the tenant before release. The Action
+   stores the original password authentication timestamp in server-owned token
+   metadata and copies it unchanged on renewal. Missing, malformed, future or
+   expired metadata denies renewal; old families without metadata need a fresh
+   login. Never substitute current time, `iat`, user metadata or a later login.
+   See [Auth0 Action API](https://auth0.com/docs/actions/reference/post-login/post-login-api-object)
+   and [event reference](https://auth0.com/docs/actions/reference/post-login/post-login-event-object).
+   Capability/plan availability and metadata propagation across rotation must be
+   demonstrated on this tenant; mocked Action tests cannot establish them.
+5. The resource server independently denies MCP access at original login + 30 days,
+   even if a renewed access token has a later `exp`. The window never slides.
+   Disconnect/replacement tombstones compare that same immutable login timestamp
+   on every call, so renewed credentials cannot restore an old connection. A new
+   primary login after replacement is required to access the new company.
 
-1. Use an API whose identifier is `https://freeagent-ai.avalou.co/mcp`. Use RS256,
-   3600-second access tokens and scopes `freeagent:read`, `freeagent:write`. Enable
-   Resource Parameter Compatibility Profile. Disable offline access.
-2. Use the predefined confidential OAuth client for ChatGPT: authorization-code
-   grant only, PKCE S256 required, no refresh grant, token endpoint authentication
-   `client_secret_basic`. Enter its secret privately in OpenAI's portal; never
-   add it to Terraform, the ZIP, issue text or logs. Register the exact callback
-   shown by OpenAI's connection flow, not an invented callback.
-3. Use the separate regular web application for linking, using authorization code
-   plus PKCE. Register `https://freeagent-ai.avalou.co/auth/callback`. Configure
-   one-hour ID tokens. Store its client secret as `freeagent-auth0-web-secret`.
-4. Deploy `auth0/primary-auth-time.js` from the pinned CI checkout through Terraform as a Post Login
-   Action. Supply the two public client IDs as Action secrets MCP_CLIENT_ID and
-   WEB_CLIENT_ID. The Action requires
-   exactly one `pwd` method timestamp, excludes refresh grants and other connections,
-   and signs `https://freeagent-ai.avalou.co/primary_auth_time` on both token types.
-5. Verify actual fresh login, reused SSO, multiple browsers, late code exchange and
-   redirect continuations. The claim must retain the original PRIMARY login time,
-   never issuance time/MFA/continuation time. Reconnection after hourly expiry must
-   work in ChatGPT web, iOS and Android before release.
+### Release verification (manual; not performed by unit tests)
+
+Do not deploy or merge as part of preparing these PRs. Review both changes together;
+update both infrastructure workflow pins to the reviewed application commit.
+After separately authorized deployment to a test tenant/environment:
+
+- Verify `offline_access` consent and refresh-token issuance in the real ChatGPT
+  connection. Exercise automatic renewal past one hour in web, iOS and Android;
+  confirm new access tokens preserve original primary authentication time and
+  remain valid for no more than one hour. Do not log token values.
+- Exchange a rotated token again: expect `invalid_grant`, then confirm the newest
+  token in that family also fails. Zero leeway intentionally rejects retries;
+  verify ChatGPT serializes refreshes and handles uncertain exchanges safely.
+- Use a short-lived test configuration to exercise absolute expiry. Verify no
+  sliding extension, plus application rejection at exactly 30 days even for an
+  otherwise valid JWT. Restore the reviewed lifetimes before release.
+- Disconnect during renewal and replace the linked company during renewal. Old
+  and renewed credentials must fail all reads/writes immediately. A fresh login
+  can reach only the replacement company. Verify another user's company remains
+  isolated and financial writes still require approval and readback.
+- Test fresh login, reused SSO, late code exchange and redirect continuations:
+  original password time must survive; a later login must never update an existing
+  refresh family. Verify PKCE rejection and fail-closed metadata unavailability.
+
+Reuse detection is Auth0 behavior: local tests cover our Action and configuration,
+not Auth0's token endpoint. Complete the provider tests above before claiming the
+connection is ready for release. No Management API credential or broader user
+permissions are introduced for resource-server revocation.
 
 Auth0 owns authorization-server discovery/JWKS. Our resource discovery points to
 that issuer. Set issuer and client IDs in Terraform's reviewed nonsecret inputs.

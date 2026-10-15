@@ -155,7 +155,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         on_list_tools=tools,
         on_call_tool=invoke,
         get_tool_input_schema=lambda name: REGISTRY[name].descriptor.input_schema if name in REGISTRY else None,
-        instructions="Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. After linking/replacement, sign in again and reconnect ChatGPT. Access expires hourly.",
+        instructions="Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. After linking/replacement, sign in again and reconnect ChatGPT. ChatGPT stays connected for up to 30 days with automatic token renewal.",
     )
     manager = StreamableHTTPSessionManager(
         server,
@@ -198,7 +198,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         except AccessDenied:
             return page(
                 "Connect FreeAgent",
-                '<p><a href="/login">Sign in</a> to link or disconnect your account. ChatGPT authorization expires hourly.</p>',
+                '<p><a href="/login">Sign in</a> to link or disconnect your account. ChatGPT can stay connected for up to 30 days.</p>',
             )
         link = await anyio.to_thread.run_sync(accounts.store.get, "account_links", key_for(record["subject"]))
         csrf = await anyio.to_thread.run_sync(

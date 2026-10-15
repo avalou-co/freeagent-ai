@@ -22,5 +22,5 @@ in OpenAI's portal; record only pass/fail and redacted evidence here/GitHub.
 Record actual tools, exact sample prompts, expected and observed results for all
 five positives/three negatives. Include bank reconciliation with an individually
 approved sample transaction and readback in the walkthrough. Capture a real video
-and actual web/iOS/Android screenshots, including hourly reauthorization and account
+and actual web/iOS/Android screenshots, including automatic renewal and 30-day reauthorization and account
 replacement. Mocked tests or this script alone are not submission evidence.
