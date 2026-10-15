@@ -159,8 +159,13 @@ wording in the implementation PR. Publishing these pages does not approve public
 OAuth access or complete the connected-service privacy review.
 The normal `--config` and `FREEAGENT_LANDING_CONFIG` launch gates are unchanged.
 
-Infrastructure CI publishes this explicit export using Terraform-owned Firebase
-routing. Terraform hands content-version/release ownership to that one CI pipeline
-without deleting the live site; do not add a second Firebase deployment workflow.
-Cloud Run remains private. After release, verify root/assets/notices return 200
-and backend routes remain protected. No server credentials enter the export.
+The application's CI deploys this export after all checks pass on a push to main,
+using its existing production Workload Identity Federation identity. PR builds
+cannot deploy. `hosting.json` contains the website's headers and backend rewrite;
+`scripts/publish_landing.py` uploads and verifies the release. The infrastructure
+repository manages Firebase APIs, site, custom domain and the CI identity's IAM
+grant, and relinquishes the former config-only content version/release.
+
+Merge the infrastructure handover and apply its reviewed IAM grant before merging
+the application deployment. Cloud Run remains private. CI verifies public pages
+and protected backend routes after publishing. No server credentials enter the export.
