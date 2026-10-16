@@ -132,3 +132,14 @@ reported as MCP tool errors; authentication response bodies are not exposed.
 `freeagent_get` also exposes HTTP status, including 404 for deletion readback.
 Inspect uncertain writes before retrying. The client does not retry writes on 429
 or timeouts; it can refresh credentials once after a rejected 401.
+
+
+### Controlled hosted tool audit
+
+For the controlled OAuth experiment, `/mcp` advertises only registry operations
+whose method is GET (30 read tools). Discovery advertises `freeagent:read` only.
+The hosted dispatcher rejects every non-GET operation before binding an account
+or contacting FreeAgent, including explicit calls with older write-scoped tokens
+and `confirmed=true`. The complete registry/export remains the future publication
+audit; it is not the set enabled by the controlled hosted entrypoint. Account
+link/disconnect actions remain available only to allowlisted browser identities.

@@ -155,11 +155,13 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     )
     verifier = verifier or Verifier(settings)
     dispatcher = dispatcher or Dispatcher(
-        accounts, settings.freeagent_client_id, settings.freeagent_client_secret, settings.file_hosts
+        accounts, settings.freeagent_client_id, settings.freeagent_client_secret, settings.file_hosts, read_only=True
     )
 
     async def tools(context, params):
-        return PublicToolsResult(tools=[operation.descriptor for operation in REGISTRY.values()])
+        return PublicToolsResult(
+            tools=[operation.descriptor for operation in REGISTRY.values() if operation.method == "GET"]
+        )
 
     async def invoke(context, params):
         return await anyio.to_thread.run_sync(dispatcher.call_tool, params.name, params.arguments or {})
@@ -170,7 +172,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         on_list_tools=tools,
         on_call_tool=invoke,
         get_tool_input_schema=lambda name: REGISTRY[name].descriptor.input_schema if name in REGISTRY else None,
-        instructions="Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. After linking/replacement, sign in again and reconnect ChatGPT. ChatGPT stays connected for up to 30 days with automatic token renewal.",
+        instructions="Controlled read-only test: do not create or modify accounting records. Renewal remains under live verification. Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. After linking/replacement, sign in again and reconnect ChatGPT. The intended maximum session is 30 days.",
     )
     manager = StreamableHTTPSessionManager(
         server,
@@ -189,7 +191,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
             {
                 "resource": ORIGIN + "/mcp",
                 "authorization_servers": [settings.issuer],
-                "scopes_supported": ["freeagent:read", "freeagent:write"],
+                "scopes_supported": ["freeagent:read"],
                 "bearer_methods_supported": ["header"],
             }
         )
@@ -199,6 +201,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         record = accounts.store.get("web_state", key_for(token)) if token else {}
         if record.get("kind") != "session" or record.get("expires", 0) <= time.time() or not record.get("subject"):
             raise AccessDenied("Sign in to manage your FreeAgent connection")
+        if record["subject"] not in settings.allowed_subjects:
+            raise AccessDenied("This account is not approved for controlled testing")
         return token, record
 
     async def home(request):
@@ -226,7 +230,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         )
         return page(
             "Your FreeAgent connection",
-            f'<p>{"Connected" if link.get("active") else "Not connected"}</p><form method="post" action="/link"><input type="hidden" name="state" value="{csrf}"><button>Link or replace FreeAgent account</button></form><form method="post" action="/disconnect"><input type="hidden" name="state" value="{csrf}"><button>Disconnect FreeAgent</button></form><p>After linking or replacement, <a href="/login">sign in again</a> and reconnect ChatGPT. Requests already sent may have completed; inspect before repeating them.</p>',
+            f'<p>{"Connected" if link.get("active") else "Not connected"}</p><p>Linked company: {html.escape(link.get("company", "None") if link.get("active") else "None")}</p><form method="post" action="/link"><input type="hidden" name="state" value="{csrf}"><button>Link or replace FreeAgent account</button></form><form method="post" action="/disconnect"><input type="hidden" name="state" value="{csrf}"><button>Disconnect FreeAgent</button></form><p>After linking or replacement, <a href="/login">sign in again</a> and reconnect ChatGPT. Requests already sent may have completed; inspect before repeating them.</p>',
         )
 
     async def login(request):

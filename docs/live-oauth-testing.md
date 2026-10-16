@@ -5,6 +5,11 @@ directory publication. Do not enter credentials or tokens in chat or GitHub.
 
 ## Before starting
 
+Before inviting linking, obtain owner approval of the connected-service privacy
+disclosure and configure matching exact test subjects in application and Auth0
+Terraform. Empty subject sets deny all users. The hosted test advertises only read
+tools and rejects accounting writes even with an older write-scoped token.
+
 The accounting endpoint is currently private: a normal request returns 403.
 Publishing the static landing page does not change that. The backend needs a
 separately reviewed controlled-test deployment before the browser flow below can

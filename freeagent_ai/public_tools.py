@@ -381,15 +381,25 @@ REGISTRY = make_registry()
 
 class Dispatcher:
     def __init__(
-        self, accounts, client_id, client_secret, file_hosts=frozenset(), client_factory: Callable = HostedClient
+        self,
+        accounts,
+        client_id,
+        client_secret,
+        file_hosts=frozenset(),
+        client_factory: Callable = HostedClient,
+        *,
+        read_only=False,
     ):
         self.accounts, self.client_id, self.client_secret = accounts, client_id, client_secret
         self.file_hosts, self.client_factory = file_hosts, client_factory
+        self.read_only = read_only
 
     def invoke(self, name, arguments):
         if name not in REGISTRY:
             raise AccessDenied("Tool not available")
         operation = REGISTRY[name]
+        if self.read_only and operation.method != "GET":
+            raise AccessDenied("Controlled OAuth testing permits reads only")
         jsonschema.validate(arguments, operation.descriptor.input_schema)
         principal = principal_context.get()
         required = "freeagent:read" if operation.method == "GET" else "freeagent:write"

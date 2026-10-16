@@ -131,6 +131,7 @@ def settings():
         "test-only-fa-secret",
         {},
         "1",
+        allowed_subjects=frozenset({"alice"}),
     )
 
 
@@ -158,6 +159,7 @@ def test_jwt_signature_audience_scope_and_auth_time(monkeypatch):
     assert verifier.principal(token(payload)).scopes == frozenset({"freeagent:read"})
     assert verifier.principal(token({**payload, PRIMARY_AUTH_CLAIM: now - 30 * 86400 + 1}))
     for change in [
+        {"sub": "unapproved"},
         {"aud": "other"},
         {"exp": now - 1},
         {"azp": "other"},
@@ -349,7 +351,9 @@ def test_hosted_http_identity_context_and_discovery(accounts):
             headers={"Authorization": "Bearer alice", "Accept": "application/json, text/event-stream"},
             json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
         ).json()["result"]["tools"]
-        assert len(descriptors) == len(REGISTRY)
+        assert {tool["name"] for tool in descriptors} == {
+            name for name, operation in REGISTRY.items() if operation.method == "GET"
+        }
         assert all(tool["securitySchemes"] == tool["_meta"]["securitySchemes"] for tool in descriptors)
         for subject in ["alice", "bob"]:
             response = client.post(
@@ -579,3 +583,36 @@ def test_published_local_policy_routes_are_valid(landing_config):
     for name in ("privacy", "terms", "support"):
         config[name + "_url"] = "https://freeagent-ai.avalou.co/" + name + "/"
     assert validate_config(config)["privacy_url"] == config["privacy_url"]
+
+
+def test_controlled_dispatch_denies_every_write_before_binding_or_provider(accounts):
+    dispatcher = Dispatcher(
+        accounts, "id", "secret", read_only=True, client_factory=lambda *_: pytest.fail("provider must not run")
+    )
+    principal_context.set(Principal("alice", frozenset({"freeagent:read", "freeagent:write"}), 101))
+    for name, operation in REGISTRY.items():
+        if operation.method != "GET":
+            with pytest.raises(AccessDenied, match="reads only"):
+                dispatcher.invoke(name, {"confirmed": True})
+
+
+def test_empty_allowlist_denies_valid_login_and_mcp_tokens():
+    from dataclasses import replace
+
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    verifier = Verifier(
+        replace(settings(), allowed_subjects=frozenset()),
+        SimpleNamespace(get_signing_key_from_jwt=lambda _: SimpleNamespace(key=private.public_key())),
+    )
+    now = int(time.time())
+    for audience in [ORIGIN + "/mcp", "web-client"]:
+        payload = {
+            "iss": settings().issuer,
+            "aud": audience,
+            "sub": "alice",
+            "iat": now,
+            "exp": now + 3600,
+            PRIMARY_AUTH_CLAIM: now - 1,
+        }
+        with pytest.raises(AccessDenied):
+            verifier.claims(jwt.encode(payload, private, algorithm="RS256"), audience)

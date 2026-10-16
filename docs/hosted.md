@@ -51,12 +51,12 @@ The desired configuration keeps access and ID tokens at 3600 seconds. Only the
 ChatGPT client accepts `refresh_token` grants; the account-linking client remains
 code-only with a one-hour browser session. The API permits offline access with
 explicit consent. ChatGPT must request `offline_access` alongside `freeagent:read`
-and `freeagent:write` in its OAuth connection configuration.
+in its controlled-test OAuth connection configuration.
 
 1. Keep RS256 and the existing API audience, scopes, client authentication methods
    and exact callback allowlists. Initial authorization still requires PKCE S256.
-2. Configure ChatGPT refresh tokens as rotating and expiring, with absolute and
-   idle lifetimes of 2592000 seconds, both infinite flags false and reuse leeway
+2. Configure ChatGPT refresh tokens as rotating and expiring, with an absolute
+   lifetime of 2592000 seconds and idle lifetime of 2591999 seconds, both infinite flags false and reuse leeway
    zero. Auth0 owns rotation and family invalidation on reuse. Do not implement
    a second token endpoint or store ChatGPT refresh tokens in this application.
 3. Deploy `auth0/primary-auth-time.js` from the pinned CI checkout. Set the two
@@ -153,7 +153,8 @@ request already sent may have committed; disconnect is not accounting rollback.
 3. Apply the separate `environments/hosting` root after importing any existing Firebase
    association. It creates a dedicated site and ONLY `freeagent-ai.avalou.co` domain.
    Add the exact DNS records Terraform outputs; wait for ownership and TLS readiness.
-4. Configure alert recipients, daily seven-day backups and an isolated restore drill.
+4. Configure alert recipients. Backups are optional and disabled for this experiment.
+   If backups are later enabled, require an isolated restore drill.
    A restored database may contain previously valid links: invalidate generations/
    credentials before restoring public traffic. Database backup is not state backup.
 5. Verify per-user OAuth/isolation and independent security approval before setting
@@ -208,3 +209,26 @@ python -m freeagent_ai.public_package --metadata /private/path/publication-metad
 Enter reviewer access privately in OpenAI's portal. Upload, resolve scans, submit,
 handle feedback, and have the publishing owner publish after approval. Record listing
 URL, plugin ID, package version and image digest separately from submission/approval.
+
+
+## Controlled read-only rollout
+
+The hosted entrypoint advertises only GET tools and constructs a read-only
+dispatcher, which rejects every accounting mutation even if an old JWT carries
+write scope. Local transports remain separate. `FREEAGENT_TEST_SUBJECTS` is a JSON
+array of exact Auth0 subjects: omitted/empty denies all. JWT verification enforces
+it for both account-linking ID tokens and MCP tokens; browser sessions are checked
+again on each account action. Terraform owns this value and the matching Action
+`TEST_SUBJECTS` setting. The Action denies unknown subjects on login and renewal.
+
+The Auth0 grant permits only `freeagent:read`; request `offline_access` for renewal.
+Do not invite linking until the owner approves the connected-service notice draft
+and deployment/security gates pass. Existing website privacy approval does not
+approve [the connected-service draft](connected-service-privacy-draft.md).
+
+Obtain the exact redirect from the MCP server management page in ChatGPT. Official
+docs describe callback-specific and stable redirect modes; neither is permission
+to guess the actual callback. The Auth0 application user ID is available in the
+Auth0 user profile (not the dashboard administrator profile). An operator may read
+it with an existing appropriately scoped Management API identity; do not broaden
+CI permissions or expose credentials to obtain it.
