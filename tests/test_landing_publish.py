@@ -44,8 +44,9 @@ def test_credentials_and_symlinks_are_not_static_content(tmp_path):
         module.manifest(tmp_path)
 
 
+@pytest.mark.parametrize("prefix", ["", "projects/avalou-prod/"])
 @pytest.mark.parametrize("mismatch", [False, True])
-def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, monkeypatch, mismatch):
+def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, monkeypatch, mismatch, prefix):
     import io
     import json
 
@@ -53,11 +54,11 @@ def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, mo
     version = "sites/avalou-freeagent-ai/versions/abc123"
     release = "sites/avalou-freeagent-ai/releases/123456"
     responses = [
-        {"name": version},
+        {"name": prefix + version},
         {"uploadRequiredHashes": []},
         {"status": "FINALIZED"},
-        {"name": release},
-        {"version": {"name": version + "wrong" if mismatch else version}},
+        {"name": prefix + release},
+        {"version": {"name": prefix + version + "wrong" if mismatch else prefix + version}},
     ]
     calls = []
 
@@ -76,3 +77,19 @@ def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, mo
     assert calls[1] == ("POST", module.API + version + ":populateFiles")
     assert calls[-1] == ("GET", module.API + release)
     assert not responses
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "projects/another-project/sites/avalou-freeagent-ai/versions/123",
+        "projects/avalou-prod/sites/another-site/versions/123",
+        "sites/avalou-freeagent-ai/releases/123",
+        "sites/avalou-freeagent-ai/versions/../123",
+        "sites/avalou-freeagent-ai/versions/123?redirect=elsewhere",
+        None,
+    ],
+)
+def test_version_names_cannot_change_project_site_or_resource(name):
+    with pytest.raises(ValueError, match="Unexpected Hosting"):
+        module.resource_name(name, "versions")
