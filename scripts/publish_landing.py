@@ -16,6 +16,15 @@ SITE = "projects/example-project/sites/example-site"
 RESOURCE = "sites/example-site"
 
 
+def resource_name(value, kind):
+    """Accept Firebase's two names for this exact project's site."""
+    if not isinstance(value, str) or not re.fullmatch(
+        r"(?:projects/example-project/)?" + re.escape(RESOURCE) + "/" + kind + r"/[A-Za-z0-9_-]+", value
+    ):
+        raise ValueError("Unexpected Hosting " + kind + " resource")
+    return value.removeprefix("projects/example-project/")
+
+
 def manifest(root):
     files, blobs = {}, {}
     for path in sorted(root.rglob("*")):
@@ -97,9 +106,7 @@ def publish(root, config):
         except HTTPError as error:
             raise RuntimeError(f"Hosting {method} {parsed.path} failed: HTTP {error.code}") from None
 
-    version = request("POST", API + SITE + "/versions", {"config": config})["name"]
-    if not re.fullmatch(re.escape(RESOURCE) + r"/versions/[A-Za-z0-9_-]+", version):
-        raise ValueError("Unexpected Hosting version resource")
+    version = resource_name(request("POST", API + SITE + "/versions", {"config": config})["name"], "versions")
     populated = request("POST", API + version + ":populateFiles", {"files": files})
     for digest in populated.get("uploadRequiredHashes", []):
         if digest not in blobs:
@@ -113,12 +120,10 @@ def publish(root, config):
         API + SITE + "/releases?" + urlencode({"versionName": version}),
         {"message": "Public landing; accounting backend remains private"},
     )
-    name = release["name"]
     # Read back the exact release without allowing authenticated redirects.
-    if not re.fullmatch(re.escape(RESOURCE) + r"/releases/[A-Za-z0-9_-]+", name):
-        raise ValueError("Unexpected Hosting release resource")
+    name = resource_name(release["name"], "releases")
     readback = request("GET", API + name)
-    if readback.get("version", {}).get("name") != version:
+    if resource_name(readback.get("version", {}).get("name"), "versions") != version:
         raise RuntimeError("Released version did not match the static export")
     print("Published and verified " + version)
 
