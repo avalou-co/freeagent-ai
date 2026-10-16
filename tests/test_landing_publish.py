@@ -71,9 +71,9 @@ def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, mo
     monkeypatch.setattr(module.subprocess, "check_output", lambda *a, **kw: "test-token")
     if mismatch:
         with pytest.raises(RuntimeError, match="did not match"):
-            module.publish(tmp_path, {})
+            module.publish(tmp_path, {}, project="example-project", site="example-site")
     else:
-        module.publish(tmp_path, {})
+        module.publish(tmp_path, {}, project="example-project", site="example-site")
     assert calls[1] == ("POST", module.API + version + ":populateFiles")
     assert calls[-1] == ("GET", module.API + release)
     assert not responses
@@ -92,4 +92,12 @@ def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, mo
 )
 def test_version_names_cannot_change_project_site_or_resource(name):
     with pytest.raises(ValueError, match="Unexpected Hosting"):
-        module.resource_name(name, "versions")
+        module.resource_name(name, "versions", project="example-project", site="example-site")
+
+
+def test_backend_config_uses_only_explicit_deployment_inputs():
+    result = module.deployment_config({"headers": []}, service="example-service", region="europe-west1")
+    assert result["rewrites"] == [{"glob": "**", "run": {"serviceId": "example-service", "region": "europe-west1"}}]
+    for service, region in [("../other", "europe-west1"), ("example-service", "bad/region")]:
+        with pytest.raises(ValueError):
+            module.deployment_config({}, service=service, region=region)

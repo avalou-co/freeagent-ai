@@ -24,6 +24,7 @@ from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import principal_context, request_json
 from .hosted_deadline import Deadline, deadline_context
 from .landing import ROOT as LANDING_ROOT
+from .landing import SITE_NOTICES
 from .landing import render as render_landing
 from .landing import validate_config as validate_landing_config
 from .public_tools import REGISTRY, Dispatcher, PublicToolsResult
@@ -366,11 +367,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     async def policy(request):
         if landing_config is not None:
             return RedirectResponse(landing_config[request.url.path.lstrip("/") + "_url"], status_code=302)
-        # Drafts stay marked until the publisher approves real support/policy content.
-        return page(
-            "Publication setup pending",
-            "<p>FreeAgent AI is not yet publicly launched. Publisher-approved privacy, terms and support information must be supplied before submission.</p>",
-        )
+        title, paragraphs = SITE_NOTICES[request.url.path.strip("/")]
+        return page(title, "".join("<p>" + html.escape(paragraph) + "</p>" for paragraph in paragraphs))
 
     async def denied(request, error):
         return PlainTextResponse(str(error), status_code=400)

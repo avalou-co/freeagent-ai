@@ -1,13 +1,4 @@
 {
-  "rewrites": [
-    {
-      "glob": "**",
-      "run": {
-        "serviceId": "example-backend",
-        "region": "europe-west1"
-      }
-    }
-  ],
   "headers": [
     {
       "glob": "**",

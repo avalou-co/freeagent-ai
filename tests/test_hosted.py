@@ -476,7 +476,13 @@ def test_landing_disabled_until_launch(accounts, monkeypatch):
     monkeypatch.delenv("FREEAGENT_LANDING_CONFIG", raising=False)
     with TestClient(create_app(settings(), accounts, SimpleNamespace()), base_url=ORIGIN) as client:
         assert "Connect your assistant." not in client.get("/").text
-        assert "Publication setup pending" in client.get("/privacy").text
+        privacy = client.get("/privacy")
+        assert privacy.status_code == 200
+        assert "connected FreeAgent AI service" in privacy.text
+        assert "encrypted FreeAgent access and refresh tokens" in privacy.text
+        assert "no automatic expiry" in privacy.text
+        assert "Review proposed accounting changes" in client.get("/terms").text
+        assert "hello@avalou.co" in client.get("/support").text
 
 
 @pytest.mark.parametrize(
@@ -567,6 +573,10 @@ def test_static_export_keeps_connections_unavailable(tmp_path):
     for slug in ("privacy", "terms", "support"):
         assert f'href="/{slug}/"' in index
         assert "hello@avalou.co" in (tmp_path / slug / "index.html").read_text()
+    privacy = (tmp_path / "privacy/index.html").read_text()
+    assert "connected FreeAgent AI service" in privacy
+    assert "encrypted FreeAgent access and refresh tokens" in privacy
+    assert "no automatic expiry" in privacy
     assert not (tmp_path / "account").exists()
     assert not (tmp_path / "mcp").exists()
     assert (tmp_path / "landing-assets/site.css").is_file()
@@ -579,3 +589,22 @@ def test_published_local_policy_routes_are_valid(landing_config):
     for name in ("privacy", "terms", "support"):
         config[name + "_url"] = "https://freeagent-ai.avalou.co/" + name + "/"
     assert validate_config(config)["privacy_url"] == config["privacy_url"]
+
+
+def test_hosted_project_must_be_explicit_without_operator_fallback(monkeypatch):
+    values = {
+        "AUTH0_ISSUER": "https://example.auth0.com/",
+        "AUTH0_MCP_CLIENT_ID": "example-mcp-client",
+        "AUTH0_WEB_CLIENT_ID": "example-web-client",
+        "AUTH0_WEB_CLIENT_SECRET": "test-only",
+        "FREEAGENT_CLIENT_ID": "example-upstream-client",
+        "FREEAGENT_CLIENT_SECRET": "test-only",
+        "FREEAGENT_TOKEN_ENCRYPTION_KEY": json.dumps({"active": "1", "keys": {"1": "test-only"}}),
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    with pytest.raises(ValueError, match="Hosted configuration incomplete"):
+        Settings.from_env()
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "example-project")
+    assert Settings.from_env().project == "example-project"

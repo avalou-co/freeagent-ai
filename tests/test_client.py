@@ -113,6 +113,8 @@ def servers(tmp_path, monkeypatch):
 
 def _redirect_to(location, code=302):
     def handler(h):
+        # Consume POST bodies before closing, avoiding a TCP reset hiding the redirect.
+        h.rfile.read(int(h.headers.get("Content-Length", "0")))
         h.send_response(code)
         h.send_header("Location", location)
         h.end_headers()

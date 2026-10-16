@@ -1,15 +1,14 @@
-# Live OAuth test with your own account
+# Test the production service with your own account
 
-This is a read-only connection test, not proof of two-company isolation or public
-directory publication. Do not enter credentials or tokens in chat or GitHub.
+The production deployment includes read and write tools. Start with the read-only
+connection checks below, then approve only accounting changes you intend to make.
+Your account does not prove two-company isolation or public directory publication. Do not enter credentials or tokens in chat or GitHub.
 
 ## Before starting
 
-The accounting endpoint is currently private: a normal request returns 403.
-Publishing the static landing page does not change that. The backend needs a
-separately reviewed controlled-test deployment before the browser flow below can
-complete. Confirm OAuth discovery and a missing-token MCP response of 401 after
-that deployment. A 403 from Google is not an application OAuth challenge.
+After the owner merges the reviewed production-access infrastructure PR, CI
+enables the backend. Publishing the static website alone does not do that. Confirm
+OAuth discovery and a missing-token MCP response of 401 after deployment. A 403 from Google is not an application OAuth challenge.
 
 The owner must configure the exact callback displayed by ChatGPT in Terraform's
 `openai_callbacks`, and supply the dedicated ChatGPT application's client secret
@@ -55,3 +54,14 @@ not passed. Do not confuse a private connection with a published directory app.
 
 Official setup: https://developers.openai.com/plugins/deploy/connect-chatgpt
 OAuth/callback contract: https://developers.openai.com/plugins/build/auth
+
+
+## Accounting operations on your live company
+
+The complete toolset is enabled, but no write is authorized by connecting or
+by this deployment request. Supply the exact records/details you want, inspect
+the proposed change, approve it explicitly, and compare the readback with FreeAgent.
+Use draft invoices/estimates and verify their status and automatic-email settings.
+Only correct/delete entries created during that request after separate approval.
+On timeouts or failed readback, inspect the existing record before retrying.
+Receipt uploads remain unavailable until verified download hosts are configured.

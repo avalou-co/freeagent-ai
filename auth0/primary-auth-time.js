@@ -1,4 +1,4 @@
-// Deploy through private-deployment. Refresh-token metadata must be enabled.
+// Deploy through the operator's Terraform configuration. Refresh-token metadata must be enabled.
 const MAX_SESSION_SECONDS = 30 * 24 * 60 * 60;
 const METADATA_KEY = "freeagent_primary_auth_time";
 exports.onExecutePostLogin = async (event, api) => {

@@ -9,22 +9,35 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
+    env:
+      DOCKER_BUILD_SUMMARY: "false"
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
       - uses: actions/checkout@v4
+      - name: Check deployment identity configuration
+        env:
+          DELIVERY_PROVIDER: ${{ secrets.DELIVERY_IDENTITY_PROVIDER }}
+          DELIVERY_ACCOUNT: ${{ secrets.DELIVERY_SERVICE_ACCOUNT }}
+        run: |
+          test -n "$DELIVERY_PROVIDER"
+          test -n "$DELIVERY_ACCOUNT"
       - uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ vars.DELIVERY_IDENTITY_PROVIDER }}
-          service_account: example-delivery@example-project.iam.gserviceaccount.com
+          workload_identity_provider: ${{ secrets.DELIVERY_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.DELIVERY_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v3
-      - run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+      - name: Configure container registry
+        env:
+          IMAGE_REPOSITORY: ${{ secrets.HOSTED_IMAGE_REPOSITORY }}
+        run: gcloud auth configure-docker "${IMAGE_REPOSITORY%%/*}" --quiet
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         id: image
         with:
           context: .
           push: true
-          tags: europe-west1-docker.pkg.dev/example-project/freeagent-ai/mcp:${{ github.sha }}
+          tags: ${{ secrets.HOSTED_IMAGE_REPOSITORY }}:${{ github.sha }}
       - name: Record Terraform handoff
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
-        run: echo "Reviewed image reference for Terraform is europe-west1-docker.pkg.dev/example-project/freeagent-ai/mcp@$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Built image digest is $IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"

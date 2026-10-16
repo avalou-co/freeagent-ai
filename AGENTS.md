@@ -53,3 +53,13 @@ approval and verification. Keep the tool audit current when changing MCP tools.
 
 Install dev tools with `pip install -e ".[mcp,dev]"`, then run the checks CI runs on every PR: `ruff check .`, `ruff format --check .`, `pyright`, `pytest`.
 Claude Code loads the skills through the `freeagent-ai` plugin (`.claude-plugin/`), as `/freeagent-ai:<name>`. Develop with `claude --plugin-dir .`.
+
+## Public repository boundary
+
+This repository is public. Keep private deployment identifiers, internal runbooks,
+private repository links, credentials and real accounting/customer data out of
+source, tests, issues, PR text and CI artifacts. Use synthetic test values and
+protected deployment inputs. Public product branding, service URLs and support
+contacts are intentional. Keep operator-specific configuration and operational
+evidence in the private deployment repository. Do not print private destinations
+in public build summaries or upload container build records containing them.
