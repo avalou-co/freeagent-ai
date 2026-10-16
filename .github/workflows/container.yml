@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
+      DEPLOYMENT_PROJECT: ${{ secrets.DEPLOYMENT_PROJECT }}
+      DEPLOYMENT_REGION: ${{ secrets.HOSTING_BACKEND_REGION }}
       DOCKER_BUILD_SUMMARY: "false"
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
@@ -29,7 +31,10 @@ jobs:
       - name: Configure container registry
         env:
           IMAGE_REPOSITORY: ${{ secrets.HOSTED_IMAGE_REPOSITORY }}
-        run: gcloud auth configure-docker "${IMAGE_REPOSITORY%%/*}" --quiet
+        run: |
+          echo "::add-mask::${IMAGE_REPOSITORY%%/*}"
+          echo "::add-mask::${IMAGE_REPOSITORY#*/}"
+          gcloud auth configure-docker "${IMAGE_REPOSITORY%%/*}" --quiet
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         id: image

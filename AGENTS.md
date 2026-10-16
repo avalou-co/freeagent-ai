@@ -63,3 +63,6 @@ protected deployment inputs. Public product branding, service URLs and support
 contacts are intentional. Keep operator-specific configuration and operational
 evidence in the private deployment repository. Do not print private destinations
 in public build summaries or upload container build records containing them.
+
+After a repository history cleanup, use a fresh clone or an explicitly migrated
+worktree. Never push pre-cleanup branches or merge old history back into the repo.
