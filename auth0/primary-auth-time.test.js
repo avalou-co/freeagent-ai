@@ -4,8 +4,7 @@ Date.now = () => Date.parse('2026-10-15T12:00:00Z');
 const { onExecutePostLogin } = require('./primary-auth-time');
 
 const valid = () => ({
-  secrets: { MCP_CLIENT_ID: 'mcp', WEB_CLIENT_ID: 'web', TEST_SUBJECTS: '["auth0|tester"]' },
-  user: { user_id: 'auth0|tester' },
+  secrets: { MCP_CLIENT_ID: 'mcp', WEB_CLIENT_ID: 'web' },
   client: { client_id: 'mcp' },
   transaction: { protocol: 'oidc-basic-profile' },
   request: { query: { code_challenge: 'a'.repeat(43), code_challenge_method: 'S256' } },
@@ -98,16 +97,5 @@ test('metadata capability missing fails closed and expiry boundary is exact', as
   for (const [age, denied] of [[2591999, 0], [2592000, 1], [2592001, 1]]) {
     event.refresh_token = { metadata: { freeagent_primary_auth_time: String(Date.now()/1000 - age) } };
     assert.equal((await run(event)).denied.length, denied);
-  }
-});
-
-test('controlled access denies unknown users and empty or malformed configuration on login and refresh', async () => {
-  for (const protocol of ['oidc-basic-profile', 'oauth2-refresh-token']) {
-    for (const allowed of [undefined, '[]', 'bad', '{}', '[42]', '["auth0|other"]']) {
-      const event = valid(); event.transaction.protocol = protocol;
-      event.secrets.TEST_SUBJECTS = allowed;
-      const result = await run(event);
-      assert.equal(result.denied.length, 1); assert.equal(result.claims.length, 0);
-    }
   }
 });

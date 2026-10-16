@@ -31,7 +31,6 @@ class Settings:
     environment: str = "production"
     file_hosts: frozenset[str] = frozenset()
     challenge: str = ""
-    allowed_subjects: frozenset[str] = frozenset()
 
     @classmethod
     def from_env(cls):
@@ -56,9 +55,6 @@ class Settings:
         hosts = frozenset(filter(None, os.environ.get("OPENAI_FILE_DOWNLOAD_HOSTS", "").split(",")))
         if any(not re.fullmatch(r"[a-z0-9.-]+", host) for host in hosts):
             raise ValueError("File origins must be exact DNS hostnames, no wildcards")
-        subjects = json.loads(os.environ.get("FREEAGENT_TEST_SUBJECTS", "[]"))
-        if not isinstance(subjects, list) or any(not isinstance(x, str) or not x for x in subjects):
-            raise ValueError("FREEAGENT_TEST_SUBJECTS must be a JSON array of exact subjects")
         return cls(
             issuer,
             os.environ["AUTH0_MCP_CLIENT_ID"],
@@ -68,7 +64,6 @@ class Settings:
             os.environ["FREEAGENT_CLIENT_SECRET"],
             keys["keys"],
             keys["active"],
-            allowed_subjects=frozenset(subjects),
             project=os.environ.get("GOOGLE_CLOUD_PROJECT", "avalou-prod"),
             environment=environment,
             file_hosts=hosts,
@@ -117,8 +112,6 @@ class Verifier:
                 or not isinstance(data["sub"], str)
                 or not data["sub"]
             ):
-                raise ValueError()
-            if data["sub"] not in self.settings.allowed_subjects:
                 raise ValueError()
             return data
         except Exception:

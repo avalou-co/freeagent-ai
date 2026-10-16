@@ -4,13 +4,6 @@ const METADATA_KEY = "freeagent_primary_auth_time";
 exports.onExecutePostLogin = async (event, api) => {
   const mcp = event.client.client_id === event.secrets.MCP_CLIENT_ID;
   if (!mcp && event.client.client_id !== event.secrets.WEB_CLIENT_ID) return;
-  let subjects;
-  try { subjects = JSON.parse(event.secrets.TEST_SUBJECTS || "[]"); } catch { subjects = []; }
-  if (!Array.isArray(subjects) || !subjects.every(s => typeof s === "string" && s.length > 0) ||
-      !subjects.includes(event.user?.user_id)) {
-    api.access.deny("This account is not approved for controlled testing.");
-    return;
-  }
   const refresh = event.transaction?.protocol === "oauth2-refresh-token";
   const query = event.request?.query;
   if (event.connection?.strategy !== "auth0" || (refresh && !mcp)) {

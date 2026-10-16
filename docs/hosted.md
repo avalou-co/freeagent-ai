@@ -51,12 +51,12 @@ The desired configuration keeps access and ID tokens at 3600 seconds. Only the
 ChatGPT client accepts `refresh_token` grants; the account-linking client remains
 code-only with a one-hour browser session. The API permits offline access with
 explicit consent. ChatGPT must request `offline_access` alongside `freeagent:read`
-in its controlled-test OAuth connection configuration.
+and `freeagent:write` in its OAuth connection configuration.
 
 1. Keep RS256 and the existing API audience, scopes, client authentication methods
    and exact callback allowlists. Initial authorization still requires PKCE S256.
-2. Configure ChatGPT refresh tokens as rotating and expiring, with an absolute
-   lifetime of 2592000 seconds and idle lifetime of 2591999 seconds, both infinite flags false and reuse leeway
+2. Configure ChatGPT refresh tokens as rotating and expiring, with an absolute lifetime of 2592000 seconds
+   and an idle lifetime of 2591999 seconds, both infinite flags false and reuse leeway
    zero. Auth0 owns rotation and family invalidation on reuse. Do not implement
    a second token endpoint or store ChatGPT refresh tokens in this application.
 3. Deploy `auth0/primary-auth-time.js` from the pinned CI checkout. Set the two
@@ -153,8 +153,8 @@ request already sent may have committed; disconnect is not accounting rollback.
 3. Apply the separate `environments/hosting` root after importing any existing Firebase
    association. It creates a dedicated site and ONLY `freeagent-ai.avalou.co` domain.
    Add the exact DNS records Terraform outputs; wait for ownership and TLS readiness.
-4. Configure alert recipients. Backups are optional and disabled for this experiment.
-   If backups are later enabled, require an isolated restore drill.
+4. Configure alert recipients. Backups remain optional and disabled. If enabled later,
+   require an isolated restore drill.
    A restored database may contain previously valid links: invalidate generations/
    credentials before restoring public traffic. Database backup is not state backup.
 5. Verify per-user OAuth/isolation and independent security approval before setting
@@ -211,24 +211,31 @@ handle feedback, and have the publishing owner publish after approval. Record li
 URL, plugin ID, package version and image digest separately from submission/approval.
 
 
-## Controlled read-only rollout
+## Production rollout and owner testing
 
-The hosted entrypoint advertises only GET tools and constructs a read-only
-dispatcher, which rejects every accounting mutation even if an old JWT carries
-write scope. Local transports remain separate. `FREEAGENT_TEST_SUBJECTS` is a JSON
-array of exact Auth0 subjects: omitted/empty denies all. JWT verification enforces
-it for both account-linking ID tokens and MCP tokens; browser sessions are checked
-again on each account action. Terraform owns this value and the matching Action
-`TEST_SUBJECTS` setting. The Action denies unknown subjects on login and renewal.
+Production exposes the complete authenticated tool registry, with both
+`freeagent:read` and `freeagent:write` scopes. There is no experimental user
+allowlist or read-only mode. Each accounting write still requires the exact plan,
+user approval and readback. Deployment is not approval for an agent to mutate the
+owner's accounts. All hosted credentials remain per user; no operator fallback.
 
-The Auth0 grant permits only `freeagent:read`; request `offline_access` for renewal.
-Do not invite linking until the owner approves the connected-service notice draft
-and deployment/security gates pass. Existing website privacy approval does not
-approve [the connected-service draft](connected-service-privacy-draft.md).
+Review the connected-service disclosures in `landing.py` as part of the application
+PR. Application CI publishes the static Privacy/Terms/Support pages after owner
+merge. The hosted routes use the same notices instead of publication placeholders. After
+merge, run the existing main-only Build hosted image CI workflow and put its digest
+in the infrastructure PR before merging that PR.
+Public transport is enabled by the separately reviewed infrastructure PR through
+main-only CI. Callback request-log exclusion must precede public transport.
 
-Obtain the exact redirect from the MCP server management page in ChatGPT. Official
-docs describe callback-specific and stable redirect modes; neither is permission
-to guess the actual callback. The Auth0 application user ID is available in the
-Auth0 user profile (not the dashboard administrator profile). An operator may read
-it with an existing appropriately scoped Management API identity; do not broaden
-CI permissions or expose credentials to obtain it.
+The owner then signs in, links their real company and tests the live service using
+[the live test guide](live-oauth-testing.md). Begin with reads, then explicitly
+approve only the specific accounting changes you intend to make. ChatGPT needs the
+exact callback displayed in its MCP management page; configure it through Terraform
+rather than guessing it or substituting the FreeAgent callback. The application
+account-linking journey can be tested before ChatGPT is configured.
+
+One-hour access tokens and rotating renewal bounded by 30 days remain intended
+behavior until real Auth0/ChatGPT renewal is verified. Two sample users/companies,
+reviewer access, public directory approval and web/iOS/Android evidence are separate
+unverified gates. Empty download hosts deny uploaded receipt downloads; ordinary
+writes do not depend on uploaded receipts. Verify exact hosts before enabling them.
