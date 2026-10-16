@@ -44,15 +44,15 @@ def test_credentials_and_symlinks_are_not_static_content(tmp_path):
         module.manifest(tmp_path)
 
 
-@pytest.mark.parametrize("prefix", ["", "projects/avalou-prod/"])
+@pytest.mark.parametrize("prefix", ["", "projects/example-project/"])
 @pytest.mark.parametrize("mismatch", [False, True])
 def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, monkeypatch, mismatch, prefix):
     import io
     import json
 
     seed(tmp_path)
-    version = "sites/avalou-freeagent-ai/versions/abc123"
-    release = "sites/avalou-freeagent-ai/releases/123456"
+    version = "sites/example-site/versions/abc123"
+    release = "sites/example-site/releases/123456"
     responses = [
         {"name": prefix + version},
         {"uploadRequiredHashes": []},
@@ -71,9 +71,9 @@ def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, mo
     monkeypatch.setattr(module.subprocess, "check_output", lambda *a, **kw: "test-token")
     if mismatch:
         with pytest.raises(RuntimeError, match="did not match"):
-            module.publish(tmp_path, {})
+            module.publish(tmp_path, {}, project="example-project", site="example-site")
     else:
-        module.publish(tmp_path, {})
+        module.publish(tmp_path, {}, project="example-project", site="example-site")
     assert calls[1] == ("POST", module.API + version + ":populateFiles")
     assert calls[-1] == ("GET", module.API + release)
     assert not responses
@@ -82,14 +82,22 @@ def test_publish_uses_canonical_resource_names_and_verifies_release(tmp_path, mo
 @pytest.mark.parametrize(
     "name",
     [
-        "projects/another-project/sites/avalou-freeagent-ai/versions/123",
-        "projects/avalou-prod/sites/another-site/versions/123",
-        "sites/avalou-freeagent-ai/releases/123",
-        "sites/avalou-freeagent-ai/versions/../123",
-        "sites/avalou-freeagent-ai/versions/123?redirect=elsewhere",
+        "projects/another-project/sites/example-site/versions/123",
+        "projects/example-project/sites/another-site/versions/123",
+        "sites/example-site/releases/123",
+        "sites/example-site/versions/../123",
+        "sites/example-site/versions/123?redirect=elsewhere",
         None,
     ],
 )
 def test_version_names_cannot_change_project_site_or_resource(name):
     with pytest.raises(ValueError, match="Unexpected Hosting"):
-        module.resource_name(name, "versions")
+        module.resource_name(name, "versions", project="example-project", site="example-site")
+
+
+def test_backend_config_uses_only_explicit_deployment_inputs():
+    result = module.deployment_config({"headers": []}, service="example-service", region="europe-west1")
+    assert result["rewrites"] == [{"glob": "**", "run": {"serviceId": "example-service", "region": "europe-west1"}}]
+    for service, region in [("../other", "europe-west1"), ("example-service", "bad/region")]:
+        with pytest.raises(ValueError):
+            module.deployment_config({}, service=service, region=region)

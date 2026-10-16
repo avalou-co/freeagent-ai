@@ -4,6 +4,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -12,17 +13,18 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 API = "https://firebasehosting.googleapis.com/v1beta1/"
-SITE = "projects/avalou-prod/sites/avalou-freeagent-ai"
-RESOURCE = "sites/avalou-freeagent-ai"
 
 
-def resource_name(value, kind):
-    """Accept Firebase's two names for this exact project's site."""
+def resource_name(value, kind, *, project, site):
+    """Accept Firebase's two names for the configured deployment site."""
+    if not re.fullmatch(r"[a-z][a-z0-9-]+", project) or not re.fullmatch(r"[a-z0-9-]+", site):
+        raise ValueError("Invalid Hosting project or site")
+    resource = "sites/" + site
     if not isinstance(value, str) or not re.fullmatch(
-        r"(?:projects/avalou-prod/)?" + re.escape(RESOURCE) + "/" + kind + r"/[A-Za-z0-9_-]+", value
+        r"(?:projects/" + re.escape(project) + r"/)?" + re.escape(resource) + "/" + kind + r"/[A-Za-z0-9_-]+", value
     ):
         raise ValueError("Unexpected Hosting " + kind + " resource")
-    return value.removeprefix("projects/avalou-prod/")
+    return value.removeprefix("projects/" + project + "/")
 
 
 def manifest(root):
@@ -64,7 +66,18 @@ def manifest(root):
     return files, blobs
 
 
-def publish(root, config):
+def deployment_config(config, *, service, region):
+    if not re.fullmatch(r"[a-z][a-z0-9-]+", service) or not re.fullmatch(r"[a-z]+-[a-z]+[0-9]+", region):
+        raise ValueError("Invalid Hosting backend service or region")
+    return {**config, "rewrites": [{"glob": "**", "run": {"serviceId": service, "region": region}}]}
+
+
+def publish(root, config, *, project, site):
+    def name(value, kind):
+        return resource_name(value, kind, project=project, site=site)
+
+    target = "projects/" + project + "/sites/" + site
+    name("sites/" + site + "/versions/preflight", "versions")
     files, blobs = manifest(root)
     token = subprocess.check_output(["gcloud", "auth", "print-access-token"], text=True).strip()
 
@@ -104,9 +117,9 @@ def publish(root, config):
                 data = response.read()
                 return json.loads(data) if data and not binary else {}
         except HTTPError as error:
-            raise RuntimeError(f"Hosting {method} {parsed.path} failed: HTTP {error.code}") from None
+            raise RuntimeError(f"Hosting {method} failed: HTTP {error.code}") from None
 
-    version = resource_name(request("POST", API + SITE + "/versions", {"config": config})["name"], "versions")
+    version = name(request("POST", API + target + "/versions", {"config": config})["name"], "versions")
     populated = request("POST", API + version + ":populateFiles", {"files": files})
     for digest in populated.get("uploadRequiredHashes", []):
         if digest not in blobs:
@@ -117,15 +130,15 @@ def publish(root, config):
         raise RuntimeError("Hosting version was not finalized")
     release = request(
         "POST",
-        API + SITE + "/releases?" + urlencode({"versionName": version}),
-        {"message": "Public landing; accounting backend remains private"},
+        API + target + "/releases?" + urlencode({"versionName": version}),
+        {"message": "Application website publication"},
     )
     # Read back the exact release without allowing authenticated redirects.
-    name = resource_name(release["name"], "releases")
-    readback = request("GET", API + name)
-    if resource_name(readback.get("version", {}).get("name"), "versions") != version:
+    release_name = name(release["name"], "releases")
+    readback = request("GET", API + release_name)
+    if name(readback.get("version", {}).get("name"), "versions") != version:
         raise RuntimeError("Released version did not match the static export")
-    print("Published and verified " + version)
+    print("Published and verified website release")
 
 
 if __name__ == "__main__":
@@ -133,4 +146,12 @@ if __name__ == "__main__":
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
-    publish(args.root, json.loads(args.config.read_text()))
+    try:
+        config = deployment_config(
+            json.loads(args.config.read_text()),
+            service=os.environ["HOSTING_BACKEND_SERVICE"],
+            region=os.environ["HOSTING_BACKEND_REGION"],
+        )
+        publish(args.root, config, project=os.environ["GOOGLE_CLOUD_PROJECT"], site=os.environ["FIREBASE_HOSTING_SITE"])
+    except KeyError:
+        raise SystemExit("Hosting deployment configuration incomplete") from None

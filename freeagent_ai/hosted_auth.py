@@ -27,7 +27,7 @@ class Settings:
     freeagent_client_secret: str
     encryption_keys: dict[str, str]
     active_key: str
-    project: str = "avalou-prod"
+    project: str = ""
     environment: str = "production"
     file_hosts: frozenset[str] = frozenset()
     challenge: str = ""
@@ -35,6 +35,7 @@ class Settings:
     @classmethod
     def from_env(cls):
         required = [
+            "GOOGLE_CLOUD_PROJECT",
             "AUTH0_ISSUER",
             "AUTH0_MCP_CLIENT_ID",
             "AUTH0_WEB_CLIENT_ID",
@@ -64,7 +65,7 @@ class Settings:
             os.environ["FREEAGENT_CLIENT_SECRET"],
             keys["keys"],
             keys["active"],
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "avalou-prod"),
+            project=os.environ["GOOGLE_CLOUD_PROJECT"],
             environment=environment,
             file_hosts=hosts,
             challenge=os.environ.get("OPENAI_DOMAIN_CHALLENGE", ""),

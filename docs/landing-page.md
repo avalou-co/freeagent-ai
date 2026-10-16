@@ -1,8 +1,8 @@
 # FreeAgent AI landing page
 
 The launch page lives in `freeagent-ai`, alongside the service it describes.
-`website` owns Avalou's visual identity; `avalou-infrastructure` owns Firebase,
-DNS and Cloud Run deployment. No new frontend framework or deployment system is
+The public site uses Avalou branding. Private deployment configuration owns
+cloud resources, DNS and backend routing. No new frontend framework or deployment system is
 needed. The existing Firebase catch-all forwards `/`, `/landing-assets/*`, MCP,
 account routes and discovery to Cloud Run. The app serves only the marketing root
 and its own asset prefix; it does not add an SPA fallback or intercept auth routes.
@@ -36,7 +36,7 @@ then retains its existing pre-launch home/policy responses. Shipping these sourc
 files alone does not enable the marketing page.
 
 To enable the page, supply a JSON object as the non-secret environment variable
-`FREEAGENT_LANDING_CONFIG` through a reviewed `avalou-infrastructure` change:
+`FREEAGENT_LANDING_CONFIG` through reviewed private deployment configuration:
 
 - `listing_url`: optional verified listing URL on `https://chatgpt.com`. Omit it
   or set it to an empty string to leave ChatGPT disabled.
@@ -95,10 +95,8 @@ remain a release gate; local HTTP tests do not prove them.
 
 ## Design provenance
 
-Visual reference: `avalou-co/website` main commit
-`01b7618e28a924d7a012fff0ac4e79091f454125`, especially `app/globals.css`,
-`app/layout.tsx`, `components/Navigation.tsx`, `components/Footer.tsx` and
-`app/page.tsx`. The page inherits its forest/off-white palette, typography, provider
+Visual references are managed separately by the publisher.
+The page uses the public forest/off-white palette, typography, provider
 logo buttons, Avalou monogram, stroked SVG style, section borders and theme tokens.
 It uses a product-focused header rather than duplicating consultancy navigation.
 
@@ -153,8 +151,8 @@ website hover rotation and also responds to keyboard focus.
 
 `python -m freeagent_ai.landing --static --output build/landing` exports the
 marketing page with both connections disabled, the account navigation replaced
-with an on-page explanation, and local privacy/terms/support pages. These
-privacy notice covers the website; the terms describe product use. Review the
+with an on-page explanation, and local privacy/terms/support pages. The
+privacy notice covers the website and connected service; the terms describe product use. Review the
 wording in the implementation PR. Publishing these pages does not approve public
 OAuth access or complete the connected-service privacy review.
 The normal `--config` and `FREEAGENT_LANDING_CONFIG` launch gates are unchanged.
@@ -169,3 +167,10 @@ grant, and relinquishes the former config-only content version/release.
 Merge the infrastructure handover and apply its reviewed IAM grant before merging
 the application deployment. Cloud Run remains private. CI verifies public pages
 and protected backend routes after publishing. No server credentials enter the export.
+
+
+Deployment identity, cloud project, registry, backend service/region and Hosting
+site are supplied through protected deployment-environment secrets. `hosting.json`
+contains public headers only; the publisher injects the exact backend rewrite
+from private configuration and validates all returned resource names against the
+configured project/site. Public CI summaries contain the build digest only.

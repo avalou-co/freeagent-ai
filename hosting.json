@@ -1,13 +1,4 @@
 {
-  "rewrites": [
-    {
-      "glob": "**",
-      "run": {
-        "serviceId": "freeagent-mcp",
-        "region": "europe-west2"
-      }
-    }
-  ],
   "headers": [
     {
       "glob": "**",
