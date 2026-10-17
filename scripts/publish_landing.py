@@ -40,6 +40,8 @@ def manifest(root):
             "/privacy/index.html",
             "/terms/index.html",
             "/support/index.html",
+            "/robots.txt",
+            "/sitemap.xml",
         } or name.startswith("/landing-assets/")
         if not allowed or path.suffix not in {
             ".html",
@@ -49,6 +51,7 @@ def manifest(root):
             ".woff2",
             ".webp",
             ".txt",
+            ".xml",
         }:
             raise ValueError("Unexpected static export file: " + name)
         data = gzip.compress(path.read_bytes(), mtime=0)

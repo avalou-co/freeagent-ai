@@ -370,22 +370,6 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         title, paragraphs = SITE_NOTICES[request.url.path.strip("/")]
         return page(title, "".join("<p>" + html.escape(paragraph) + "</p>" for paragraph in paragraphs))
 
-    async def robots(request):
-        disallow = "".join(
-            f"Disallow: {path}\n"
-            for path in ("/account", "/login", "/link", "/disconnect", "/auth/", "/freeagent/", "/mcp")
-        )
-        return PlainTextResponse(f"User-agent: *\nAllow: /\n{disallow}\nSitemap: {ORIGIN}/sitemap.xml\n")
-
-    async def sitemap(request):
-        # Launched policy routes redirect to the publisher's pages, so only list them while served here.
-        paths = ["/"] if landing_config is not None else ["/", "/privacy", "/terms", "/support"]
-        urls = "".join(f"<url><loc>{ORIGIN}{path}</loc></url>" for path in paths)
-        return HTMLResponse(
-            f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
-            media_type="application/xml",
-        )
-
     async def denied(request, error):
         return PlainTextResponse(str(error), status_code=400)
 
@@ -408,8 +392,6 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         Route("/.well-known/oauth-protected-resource", metadata),
         Route("/.well-known/openai-apps-challenge", challenge),
         Route("/health", lambda request: PlainTextResponse("ok")),
-        Route("/robots.txt", robots),
-        Route("/sitemap.xml", sitemap),
         Route("/privacy", policy),
         Route("/terms", policy),
         Route("/support", policy),

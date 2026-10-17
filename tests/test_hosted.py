@@ -467,14 +467,6 @@ def test_landing_launch_gate_and_backend_routes(accounts, monkeypatch, landing_c
         assert client.get("/landing-assets/fonts/hanken-grotesk-latin.woff2").status_code == 200
         assert client.get("/landing-assets/missing.css").status_code == 404
         assert client.get("/landing-assets/../hosted_auth.py").status_code == 404
-        robots = client.get("/robots.txt")
-        assert robots.status_code == 200
-        assert "Disallow: /account" in robots.text
-        assert f"Sitemap: {ORIGIN}/sitemap.xml" in robots.text
-        sitemap = client.get("/sitemap.xml")
-        assert sitemap.headers["content-type"].startswith("application/xml")
-        assert f"<loc>{ORIGIN}/</loc>" in sitemap.text
-        assert "/privacy" not in sitemap.text
         response = client.post("/mcp")
         assert response.status_code == 401
         assert "resource_metadata=" in response.headers["www-authenticate"]
@@ -491,7 +483,6 @@ def test_landing_disabled_until_launch(accounts, monkeypatch):
         assert "no automatic expiry" in privacy.text
         assert "Review proposed accounting changes" in client.get("/terms").text
         assert "hello@avalou.co" in client.get("/support").text
-        assert f"<loc>{ORIGIN}/privacy</loc>" in client.get("/sitemap.xml").text
 
 
 @pytest.mark.parametrize(
@@ -589,6 +580,10 @@ def test_static_export_keeps_connections_unavailable(tmp_path):
     assert not (tmp_path / "account").exists()
     assert not (tmp_path / "mcp").exists()
     assert (tmp_path / "landing-assets/site.css").is_file()
+    assert "Sitemap: https://freeagent-ai.avalou.co/sitemap.xml" in (tmp_path / "robots.txt").read_text()
+    sitemap = (tmp_path / "sitemap.xml").read_text()
+    for path in ("/", "/privacy/", "/terms/", "/support/"):
+        assert f"<loc>https://freeagent-ai.avalou.co{path}</loc>" in sitemap
 
 
 def test_published_local_policy_routes_are_valid(landing_config):

@@ -145,6 +145,16 @@ def build_static(output: Path) -> None:
             + "</main></body></html>"
         )
         (directory / "index.html").write_text(document)
+    origin = "https://freeagent-ai.avalou.co"
+    disallow = "".join(
+        f"Disallow: {path}\n"
+        for path in ("/account", "/login", "/link", "/disconnect", "/auth/", "/freeagent/", "/mcp")
+    )
+    (output / "robots.txt").write_text(f"User-agent: *\nAllow: /\n{disallow}\nSitemap: {origin}/sitemap.xml\n")
+    urls = "".join(f"<url><loc>{origin}{path}</loc></url>" for path in ["/", *(f"/{slug}/" for slug in SITE_NOTICES)])
+    (output / "sitemap.xml").write_text(
+        f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+    )
 
 
 def main():
