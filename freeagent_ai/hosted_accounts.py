@@ -126,6 +126,7 @@ class Principal:
     subject: str
     scopes: frozenset[str]
     primary_auth_time: float
+    generation: int | None = None
 
 
 @dataclass(frozen=True)
@@ -135,6 +136,7 @@ class Binding:
     environment: str
     generation: int
     primary_auth_time: float
+    generation_authorized: bool = False
 
     @property
     def aad(self):
@@ -175,7 +177,12 @@ class Accounts:
 
     def bind(self, principal):
         record = self.store.get("account_links", key_for(principal.subject))
-        if not record.get("active") or principal.primary_auth_time <= cutoff(record):
+        valid = (
+            principal.generation == record.get("generation")
+            if principal.generation is not None
+            else principal.primary_auth_time > cutoff(record)
+        )
+        if not record.get("active") or not valid:
             raise AccessDenied("Link your account, then sign in again and reconnect ChatGPT")
         return Binding(
             principal.subject,
@@ -183,6 +190,7 @@ class Accounts:
             record["environment"],
             record["generation"],
             principal.primary_auth_time,
+            principal.generation is not None,
         )
 
     def check(self, binding):
@@ -192,7 +200,7 @@ class Accounts:
             or record.get("generation") != binding.generation
             or record.get("company") != binding.company
             or record.get("environment") != binding.environment
-            or binding.primary_auth_time <= cutoff(record)
+            or (not binding.generation_authorized and binding.primary_auth_time <= cutoff(record))
         ):
             raise AccessDenied("Account authorization changed; reconnect ChatGPT")
         return record

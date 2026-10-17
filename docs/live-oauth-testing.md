@@ -15,34 +15,31 @@ The owner must configure the exact callback displayed by ChatGPT in Terraform's
 privately in ChatGPT's connection configuration. Do not guess a callback or use
 the separate Account Linking or Management API client's credentials.
 
-## Link and read
+## Connect and read through ChatGPT
 
-1. Open https://freeagent-ai.avalou.co/account. Create/sign in to the application's
-   email/password account through Auth0. This is separate from the Auth0 dashboard
-   administrator account. Link your FreeAgent company and confirm the displayed
-   company is yours. Enter FreeAgent credentials only on FreeAgent's login page.
-2. Sign in again when prompted after linking. Fresh primary authentication after
-   the link commit is required; an older login must not gain access to a new link.
-3. In ChatGPT, open Plugins, choose the plus button, then **Add custom MCP server**.
-   Use the name FreeAgent AI and https://freeagent-ai.avalou.co/mcp. Configure OAuth
-   with the dedicated client, review the displayed permissions and create the
-   plugin. Complete sign-in and consent. The connection must request
-   `offline_access` before claiming automatic renewal works; capture only redacted
-   pass/fail evidence, not tokens or callback URLs containing codes.
-4. Start a new chat, select the plugin using `@`, and ask: “Show my company name
+1. In ChatGPT, add/connect the FreeAgent AI plugin using
+   https://freeagent-ai.avalou.co/mcp and the dedicated OAuth client.
+2. Follow the connection prompt to FreeAgent. Sign in there and approve access,
+   then return to ChatGPT. No Avalou email/password account or separate account
+   linking page is required. Cancelling must return a failed connection without
+   granting tools access.
+3. Start a new chat, select the plugin using `@`, and ask: “Show my company name
    and invoice statuses. Do not create or modify anything.” Compare the company
-   and a few invoice references/statuses with FreeAgent. Do not paste their data
-   into public evidence.
-5. Leave the connection for more than the one-hour access-token lifetime, then
-   repeat the read. It should renew without a new primary login while within the
-   30-day absolute session limit. Record any sign-in prompt or provider error.
+   and a few invoice references/statuses with FreeAgent. Keep accounting data out
+   of public evidence. Verify that a second connection completes the same journey.
+4. The connection must request `offline_access` before claiming automatic renewal
+   works. Leave it beyond the one-hour access-token lifetime, then repeat the read.
+   Record any sign-in prompt or provider error. Never capture tokens or callback
+   URLs containing codes.
 
 ## Disconnect and reconnect
 
-Disconnect on the application's account page, then repeat the read in the old
-ChatGPT connection. It must be denied. Reconnecting requires linking if needed,
-a fresh primary login after the disconnect/replacement commit, and new MCP
-authorization. The old connection must not silently revive.
+Connect again from the plugin to verify a fresh FreeAgent authorization completes
+without Avalou signup. Earlier authorizations must fail after the new connection
+commits; token renewal must not revive them. The internal account page is optional
+connection management, not an onboarding prerequisite. Its fresh FreeAgent sign-in
+also invalidates previous authorizations. Disconnect there and confirm access is
+denied; reconnect through ChatGPT and confirm only the new authorization works.
 
 Two separate sample companies and users are required to verify company replacement,
 cross-user access denial and approved financial writes. Your one company cannot

@@ -7,7 +7,7 @@ in OpenAI's portal; record only pass/fail and redacted evidence here/GitHub.
 
 | Positive | Sample prompt and expected behavior |
 | --- | --- |
-| 1. Link and report | "Show profit and loss from 1 January to 31 March 2026." Link the sample account, reauthenticate after link commit, call get_profit_and_loss and get_company; report actual dates/currency/figures. |
+| 1. Link and report | "Show profit and loss from 1 January to 31 March 2026." Connect from ChatGPT, authorize the sample FreeAgent account without Avalou signup, return to ChatGPT, call get_profit_and_loss and get_company; report actual dates/currency/figures. |
 | 2. Invoice status | "What invoices are overdue?" list_invoices(view=overdue), resolve relevant contacts, report reference/due date/value/currency; never send chasers. |
 | 3. Timesheet | "Prepare seven hours for [sample project/task/date]." Resolve user/project/task, inspect existing timeslips, preview, wait for yes, create_timeslip, verify with get_timeslip/list_timeslips. |
 | 4. Drafts | "Prepare an invoice for the sample project's unbilled time and a separate quote for [provided line]." Preview and obtain approval; create_draft_invoice/create_draft_estimate, verify Draft and emails disabled. Bill the same sample timeslip again only in the sandbox to verify FreeAgent's upstream protection. |
