@@ -74,6 +74,14 @@ Firebase release owner with `firebase deploy`: Terraform already owns its versio
 and release. Direct static hosting would require a coordinated infrastructure
 change to that existing ownership model.
 
+## Search indexing
+
+The app serves `/robots.txt` and `/sitemap.xml`. Robots allows the marketing
+page and blocks account, auth and MCP routes. The sitemap lists `/`, plus the
+policy routes only while the app serves them itself (after launch they redirect
+to the publisher's pages). Submit the sitemap in Google Search Console after
+deploying.
+
 ## Security and verification
 
 Marketing responses allow same-origin styles, scripts, images and fonts through a
