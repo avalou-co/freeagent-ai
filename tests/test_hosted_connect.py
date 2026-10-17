@@ -203,3 +203,8 @@ def test_bridge_restores_outer_management_session_cookie(flow):
     assert result.status_code == 307
     assert client.cookies.get(COOKIE) == outer_cookie
     assert accounts.store.get("web_state", key_for(outer_state))["session"] == client.cookies.get(COOKIE)
+
+
+def test_readiness_exposes_only_protocol_version(flow):
+    client, _, _, _ = flow
+    assert client.get("/connect/ready").json() == {"protocol": "freeagent-sign-in-v1"}

@@ -228,8 +228,13 @@ class FreeAgentConnect:
         linked = await anyio.to_thread.run_sync(commit)
         return JSONResponse({"generation": linked["generation"], "authenticated_at": record["authenticated_at"]})
 
+    async def ready(self, request):
+        self.enabled()
+        return JSONResponse({"protocol": "freeagent-sign-in-v1"})
+
     def routes(self):
         return [
+            Route("/connect/ready", self.ready),
             Route("/connect/authorize", self.authorize),
             Route("/connect/token", self.token, methods=["POST"]),
             Route("/connect/profile", self.profile),
