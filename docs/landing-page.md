@@ -76,7 +76,7 @@ change to that existing ownership model.
 
 ## Search indexing
 
-The app serves `/robots.txt` and `/sitemap.xml`. Robots allows the marketing
+The static export and the app both serve `/robots.txt` and `/sitemap.xml`.
 page and blocks account, auth and MCP routes. The sitemap lists `/`, plus the
 policy routes only while the app serves them itself (after launch they redirect
 to the publisher's pages). Submit the sitemap in Google Search Console after

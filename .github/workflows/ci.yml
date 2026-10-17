@@ -95,7 +95,7 @@ jobs:
           python3 scripts/publish_landing.py --root "$RUNNER_TEMP/landing" --config hosting.json
       - name: Verify public website and protected MCP
         run: |
-          for path in / /privacy/ /terms/ /support/ /landing-assets/site.css; do
+          for path in / /privacy/ /terms/ /support/ /robots.txt /sitemap.xml /landing-assets/site.css; do
             curl --fail --silent --show-error --max-time 15 --retry 5 --retry-delay 3 --retry-all-errors "https://freeagent-ai.avalou.co$path" --output /dev/null
           done
           status=$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' https://freeagent-ai.avalou.co/mcp)

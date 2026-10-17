@@ -589,6 +589,10 @@ def test_static_export_keeps_connections_unavailable(tmp_path):
     assert not (tmp_path / "account").exists()
     assert not (tmp_path / "mcp").exists()
     assert (tmp_path / "landing-assets/site.css").is_file()
+    assert "Sitemap: https://freeagent-ai.avalou.co/sitemap.xml" in (tmp_path / "robots.txt").read_text()
+    sitemap = (tmp_path / "sitemap.xml").read_text()
+    for path in ("/", "/privacy/", "/terms/", "/support/"):
+        assert f"<loc>https://freeagent-ai.avalou.co{path}</loc>" in sitemap
 
 
 def test_published_local_policy_routes_are_valid(landing_config):
