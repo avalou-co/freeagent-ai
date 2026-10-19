@@ -27,9 +27,10 @@ def validate_receipt(data: bytes, declared: str | None = None) -> str:
         (b"GIF87a", "image/gif"),
         (b"GIF89a", "image/gif"),
     )
-    declared = {"application/x-pdf": "application/pdf", "image/x-png": "image/png", "image/jpg": "image/jpeg"}.get(
-        declared, declared
-    )
+    if declared is not None:
+        declared = {"application/x-pdf": "application/pdf", "image/x-png": "image/png", "image/jpg": "image/jpeg"}.get(
+            declared, declared
+        )
     kind = next((mime for signature, mime in signatures if data.startswith(signature)), None)
     if kind is None or declared not in {None, "", "application/octet-stream", kind}:
         raise ValueError("Receipt must be a PDF, PNG, JPEG or GIF matching its declared type")
