@@ -99,3 +99,55 @@ test('metadata capability missing fails closed and expiry boundary is exact', as
     assert.equal((await run(event)).denied.length, denied);
   }
 });
+
+const federated = () => {
+  const event = valid();
+  event.connection = { strategy: 'oauth2', name: 'freeagent' };
+  event.secrets.FREEAGENT_CONNECTION_SECRET = 'synthetic-bridge-secret';
+  event.user = { user_id: 'oauth2|freeagent|synthetic', app_metadata: { freeagent_login_receipt: 'once' } };
+  return event;
+};
+test('FreeAgent completion binds original time and generation across refreshes', async () => {
+  const savedFetch = global.fetch;
+  let calls = 0;
+  global.fetch = async (url, options) => {
+    calls++;
+    assert.equal(url, 'https://freeagent-ai.avalou.co/connect/complete');
+    assert.equal(options.body.get('subject'), 'oauth2|freeagent|synthetic');
+    assert.equal(options.body.get('receipt'), 'once');
+    assert.ok(options.headers.Authorization.startsWith('Basic '));
+    return { ok: true, json: async () => ({ generation: 3, authenticated_at: 1791806400 }) };
+  };
+  try {
+    let event = federated(), result = await run(event);
+    assert.equal(result.denied.length, 0);
+    assert.equal(result.metadata.freeagent_connection_generation, '3');
+    assert.ok(result.claims.some(c => c[1].endsWith('/connection_generation') && c[2] === 3));
+    for (let i = 0; i < 3; i++) {
+      event = federated(); event.transaction.protocol = 'oauth2-refresh-token';
+      event.refresh_token = { metadata: result.metadata };
+      delete event.user.app_metadata;
+      result = await run(event);
+      assert.equal(result.denied.length, 0);
+      assert.equal(result.metadata.freeagent_connection_generation, '3');
+      assert.equal(result.metadata.freeagent_primary_auth_time, '1791806400');
+    }
+    assert.equal(calls, 1);
+    event.refresh_token.metadata.freeagent_connection_generation = 'NaN';
+    assert.equal((await run(event)).denied.length, 1);
+    event = valid(); event.secrets.FREEAGENT_CONNECTION_SECRET = 'configured';
+    assert.equal((await run(event)).denied.length, 1);
+  } finally { global.fetch = savedFetch; }
+});
+test('failed or replayed completion never issues claims', async () => {
+  const savedFetch = global.fetch;
+  try {
+    for (const response of [{ ok: false }, { ok: true, json: async () => ({ generation: true, authenticated_at: 1791806400 }) }]) {
+      global.fetch = async () => response;
+      const result = await run(federated());
+      assert.equal(result.denied.length, 1); assert.equal(result.claims.length, 0);
+    }
+    global.fetch = async () => { throw new Error('network failure'); };
+    assert.equal((await run(federated())).denied.length, 1);
+  } finally { global.fetch = savedFetch; }
+});

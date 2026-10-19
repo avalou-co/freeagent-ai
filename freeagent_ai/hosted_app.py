@@ -22,6 +22,7 @@ from starlette.staticfiles import StaticFiles
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
 from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import principal_context, request_json
+from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
 from .landing import ROOT as LANDING_ROOT
 from .landing import SITE_NOTICES
@@ -154,6 +155,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     accounts = accounts or Accounts(
         FirestoreStore(settings.project), TokenCipher(settings.encryption_keys, settings.active_key)
     )
+    connect = FreeAgentConnect(settings, accounts)
     verifier = verifier or Verifier(settings)
     dispatcher = dispatcher or Dispatcher(
         accounts, settings.freeagent_client_id, settings.freeagent_client_secret, settings.file_hosts
@@ -171,7 +173,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         on_list_tools=tools,
         on_call_tool=invoke,
         get_tool_input_schema=lambda name: REGISTRY[name].descriptor.input_schema if name in REGISTRY else None,
-        instructions="Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. After linking/replacement, sign in again and reconnect ChatGPT. ChatGPT stays connected for up to 30 days with automatic token renewal.",
+        instructions="Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. Connect or reconnect through ChatGPT to authorize your FreeAgent account. ChatGPT stays connected for up to 30 days with automatic token renewal.",
     )
     manager = StreamableHTTPSessionManager(
         server,
@@ -225,6 +227,14 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
                 {"session": token, "subject": record["subject"], "generation": link.get("generation", 0)},
             )
         )
+        if record["subject"].startswith(f"oauth2|{settings.connection_name}|"):
+            return page(
+                "Your FreeAgent connection",
+                f"<p>{'Connected' if link.get('active') else 'Disconnected'}</p>"
+                f'<form method="post" action="/disconnect"><input type="hidden" name="state" value="{csrf}">'
+                "<button>Disconnect FreeAgent</button></form>"
+                "<p>To connect again, return to the FreeAgent AI plugin in ChatGPT.</p>",
+            )
         return page(
             "Your FreeAgent connection",
             f'<p>{"Connected" if link.get("active") else "Not connected"}</p><form method="post" action="/link"><input type="hidden" name="state" value="{csrf}"><button>Link or replace FreeAgent account</button></form><form method="post" action="/disconnect"><input type="hidden" name="state" value="{csrf}"><button>Disconnect FreeAgent</button></form><p>After linking or replacement, <a href="/login">sign in again</a> and reconnect ChatGPT. Requests already sent may have completed; inspect before repeating them.</p>',
@@ -239,6 +249,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).decode().rstrip("=")
         query = urlencode(
             {
+                "connection": settings.connection_name,
                 "client_id": settings.web_client_id,
                 "redirect_uri": ORIGIN + "/auth/callback",
                 "response_type": "code",
@@ -294,6 +305,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         state = await anyio.to_thread.run_sync(accounts.take_state, str(form.get("state", "")), "account_action")
         if state["session"] != token or state["subject"] != record["subject"]:
             raise AccessDenied("Account action session mismatch")
+        if record["subject"].startswith(f"oauth2|{settings.connection_name}|") and request.url.path != "/disconnect":
+            raise AccessDenied("Connect the FreeAgent account through ChatGPT")
         if request.url.path == "/disconnect":
             await anyio.to_thread.run_sync(accounts.disconnect, record["subject"], state["generation"])
             return RedirectResponse("/account", status_code=303)
@@ -320,6 +333,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         )
 
     async def freeagent_callback(request):
+        if await anyio.to_thread.run_sync(connect.is_callback, request):
+            return await connect.callback(request)
         token, record = await anyio.to_thread.run_sync(session, request)
         state = await anyio.to_thread.run_sync(accounts.take_state, request.query_params.get("state", ""), "freeagent")
         if state["session"] != token or state["subject"] != record["subject"]:
@@ -371,6 +386,8 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         return page(title, "".join("<p>" + html.escape(paragraph) + "</p>" for paragraph in paragraphs))
 
     async def denied(request, error):
+        if request.url.path.startswith("/connect/"):
+            return JSONResponse({"error": "invalid_request", "error_description": str(error)}, status_code=400)
         return PlainTextResponse(str(error), status_code=400)
 
     async def failed(request, error):
@@ -380,6 +397,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         )
 
     routes = [
+        *connect.routes(),
         Route("/", home),
         Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),

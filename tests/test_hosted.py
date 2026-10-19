@@ -612,3 +612,30 @@ def test_hosted_project_must_be_explicit_without_operator_fallback(monkeypatch):
         Settings.from_env()
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "example-project")
     assert Settings.from_env().project == "example-project"
+
+
+def test_federated_jwt_requires_exact_generation_type():
+    from freeagent_ai.hosted_auth import GENERATION_CLAIM
+
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    verifier = Verifier(
+        settings(), SimpleNamespace(get_signing_key_from_jwt=lambda _: SimpleNamespace(key=private.public_key()))
+    )
+    now = int(time.time())
+    payload = {
+        "iss": settings().issuer,
+        "aud": ORIGIN + "/mcp",
+        "sub": "oauth2|freeagent|synthetic",
+        "iat": now,
+        "exp": now + 3600,
+        "azp": "mcp-client",
+        PRIMARY_AUTH_CLAIM: now - 20,
+    }
+    for generation in [None, True, "1", 0, -1, 1.0]:
+        with pytest.raises(AccessDenied):
+            verifier.principal(jwt.encode({**payload, GENERATION_CLAIM: generation}, private, algorithm="RS256"))
+    assert verifier.principal(jwt.encode({**payload, GENERATION_CLAIM: 1}, private, algorithm="RS256")).generation == 1
+    with pytest.raises(AccessDenied):
+        verifier.principal(
+            jwt.encode({**payload, "sub": "auth0|legacy", GENERATION_CLAIM: 1}, private, algorithm="RS256")
+        )

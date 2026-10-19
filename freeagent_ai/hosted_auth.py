@@ -14,6 +14,7 @@ from .hosted_deadline import Deadline, deadline_context
 
 ORIGIN = "https://freeagent-ai.avalou.co"
 PRIMARY_AUTH_CLAIM = ORIGIN + "/primary_auth_time"
+GENERATION_CLAIM = ORIGIN + "/connection_generation"
 MAX_SESSION_SECONDS = 30 * 24 * 60 * 60
 
 
@@ -31,6 +32,8 @@ class Settings:
     environment: str = "production"
     file_hosts: frozenset[str] = frozenset()
     challenge: str = ""
+    connection_secret: str = ""
+    connection_name: str = "freeagent"
 
     @classmethod
     def from_env(cls):
@@ -69,6 +72,7 @@ class Settings:
             environment=environment,
             file_hosts=hosts,
             challenge=os.environ.get("OPENAI_DOMAIN_CHALLENGE", ""),
+            connection_secret=os.environ.get("AUTH0_FREEAGENT_CONNECTION_SECRET", ""),
         )
 
 
@@ -125,4 +129,10 @@ class Verifier:
             raise AccessDenied("ChatGPT session expired; sign in again")
         if data.get("azp") != self.settings.mcp_client_id:
             raise AccessDenied("OAuth client is not authorized for this plugin")
-        return Principal(data["sub"], frozenset(data.get("scope", "").split()), data[PRIMARY_AUTH_CLAIM])
+        generation = data.get(GENERATION_CLAIM)
+        federated = data["sub"].startswith(f"oauth2|{self.settings.connection_name}|")
+        if federated and (type(generation) is not int or generation < 1):
+            raise AccessDenied("FreeAgent connection authorization is missing")
+        if generation is not None and not federated:
+            raise AccessDenied("Invalid FreeAgent connection identity")
+        return Principal(data["sub"], frozenset(data.get("scope", "").split()), data[PRIMARY_AUTH_CLAIM], generation)

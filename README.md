@@ -68,6 +68,10 @@ See `docs/mcp.md` for running the MCP server.
 
 ## Connect your FreeAgent account
 
+For the hosted ChatGPT plugin, connect in ChatGPT and sign into FreeAgent to approve
+access. No separate Avalou signup is required. See [the hosted connection guide](docs/live-oauth-testing.md).
+The commands below are for the local CLI.
+
 1. Create an OAuth app in the [FreeAgent developer dashboard](https://dev.freeagent.com) and note its client ID.
 2. Log in once:
 

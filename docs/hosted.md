@@ -19,8 +19,9 @@ Configure these values privately in the operator's deployment system:
 | GOOGLE_CLOUD_PROJECT | Project containing the connection store |
 | AUTH0_ISSUER | HTTPS Auth0 tenant origin, including trailing slash |
 | AUTH0_MCP_CLIENT_ID | Dedicated assistant OAuth client |
-| AUTH0_WEB_CLIENT_ID | Separate account-linking client |
-| AUTH0_WEB_CLIENT_SECRET | Account-linking client secret |
+| AUTH0_WEB_CLIENT_ID | Optional connection-management client |
+| AUTH0_WEB_CLIENT_SECRET | Connection-management client secret |
+| AUTH0_FREEAGENT_CONNECTION_SECRET | Dedicated confidential Auth0 bridge credential; empty disables the new bridge during staged deployment |
 | FREEAGENT_CLIENT_ID / FREEAGENT_CLIENT_SECRET | Upstream OAuth application |
 | FREEAGENT_ENVIRONMENT | `production` or `sandbox`; use separate upstream applications |
 | FREEAGENT_TOKEN_ENCRYPTION_KEY | Encryption keyring, provisioned outside source/state |
@@ -46,18 +47,37 @@ and idle lifetime one second shorter; infinite lifetimes and reuse leeway are of
 Request `offline_access` before claiming automatic renewal works. Account linking
 remains code-only with a one-hour browser session.
 
-The canonical `auth0/primary-auth-time.js` Action uses separately configured
-MCP_CLIENT_ID and WEB_CLIENT_ID values. It requires database primary authentication
-and preserves the original password authentication time in server-owned refresh
-metadata. Missing/malformed/expired metadata denies renewal; it must never substitute
-current time or a later login. The resource server separately enforces that original
-30-day limit. Verify metadata capability and propagation on the real tenant.
+Users connect in ChatGPT, sign into FreeAgent and approve access, then return to
+ChatGPT already connected. There is no separate Avalou signup. Auth0 remains the
+MCP authorization server; its custom `freeagent` OAuth2 connection uses the hosted
+`/connect/authorize`, `/connect/token` and `/connect/profile` bridge. Configure its
+PKCE S256 support and enable only this connection for the two dedicated clients.
+Disable cached SSO on those clients. Use `auth0/freeagent-profile.js` as its profile
+script and `auth0/primary-auth-time.js` as its login Action.
 
-Disconnect/replacement advances a connection generation and server cutoff timestamp.
-Old credentials cannot bind to the replacement company or revive after renewal.
-Reconnecting requires fresh primary authentication after the commit. Timestamp
-equality denies access. In-flight writes may already have completed: inspect before
-retrying. Disconnect is not accounting rollback.
+The bridge exchanges FreeAgent credentials server-side and verifies `users/me`
+and `company`. Identity hashes the environment, stable company ID and user URL;
+it never merges users by email. FreeAgent access/refresh tokens remain encrypted
+in the service, including short-lived pending records. Auth0 receives an opaque,
+single-use receipt. Its authenticated Action redeems that receipt for the exact
+Auth0 subject, commits the link, and signs the resulting generation and original
+FreeAgent authorization time into tokens. Timestamp-only legacy login is rejected
+by the Action once its bridge secret is configured.
+
+Refresh grants retain both the original time and generation in server-owned
+metadata. Missing, malformed or expired metadata denies renewal; a later login
+must not renew an old family. Disconnect or a new authorization advances the
+connection generation. Old access tokens and refresh families cannot acquire the
+new generation. The optional management page uses the same FreeAgent sign-in;
+that fresh authorization also invalidates previous connections. In-flight writes
+may already have completed: inspect before retrying. Disconnect is not rollback.
+
+The bridge requires its dedicated confidential client, exact Auth0 callback,
+PKCE, single-use codes/profile tokens/receipts, and short expiry. Initial upstream
+state is browser-bound using `__session`, the only cookie Firebase Hosting forwards.
+Pending credentials are never placed in profile claims, browser URLs or logs.
+Provider PKCE behavior, receipt propagation on repeat login, actual Auth0 renewal,
+and the complete ChatGPT journey require live verification after deployment.
 
 Account callbacks use single-use state, PKCE, nonce and a Secure/HttpOnly/SameSite=Lax
 session cookie. Account actions also require exact Origin and a one-use action token.
