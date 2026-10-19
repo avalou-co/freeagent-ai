@@ -3,7 +3,7 @@
 Changes are grouped by release. A version heading describes the release contents;
 publication is confirmed by its Git tag and GitHub Release, not by this file.
 
-## [0.2.0]
+## [0.3.0]
 
 First planned tagged release, following the initial 0.1.0 development version.
 This version is unreleased until the owner tags and publishes it. Live mobile
@@ -31,7 +31,7 @@ verification and public directory publication remain pending; follow
   retries.
 - Direct POST, PUT and DELETE tools pass approved payloads to FreeAgent; agents
   handle ownership, approval and readback under the documented safety rules.
-- Python, Claude, Codex and generated hosted plugin versions agree at 0.2.0.
+- Python, Claude, Codex and generated hosted plugin versions agree at 0.3.0.
 
 ### Security
 
