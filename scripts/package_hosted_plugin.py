@@ -24,9 +24,19 @@ def build(output: Path, client_id: str) -> None:
                 "interface": {
                     "displayName": "FreeAgent AI",
                     "shortDescription": "FreeAgent accounting workflows in chat",
+                    "longDescription": (
+                        "Connect your UK FreeAgent account to work with timesheets, draft invoices, "
+                        "estimates, expenses, bills, bank reconciliation and reports. Sign in through "
+                        "FreeAgent without creating a separate Avalou account. Review and approve "
+                        "accounting changes before they are sent."
+                    ),
+                    "developerName": "Avalou",
                     "category": "Productivity",
                     "capabilities": ["Read", "Write"],
                     "websiteURL": "https://freeagent-ai.avalou.co",
+                    "supportURL": "https://freeagent-ai.avalou.co/support",
+                    "privacyPolicyURL": "https://freeagent-ai.avalou.co/privacy",
+                    "termsOfServiceURL": "https://freeagent-ai.avalou.co/terms",
                     "defaultPrompt": ["Show my overdue invoices", "Help me log time to a project"],
                 }
             }
