@@ -4,9 +4,11 @@
 `.codex-plugin/plugin.json` at that version; the hosted ZIP builder reads it from
 `pyproject.toml`. Keep `VERSION` in `freeagent_ai/public_package.py` at that
 version too; CI checks the output of both package builders. The marketplace file
-has no separate version. CI checks local
-manifest agreement, the generated ZIP version and a matching changelog heading
-on Python 3.10, 3.12 and 3.13.
+has no separate version. CI checks both local manifests, both generated plugin
+manifests, the hosted MCP server version, the hosted HTTP User-Agent and a matching
+changelog heading against `pyproject.toml` on Python 3.10, 3.12 and 3.13. The
+runtime checks inspect Python syntax without starting the hosted service or
+using deployment credentials. Any mismatch fails the existing pytest CI job.
 
 ## Prepare a release
 

@@ -1,5 +1,6 @@
 """Release metadata must agree across the Python and plugin distributions."""
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -33,3 +34,27 @@ def test_current_version_has_release_notes():
 def test_public_package_version_matches_python_package():
     manifest = json.loads(package_files(ROOT)["plugin.json"])
     assert manifest["version"] == project_version()
+
+
+def test_hosted_server_version_matches_python_package():
+    tree = ast.parse((ROOT / "freeagent_ai/hosted_app.py").read_text())
+    versions = [
+        ast.literal_eval(keyword.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "Server"
+        for keyword in node.keywords
+        if keyword.arg == "version"
+    ]
+    assert versions == [project_version()], "Hosted MCP server version must match pyproject.toml"
+
+
+def test_hosted_user_agent_version_matches_python_package():
+    tree = ast.parse((ROOT / "freeagent_ai/hosted_client.py").read_text())
+    user_agents = [
+        ast.literal_eval(value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Dict)
+        for key, value in zip(node.keys, node.values, strict=True)
+        if isinstance(key, ast.Constant) and key.value == "User-Agent"
+    ]
+    assert user_agents == [f"FreeAgent-AI/{project_version()}"], "Hosted User-Agent must match pyproject.toml"
