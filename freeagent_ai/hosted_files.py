@@ -16,6 +16,26 @@ class OpenAIFile(TypedDict):
     file_name: NotRequired[str]
 
 
+def validate_receipt(data: bytes, declared: str | None = None) -> str:
+    """Constrain attachments by signature; never render or execute document content."""
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise ValueError("Receipt must contain between 1 byte and 5 MiB")
+    signatures = (
+        (b"%PDF-", "application/pdf"),
+        (b"\x89PNG\r\n\x1a\n", "image/png"),
+        (b"\xff\xd8\xff", "image/jpeg"),
+        (b"GIF87a", "image/gif"),
+        (b"GIF89a", "image/gif"),
+    )
+    declared = {"application/x-pdf": "application/pdf", "image/x-png": "image/png", "image/jpg": "image/jpeg"}.get(
+        declared, declared
+    )
+    kind = next((mime for signature, mime in signatures if data.startswith(signature)), None)
+    if kind is None or declared not in {None, "", "application/octet-stream", kind}:
+        raise ValueError("Receipt must be a PDF, PNG, JPEG or GIF matching its declared type")
+    return kind
+
+
 def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
     parsed = urlsplit(file["download_url"])
     if (
@@ -62,15 +82,17 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                     if size > limit:
                         raise ValueError("Receipt exceeds 5 MiB")
                     parts.append(chunk)
-                encoded = base64.b64encode(b"".join(parts)).decode()
+                data = b"".join(parts)
+                kind = validate_receipt(data, file.get("mime_type"))
+                encoded = base64.b64encode(data).decode()
                 if len(encoded) > 7 * 1024 * 1024:
                     raise ValueError("Encoded receipt exceeds transport budget")
                 name = file.get("file_name", "receipt").replace("\\", "/").rsplit("/", 1)[-1]
-                if not name or any(ord(c) < 32 for c in name) or len(name) > 255:
+                if not name or any(ord(c) < 32 or ord(c) == 127 for c in name) or len(name) > 255:
                     raise ValueError("Invalid receipt filename")
                 return {
                     "file_name": name,
-                    "content_type": file.get("mime_type", "application/octet-stream"),
+                    "content_type": kind,
                     "data": encoded,
                 }
         except (OSError, TimeoutError):

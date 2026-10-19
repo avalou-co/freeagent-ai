@@ -27,7 +27,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 /plugin install freeagent-ai@freeagent-ai
 ```
 
-The skills appear as `/freeagent-ai:clients`, `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:expenses`, `/freeagent-ai:bills`, `/freeagent-ai:estimates`, `/freeagent-ai:bank-reconcile`, `/freeagent-ai:reports` and `/freeagent-ai:invoice-status`, and the MCP server is set up for you.
+The skills appear as `/freeagent-ai:clients`, `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:receipts`, `/freeagent-ai:expenses`, `/freeagent-ai:bills`, `/freeagent-ai:estimates`, `/freeagent-ai:bank-reconcile`, `/freeagent-ai:reports` and `/freeagent-ai:invoice-status`, and the MCP server is set up for you.
 
 ### Codex
 

@@ -69,7 +69,7 @@ def build(output: Path, client_id: str) -> None:
         "mcp.json": (json.dumps(mcp, indent=2) + "\n").encode(),
     }
     # Explicit files only: never recursively archive the checkout, credentials or evidence.
-    for name in ("agent-rules.md", "api-notes.md"):
+    for name in ("agent-rules.md", "api-notes.md", "receipts.md"):
         entries[f"docs/{name}"] = (ROOT / "docs" / name).read_bytes()
     for source in sorted((ROOT / ".agents/skills").glob("*/SKILL.md")):
         content = source.read_text().replace("../../../docs/", "../../docs/")

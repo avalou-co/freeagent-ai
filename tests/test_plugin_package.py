@@ -15,7 +15,9 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
     assert first.read_bytes() == second.read_bytes()
     with ZipFile(first) as archive:
         names = archive.namelist()
-        assert len([name for name in names if name.endswith("SKILL.md")]) == 9
+        assert "skills/receipts/SKILL.md" in names
+        assert "docs/receipts.md" in names
+        assert len([name for name in names if name.endswith("SKILL.md")]) == 10
         assert all(name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/")) for name in names)
         server = json.loads(archive.read("mcp.json"))["mcpServers"]["freeagent"]
         assert server["type"] == "streamable-http"

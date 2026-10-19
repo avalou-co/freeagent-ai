@@ -20,3 +20,6 @@ Mileage claims are not covered yet.
 Follow `docs/agent-rules.md` throughout.
 
 For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).
+
+For uploaded receipts or PDFs, first use the `receipts` skill for evidence-backed
+extraction, uncertain fields, cross-expense/bill duplicate review and per-item approval.
