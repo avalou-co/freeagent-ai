@@ -134,6 +134,9 @@ If something is missing, the agent should ask rather than guess.
 
 Developer setup and checks are in `AGENTS.md`.
 
+See the [changelog](CHANGELOG.md) for version history and the
+[release guide](docs/releases.md) for version checks, tagging and publication.
+
 ### Direct API writes
 
 `freeagent_post`, `freeagent_put` and `freeagent_delete` pass approved requests to
