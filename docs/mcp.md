@@ -39,7 +39,7 @@ readback must be investigated before another create.
 
 ## Tool audit
 
-All 14 registered tools were reviewed against the design contract. None performs
+All 15 registered tools were reviewed against the design contract. None performs
 local accounting or model eligibility validation. This audit and the mocked tests
 verify wrapper behavior; they do not independently test FreeAgent's accounting rules.
 
@@ -54,6 +54,7 @@ verify wrapper behavior; they do not independently test FreeAgent's accounting r
 | `create_timeslip` | POST supplied timeslip fields and read back; no date, hours, relationship or duplicate checks. |
 | `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
 | `create_expense` | POST expense fields and optional encoded local attachment, then read back; no amount, tax or file-type validation. |
+| `create_mileage_expense` | POST `category: Mileage`, supplied miles, vehicle and explicit reclaim flag, optional engine/VAT-receipt/project fields, then read back. No local rates, tax validation, amount calculation or duplicate enforcement. |
 | `create_project` | POST project fields with Active status, day billing and Days budget units by default, then read back. |
 | `create_task` | POST task fields with Active status and day billing by default; encode the project query parameter, then read back. |
 | `create_draft_estimate` | POST Draft status and supplied line items, then read back; no line-item validation or sending. |
