@@ -26,8 +26,10 @@ downloading, and attach only within that invocation. Downloads require HTTPS and
 an operator allowlisted host, public DNS addresses pinned to the connection, no
 redirect following, identity encoding, bounded time and a 5 MB streaming cap.
 The new type check accepts only PNG/JPEG/GIF/PDF signatures and normalizes MIME
-metadata before sending to FreeAgent. No receipt bytes or signed URLs are stored
-by the application; bytes exist in request memory until the invocation ends.
+metadata before sending to FreeAgent. An absent or generic octet-stream MIME is
+inferred from the validated signature; conflicting specific MIME types are rejected.
+Filenames containing control characters, including DEL, are rejected. No receipt
+bytes or signed URLs are stored by the application; bytes exist in request memory until the invocation ends.
 Assistant platform and FreeAgent attachment retention are separate policies.
 
 Any future persistent upload service must meet these requirements before release:

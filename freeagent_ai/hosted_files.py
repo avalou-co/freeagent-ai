@@ -29,6 +29,21 @@ def receipt_content_type(data: bytes) -> str:
     raise ValueError("Receipt must be a PDF, PNG, JPEG or GIF document")
 
 
+def validate_receipt(data: bytes, declared: str | None = None) -> str:
+    """Bound receipt bytes and normalize MIME metadata without parsing content."""
+    if len(data) > 5_000_000:
+        raise ValueError("Receipt must contain between 1 byte and 5 MB")
+    content_type = receipt_content_type(data)
+    aliases = {
+        "application/pdf": "application/x-pdf",
+        "image/jpg": "image/jpeg",
+        "image/x-png": "image/png",
+    }
+    if declared and declared != "application/octet-stream" and aliases.get(declared, declared) != content_type:
+        raise ValueError("Receipt MIME type does not match document content")
+    return content_type
+
+
 def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
     parsed = urlsplit(file["download_url"])
     if (
@@ -76,20 +91,12 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                         raise ValueError("Receipt exceeds 5 MB")
                     parts.append(chunk)
                 data = b"".join(parts)
-                content_type = receipt_content_type(data)
-                declared = file.get("mime_type")
-                aliases = {
-                    "application/pdf": "application/x-pdf",
-                    "image/jpg": "image/jpeg",
-                    "image/x-png": "image/png",
-                }
-                if declared and aliases.get(declared, declared) != content_type:
-                    raise ValueError("Receipt MIME type does not match document content")
+                content_type = validate_receipt(data, file.get("mime_type"))
                 encoded = base64.b64encode(data).decode()
                 if len(encoded) > 7 * 1024 * 1024:
                     raise ValueError("Encoded receipt exceeds transport budget")
                 name = file.get("file_name", "receipt").replace("\\", "/").rsplit("/", 1)[-1]
-                if not name or any(ord(c) < 32 for c in name) or len(name) > 255:
+                if not name or any(ord(c) < 32 or ord(c) == 127 for c in name) or len(name) > 255:
                     raise ValueError("Invalid receipt filename")
                 return {
                     "file_name": name,
