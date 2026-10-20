@@ -17,6 +17,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `clients` | Finding or creating contacts, projects and tasks; setting up a new client |
 | `timesheets` | Logging time as timeslips for a date range |
 | `invoicing` | Creating draft invoices, optionally from timeslips |
+| `receipts` | Extracting and reviewing receipt images/PDFs before expense or bill creation |
 | `expenses` | Recording expense claims with receipts |
 | `estimates` | Creating draft estimates/quotes with line items |
 | `bills` | Recording supplier bills, listing unpaid or overdue ones |

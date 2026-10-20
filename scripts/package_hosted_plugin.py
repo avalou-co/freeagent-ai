@@ -70,10 +70,15 @@ def build(output: Path, client_id: str) -> None:
         "mcp.json": (json.dumps(mcp, indent=2) + "\n").encode(),
     }
     # Explicit files only: never recursively archive the checkout, credentials or evidence.
-    for name in ("agent-rules.md", "api-notes.md"):
+    for name in ("agent-rules.md", "api-notes.md", "receipts.md"):
         entries[f"docs/{name}"] = (ROOT / "docs" / name).read_bytes()
+    entries["docs/receipt-review-cases.md"] = (ROOT / "publication/receipt-review-cases.md").read_bytes()
     for source in sorted((ROOT / ".agents/skills").glob("*/SKILL.md")):
-        content = source.read_text().replace("../../../docs/", "../../docs/")
+        content = (
+            source.read_text()
+            .replace("../../../docs/", "../../docs/")
+            .replace("../../../publication/receipt-review-cases.md", "../../docs/receipt-review-cases.md")
+        )
         content += (
             "\n## Hosted connection\n\n"
             "Use the installed plugin's FreeAgent MCP tools. If sign-in is required, use the host's "

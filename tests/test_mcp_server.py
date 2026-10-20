@@ -250,3 +250,25 @@ def test_api_write_tools_are_destructive_and_non_idempotent():
         assert tools[name].annotations.destructive_hint
         assert not tools[name].annotations.idempotent_hint
         assert not tools[name].annotations.read_only_hint
+
+
+@pytest.mark.parametrize("resource", ["expense", "bill"])
+@pytest.mark.parametrize("currency", ["", "EUR"])
+def test_receipt_currency_is_forwarded_and_read_back(monkeypatch, resource, currency):
+    calls = []
+    record = {"url": BASE + resource + "s/91", "currency": currency or "GBP"}
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {resource: record}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    if resource == "expense":
+        result = mcp_server.create_expense("user", "category", "2026-10-02", "-60.00", "Example", currency=currency)
+    else:
+        result = mcp_server.create_bill("contact", "TEST-22", "2026-10-02", "2026-10-30", [], currency=currency)
+    assert calls[0][0] == "POST"
+    payload = calls[0][2][resource]
+    assert payload.get("currency") == (currency or None)
+    assert calls[1] == ("GET", resource + "s/91", None)
+    assert result == {resource: record}

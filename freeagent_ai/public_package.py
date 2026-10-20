@@ -20,7 +20,9 @@ VERSION = "0.3.0"
 def render_hosted(text):
     # Preserve the canonical business/approval prose. Replace transport-specific instructions
     # deterministically; the appendix defines exact declared read/correction tool mappings.
-    text = text.replace("../../../docs/", "../../docs/")
+    text = text.replace("../../../docs/", "../../docs/").replace(
+        "../../../publication/receipt-review-cases.md", "../../docs/receipt-review-cases.md"
+    )
     text = text.replace("receipt_path", "receipt").replace("attachment_path", "attachment")
     for name in ["freeagent_get", "freeagent_post", "freeagent_put", "freeagent_delete"]:
         replacement = "the matching named read tool" if name.endswith("get") else "the matching named write tool"
@@ -143,10 +145,11 @@ def package_files(root, metadata=None):
     for source in sorted((root / ".agents/skills").glob("*/SKILL.md")):
         files[f"skills/{source.parent.name}/SKILL.md"] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
-    for name in ["agent-rules.md", "api-notes.md"]:
+    for name in ["agent-rules.md", "api-notes.md", "receipts.md"]:
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
+    files["docs/receipt-review-cases.md"] = (root / "publication/receipt-review-cases.md").read_bytes()
     files["docs/source-digests.json"] = json.dumps(sources, sort_keys=True, indent=2).encode()
     for path in sorted((root / "publication/assets").glob("*.png")):
         if path.is_symlink() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):

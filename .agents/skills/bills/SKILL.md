@@ -21,3 +21,5 @@ Recording:
 Never modify bills you did not create in this task. Follow `docs/agent-rules.md` throughout.
 
 For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).
+
+For receipt images or PDFs needing extraction or duplicate review, use the [receipts workflow](../receipts/SKILL.md) before creation.

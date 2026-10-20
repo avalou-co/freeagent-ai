@@ -132,3 +132,8 @@ reported as MCP tool errors; authentication response bodies are not exposed.
 `freeagent_get` also exposes HTTP status, including 404 for deletion readback.
 Inspect uncertain writes before retrying. The client does not retry writes on 429
 or timeouts; it can refresh credentials once after a rejected 401.
+
+Receipt interpretation and duplicate review use the [receipts workflow](../.agents/skills/receipts/SKILL.md).
+`create_expense` and `create_bill` forward optional explicit `currency` unchanged;
+this also appears in hosted schemas. No extraction or duplicate policy tool is
+added. See the [hosted upload contract](receipts.md) for attachment boundaries.

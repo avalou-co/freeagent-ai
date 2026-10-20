@@ -16,6 +16,19 @@ class OpenAIFile(TypedDict):
     file_name: NotRequired[str]
 
 
+def receipt_content_type(data: bytes) -> str:
+    """Check transport type without parsing untrusted document content."""
+    if data.startswith(b"%PDF-"):
+        return "application/x-pdf"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    raise ValueError("Receipt must be a PDF, PNG, JPEG or GIF document")
+
+
 def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
     parsed = urlsplit(file["download_url"])
     if (
@@ -47,10 +60,10 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                 response = connection.getresponse()
                 if response.status != 200 or response.getheader("Content-Encoding", "identity") != "identity":
                     raise ValueError("Receipt download rejected; obtain a fresh file reference")
-                limit = 5 * 1024 * 1024
+                limit = 5_000_000
                 length = response.getheader("Content-Length")
                 if length and int(length) > limit:
-                    raise ValueError("Receipt exceeds 5 MiB")
+                    raise ValueError("Receipt exceeds 5 MB")
                 parts, size = [], 0
                 while response.fp is not None:
                     set_read_timeout(response, budget)
@@ -60,9 +73,19 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                         break
                     size += len(chunk)
                     if size > limit:
-                        raise ValueError("Receipt exceeds 5 MiB")
+                        raise ValueError("Receipt exceeds 5 MB")
                     parts.append(chunk)
-                encoded = base64.b64encode(b"".join(parts)).decode()
+                data = b"".join(parts)
+                content_type = receipt_content_type(data)
+                declared = file.get("mime_type")
+                aliases = {
+                    "application/pdf": "application/x-pdf",
+                    "image/jpg": "image/jpeg",
+                    "image/x-png": "image/png",
+                }
+                if declared and aliases.get(declared, declared) != content_type:
+                    raise ValueError("Receipt MIME type does not match document content")
+                encoded = base64.b64encode(data).decode()
                 if len(encoded) > 7 * 1024 * 1024:
                     raise ValueError("Encoded receipt exceeds transport budget")
                 name = file.get("file_name", "receipt").replace("\\", "/").rsplit("/", 1)[-1]
@@ -70,7 +93,7 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                     raise ValueError("Invalid receipt filename")
                 return {
                     "file_name": name,
-                    "content_type": file.get("mime_type", "application/octet-stream"),
+                    "content_type": content_type,
                     "data": encoded,
                 }
         except (OSError, TimeoutError):
