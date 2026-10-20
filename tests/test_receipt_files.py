@@ -75,7 +75,7 @@ def test_download_validates_bytes_before_forwarding(monkeypatch, body, mime, suc
     monkeypatch.setattr(hosted_files, "resolve_public", lambda *_: ["8.8.8.8"])
     monkeypatch.setattr(hosted_files, "PinnedHTTPS", lambda *_: connection)
     monkeypatch.setattr(hosted_files, "socket_budget", lambda *_: nullcontext())
-    monkeypatch.setattr(hosted_files, "set_read_timeout", lambda *_: None)
+    monkeypatch.setattr("freeagent_ai.hosted_network.set_read_timeout", lambda *_: None)
     file: OpenAIFile = {
         "download_url": "https://files.example/a",
         "file_id": "synthetic",

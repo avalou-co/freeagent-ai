@@ -9,7 +9,6 @@ import hashlib
 import hmac
 import re
 import secrets
-import time
 from urllib.parse import urlencode
 
 import anyio
@@ -20,6 +19,7 @@ from .hosted_accounts import AccessDenied, key_for
 from .hosted_auth import ORIGIN
 from .hosted_client import request_json
 from .hosted_deadline import Deadline
+from .hosted_oauth import exchange_identity, freeagent_base
 
 BRIDGE_CLIENT = "freeagent-ai-auth0"
 COOKIE = "__session"  # Firebase Hosting forwards only this cookie to Cloud Run.
@@ -28,11 +28,7 @@ COOKIE = "__session"  # Firebase Hosting forwards only this cookie to Cloud Run.
 class FreeAgentConnect:
     def __init__(self, settings, accounts):
         self.settings, self.accounts = settings, accounts
-        self.base = (
-            "https://api.freeagent.com/v2/"
-            if settings.environment == "production"
-            else "https://api.sandbox.freeagent.com/v2/"
-        )
+        self.base = freeagent_base(settings.environment)
 
     def enabled(self):
         if not self.settings.connection_secret:
@@ -117,43 +113,20 @@ class FreeAgentConnect:
         else:
 
             def exchange():
-                deadline = Deadline()
-                basic = base64.b64encode(
-                    f"{self.settings.freeagent_client_id}:{self.settings.freeagent_client_secret}".encode()
-                ).decode()
-                tokens, _ = request_json(
-                    "POST",
-                    self.base + "token_endpoint",
-                    deadline,
-                    form={
-                        "grant_type": "authorization_code",
-                        "code": request.query_params["code"],
-                        "redirect_uri": ORIGIN + "/freeagent/callback",
-                    },
-                    headers={"Authorization": "Basic " + basic},
+                credentials, company = exchange_identity(
+                    self.settings,
+                    request.query_params["code"],
+                    ORIGIN + "/freeagent/callback",
+                    Deadline(),
+                    request_json,
                 )
-                headers = {"Authorization": "Bearer " + tokens["access_token"]}
-                user, _ = request_json("GET", self.base + "users/me", deadline, headers=headers)
-                company, _ = request_json("GET", self.base + "company", deadline, headers=headers)
-                user_url, company_url = user.get("user", {}).get("url", ""), company.get("company", {}).get("url", "")
-                if (
-                    not re.fullmatch(re.escape(self.base) + r"users/[0-9]+", user_url)
-                    or company_url != self.base + "company"
-                    or not re.fullmatch(r"[1-9][0-9]*", str(company.get("company", {}).get("id", "")))
-                ):
-                    raise AccessDenied("Could not verify FreeAgent user and company")
+                user_url, company_url = credentials["user"], company["url"]
                 # Identity is company + user + environment, never an email address.
                 identity = hashlib.sha256(
-                    f"{self.settings.environment}|{company['company']['id']}|{user_url}".encode()
+                    f"{self.settings.environment}|{company['id']}|{user_url}".encode()
                 ).hexdigest()
                 subject = f"oauth2|{self.settings.connection_name}|{identity}"
                 current = self.accounts.store.get("account_links", key_for(subject))
-                credentials = {
-                    "access_token": tokens["access_token"],
-                    "refresh_token": tokens["refresh_token"],
-                    "expires_at": time.time() + int(tokens["expires_in"]),
-                    "user": user_url,
-                }
                 return self.accounts.new_state(
                     "connect_code",
                     {

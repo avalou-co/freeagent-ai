@@ -12,11 +12,16 @@ from contextvars import ContextVar
 from email.message import Message
 from io import BytesIO
 from typing import Any
-from urllib.parse import unquote, urlencode, urljoin, urlsplit
+from urllib.parse import urlencode, urlsplit
 
+import httpx2
+
+from .api_mechanics import api_path
 from .client import _retry_after
 from .hosted_accounts import AccessDenied
-from .hosted_network import PinnedHTTPS, resolve_public, set_read_timeout, socket_budget
+from .hosted_network import PinnedHTTPS, read_bounded, resolve_public, socket_budget
+from .hosted_oauth import freeagent_base
+from .pagination import collect_pages
 
 principal_context: ContextVar = ContextVar("hosted_principal")
 
@@ -45,19 +50,9 @@ def request_json(method, url, deadline, *, body=None, form=None, headers=None) -
             )
             connection.sock.settimeout(deadline.remaining())
             response = connection.getresponse()
-            parts, size = [], 0
-            while True:
-                # read1 performs at most one socket read, so slow streams cannot renew the budget.
-                set_read_timeout(response, deadline)
-                chunk = response.read1(65536)
-                deadline.remaining()
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > 8 * 1024 * 1024:
-                    raise ValueError("API response exceeds transport size limit; read incomplete")
-                parts.append(chunk)
-            payload = b"".join(parts)
+            payload = read_bounded(
+                response, deadline, 8 * 1024 * 1024, "API response exceeds transport size limit; read incomplete"
+            )
             message = Message()
             for name, value in response.getheaders():
                 message[name] = value
@@ -80,11 +75,7 @@ class HostedClient:
         self.accounts, self.binding, self.deadline = accounts, binding, deadline
         self.client_id, self.client_secret, self.transport = client_id, client_secret, transport
         self.last_created = ""
-        self.base = (
-            "https://api.freeagent.com/v2/"
-            if binding.environment == "production"
-            else "https://api.sandbox.freeagent.com/v2/"
-        )
+        self.base = freeagent_base(binding.environment)
 
     def exchange(self, credentials):
         basic = base64.b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
@@ -129,15 +120,15 @@ class HostedClient:
         raise RuntimeError("Read rate limit exceeded")
 
     def call(self, method, path, body=None, *, paginate=True):
+        path = api_path(path, self.base)
         parsed = urlsplit(path)
-        if (
-            parsed.scheme
-            or parsed.netloc
-            or parsed.fragment
-            or path.startswith("/")
-            or ".." in unquote(parsed.path).split("/")
-        ):
-            raise ValueError("Invalid API path")
+        if method == "GET" and paginate:
+
+            def fetch(current):
+                result, headers = self._request(method, current, body)
+                return result, httpx2.Response(200, headers={"Link": headers.get("Link", "")}).links
+
+            return collect_pages(fetch, path, self.base)
         result, headers = self._request(method, path, body)
         if method == "POST" and isinstance(result, dict):
             endpoint = parsed.path.split("/", 1)[0]
@@ -146,29 +137,4 @@ class HostedClient:
                 prefix = self.base + endpoint + "/"
                 if isinstance(url, str) and url.startswith(prefix) and url[len(prefix) :].isdigit():
                     self.last_created = url
-        seen = {path}
-        while method == "GET" and paginate and headers.get("Link"):
-            # Use the same Link parser as the installed HTTP client, without making a request.
-            import httpx2
-
-            links = httpx2.Response(200, headers={"Link": headers["Link"]}).links
-            target = links.get("next", {}).get("url")
-            if target is None:
-                break
-            url = urljoin(self.base + path, target)
-            if not url.startswith(self.base):
-                raise ValueError("Pagination destination outside the FreeAgent API")
-            path = url[len(self.base) :]
-            check = urlsplit(path)
-            if check.fragment or check.scheme or check.netloc or ".." in unquote(check.path).split("/"):
-                raise ValueError("Invalid pagination link")
-            if path in seen or len(seen) >= 1000:
-                raise ValueError("Pagination incomplete: cycle or page limit")
-            seen.add(path)
-            page, headers = self._request(method, path, body)
-            lists = [key for key, value in result.items() if isinstance(value, list)]
-            if not lists or any(not isinstance(page.get(key), list) for key in lists):
-                raise ValueError("Pagination incomplete: inconsistent response")
-            for key in lists:
-                result[key].extend(page[key])
         return result

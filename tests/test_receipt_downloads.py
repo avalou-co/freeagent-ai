@@ -48,7 +48,7 @@ def transport(monkeypatch):
     monkeypatch.setattr(hosted_files, "resolve_public", lambda *_: ["8.8.8.8"])
     monkeypatch.setattr(hosted_files, "PinnedHTTPS", Connection)
     monkeypatch.setattr(hosted_files, "socket_budget", lambda *_: contextlib.nullcontext())
-    monkeypatch.setattr(hosted_files, "set_read_timeout", lambda *_: None)
+    monkeypatch.setattr("freeagent_ai.hosted_network.set_read_timeout", lambda *_: None)
     return state
 
 

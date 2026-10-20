@@ -31,6 +31,8 @@ from typing import Any
 import httpx2
 from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_exponential
 
+from .pagination import collect_pages
+
 BASE = "https://api.freeagent.com/v2/"
 CREDS_PATH = os.path.expanduser(os.environ.get("FREEAGENT_CREDENTIALS", "~/.config/freeagent/credentials.json"))
 PORT = 47821
@@ -188,23 +190,6 @@ def _request(method, path, body, refresh=True):
         return retries(send)
 
 
-def _next_path(links, current):
-    target = links.get("next", {}).get("url")
-    if target is None:
-        return None
-    url = urllib.parse.urljoin(BASE + current, target)
-    base, parsed = urllib.parse.urlsplit(BASE), urllib.parse.urlsplit(url)
-    if (
-        parsed.scheme != base.scheme
-        or parsed.netloc != base.netloc
-        or not parsed.path.startswith(base.path)
-        or parsed.fragment
-        or ".." in urllib.parse.unquote(parsed.path).split("/")
-    ):
-        raise ValueError("Pagination link is outside the FreeAgent API")
-    return url[len(BASE) :]
-
-
 def call(method, path, body=None, _retry=True, *, paginate=True) -> Any:
     """Call a /v2/-relative API path, returning JSON or an empty response's status.
 
@@ -216,24 +201,9 @@ def call(method, path, body=None, _retry=True, *, paginate=True) -> Any:
     if hosted is not None:
         return hosted.call(method, path, body, paginate=paginate)
     method = method.upper()
-    result, link = _request(method, path, body, _retry)
-    if method != "GET" or not paginate:
-        return result
-    seen = {path}
-    while next_path := _next_path(link, path):
-        if next_path in seen or len(seen) >= 1000:
-            raise ValueError("Pagination cycle or page limit exceeded")
-        seen.add(next_path)
-        page, link = _request(method, next_path, body, _retry)
-        if not isinstance(result, dict) or not isinstance(page, dict):
-            raise ValueError("Expected object responses for pagination")
-        lists = [key for key, value in result.items() if isinstance(value, list)]
-        if not lists or any(not isinstance(page.get(key), list) for key in lists):
-            raise ValueError("Inconsistent pagination response")
-        for key in lists:
-            result[key].extend(page[key])
-        path = next_path
-    return result
+    if method == "GET" and paginate:
+        return collect_pages(lambda current: _request(method, current, body, _retry), path, BASE)
+    return _request(method, path, body, _retry)[0]
 
 
 def login(timeout=300):

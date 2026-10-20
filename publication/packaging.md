@@ -4,6 +4,7 @@ The intended user journey is install, connect FreeAgent, then use the bundled
 workflows. Users must not configure servers, tokens, a local runtime or an Avalou
 account. The root development plugin remains a local stdio integration.
 
+Install the package with its hosted dependencies (`pip install -e ".[hosted]"`).
 Operators build the hosted submission ZIP with:
 
 ```sh
@@ -12,11 +13,16 @@ python scripts/package_hosted_plugin.py /private/output/freeagent-ai.zip
 
 Provide `FREEAGENT_PLUGIN_CLIENT_ID` through protected deployment configuration.
 The package includes the public HTTPS endpoint, a pre-registered OAuth client,
-both scopes, ten skills and their shared safety/API references, including the
-read-only decimal mileage preview script. It excludes
-application source, local launch commands, credentials, deployment runbooks and
-review evidence. Output must be outside this public checkout. Never add client
-secrets to the package; enter them privately in the publisher connection flow.
+both scopes, all canonical skills and their shared safety/API references, including
+the read-only decimal mileage preview script. The operator command and
+`python -m freeagent_ai.public_package` share manifest construction, named-tool
+workflow rendering, tool-reference checks and deterministic ZIP writing. The candidate includes the public tool audit and source digests.
+It excludes application source, local launch commands, credentials, deployment
+runbooks and private review evidence. The operator command preserves mode 0600
+and refuses replacement; the public release builder separately requires publication
+evidence and assets. A candidate does not assert those release approvals. Output
+must be outside this public checkout. Never add client secrets to the package;
+enter them privately in the publisher connection flow.
 
 The generated ZIP is a packaging candidate, not proof of a working installation
 or a completed submission. The publisher must register the exact callback shown

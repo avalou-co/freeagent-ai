@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from typing_extensions import NotRequired, TypedDict
 
 from .hosted_deadline import Deadline
-from .hosted_network import PinnedHTTPS, resolve_public, set_read_timeout, socket_budget
+from .hosted_network import PinnedHTTPS, read_bounded, resolve_public, socket_budget
 
 
 class OpenAIFile(TypedDict):
@@ -79,18 +79,7 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                 length = response.getheader("Content-Length")
                 if length and int(length) > limit:
                     raise ValueError("Receipt exceeds 5 MB")
-                parts, size = [], 0
-                while response.fp is not None:
-                    set_read_timeout(response, budget)
-                    chunk = response.read1(min(65536, limit + 1 - size))
-                    budget.remaining()
-                    if not chunk:
-                        break
-                    size += len(chunk)
-                    if size > limit:
-                        raise ValueError("Receipt exceeds 5 MB")
-                    parts.append(chunk)
-                data = b"".join(parts)
+                data = read_bounded(response, budget, limit, "Receipt exceeds 5 MB")
                 content_type = validate_receipt(data, file.get("mime_type"))
                 encoded = base64.b64encode(data).decode()
                 if len(encoded) > 7 * 1024 * 1024:

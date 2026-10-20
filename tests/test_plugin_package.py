@@ -51,3 +51,24 @@ def test_empty_oauth_client_does_not_produce_a_package(tmp_path):
     with pytest.raises(ValueError):
         BUILD(output, "")
     assert not output.exists()
+
+
+def test_operator_archive_matches_shared_named_tool_package_and_stays_private(tmp_path):
+    import stat
+
+    from freeagent_ai.public_package import package_files
+
+    output = tmp_path / "candidate.zip"
+    BUILD(output, "synthetic-client")
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    root = Path(__file__).resolve().parents[1]
+    with ZipFile(output) as archive:
+        assert {name: archive.read(name) for name in archive.namelist()} == package_files(
+            root, {"mcp_client_id": "synthetic-client"}
+        )
+        for name in archive.namelist():
+            if name.endswith("SKILL.md"):
+                text = archive.read(name).decode()
+                assert not re.search(r"freeagent_(?:get|post|put|delete)\b", text)
+                assert "../../docs/agent-rules.md" in text
+                assert "../../docs/api-notes.md" in text

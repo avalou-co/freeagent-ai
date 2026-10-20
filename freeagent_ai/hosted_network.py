@@ -81,3 +81,19 @@ def socket_budget(sock, deadline):
     finally:
         timer.cancel()
         timer.join()
+
+
+def read_bounded(response, deadline, limit, message):
+    """Read at most limit bytes without allowing a slow stream to renew its deadline."""
+    parts, size = [], 0
+    while response.fp is not None:
+        set_read_timeout(response, deadline)
+        chunk = response.read1(min(65536, limit + 1 - size))
+        deadline.remaining()
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > limit:
+            raise ValueError(message)
+        parts.append(chunk)
+    return b"".join(parts)

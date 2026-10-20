@@ -24,6 +24,7 @@ from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import principal_context, request_json
 from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
+from .hosted_oauth import exchange_identity, freeagent_base
 from .landing import ROOT as LANDING_ROOT
 from .landing import SITE_NOTICES
 from .landing import render as render_landing
@@ -313,11 +314,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         state_token = await anyio.to_thread.run_sync(
             lambda: accounts.new_state("freeagent", {**state, "environment": settings.environment})
         )
-        base = (
-            "https://api.freeagent.com/v2/"
-            if settings.environment == "production"
-            else "https://api.sandbox.freeagent.com/v2/"
-        )
+        base = freeagent_base(settings.environment)
         return RedirectResponse(
             base
             + "approve_app?"
@@ -339,36 +336,17 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         state = await anyio.to_thread.run_sync(accounts.take_state, request.query_params.get("state", ""), "freeagent")
         if state["session"] != token or state["subject"] != record["subject"]:
             raise AccessDenied("Account link session mismatch")
-        base = (
-            "https://api.freeagent.com/v2/"
-            if state["environment"] == "production"
-            else "https://api.sandbox.freeagent.com/v2/"
-        )
-        basic = base64.b64encode(f"{settings.freeagent_client_id}:{settings.freeagent_client_secret}".encode()).decode()
 
         def link():
-            deadline = Deadline()
-            tokens, _ = request_json(
-                "POST",
-                base + "token_endpoint",
-                deadline,
-                form={
-                    "grant_type": "authorization_code",
-                    "code": request.query_params.get("code", ""),
-                    "redirect_uri": ORIGIN + "/freeagent/callback",
-                },
-                headers={"Authorization": "Basic " + basic},
+            stored, company = exchange_identity(
+                settings,
+                request.query_params.get("code", ""),
+                ORIGIN + "/freeagent/callback",
+                Deadline(),
+                request_json,
+                environment=state["environment"],
             )
-            auth = {"Authorization": "Bearer " + tokens["access_token"]}
-            user, _ = request_json("GET", base + "users/me", deadline, headers=auth)
-            company, _ = request_json("GET", base + "company", deadline, headers=auth)
-            if not user.get("user", {}).get("url") or not company.get("company", {}).get("url"):
-                raise AccessDenied("Could not verify linked user and company")
-            stored = {key: tokens[key] for key in ["access_token", "refresh_token"]}
-            stored.update(expires_at=time.time() + int(tokens["expires_in"]), user=user["user"]["url"])
-            accounts.replace(
-                record["subject"], company["company"]["url"], state["environment"], stored, state["generation"]
-            )
+            accounts.replace(record["subject"], company["url"], state["environment"], stored, state["generation"])
 
         await anyio.to_thread.run_sync(link)
         return page(

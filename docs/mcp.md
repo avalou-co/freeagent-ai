@@ -39,7 +39,9 @@ readback must be investigated before another create.
 
 ## Tool audit
 
-All 15 registered tools were reviewed against the design contract. None performs
+All 15 registered tools were reviewed against the design contract. Named create
+helpers share the same POST/readback implementation; local and hosted errors use
+the same bounded provider-error formatter. This introduces no accounting validation. None performs
 local accounting or model eligibility validation. This audit and the mocked tests
 verify wrapper behavior; they do not independently test FreeAgent's accounting rules.
 
