@@ -6,6 +6,8 @@ argument-hint: "[supplier]"
 
 # Bills workflow
 
+For uploaded receipt images or PDFs, first follow the [receipts workflow](../receipts/SKILL.md) (`/freeagent-ai:receipts`) for extraction, uncertainty and duplicate review. Return here to create only the reviewed, approved items.
+
 Generic. The business supplies the supplier, categories, VAT treatment and how bills are attached. Ask for them or find them in the business's own instructions.
 
 Listing: `freeagent_get` `bills?view=open` (unpaid) or `bills?view=overdue`.
@@ -15,11 +17,9 @@ Recording:
 1. Find the supplier contact (`contacts`) and the category for each line (`categories`). Ask if unclear.
 2. Check `bills?from_date=&to_date=` for the same reference to avoid duplicates.
 3. Show the plan (reference, dates, lines, VAT, attachment) and get a clear yes.
-4. Call `create_bill`. Pass `attachment_path` for the supplier's PDF or image if the user has one.
+4. Call `create_bill`. Pass `attachment_path` for the supplier's PDF or image if the user has one, and pass the reviewed `currency`.
 5. Report what FreeAgent holds: reference, dates, lines, totals, VAT, attachment. Flag any mismatch with the supplier's bill.
 
 Never modify bills you did not create in this task. Follow `docs/agent-rules.md` throughout.
 
 For corrections, follow the shared [task correction rules](../../../docs/agent-rules.md#correcting-entries-created-in-the-current-task).
-
-For receipt images or PDFs needing extraction or duplicate review, use the [receipts workflow](../receipts/SKILL.md) before creation.
