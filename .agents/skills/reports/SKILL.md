@@ -16,3 +16,7 @@ Read-only: use `freeagent_get` only, never write. The business supplies the date
 6. Report figures with their date range, state which endpoints returned them, and flag any call that failed or returned an unexpected shape instead of guessing.
 
 Follow `docs/agent-rules.md` throughout.
+
+For 13-week projections use `cash-flow`; for project/contact budgets, profitability
+and unbilled work use `profitability`. Both use reviewed snapshots and deterministic
+Decimal calculations; see docs/analysis.md.

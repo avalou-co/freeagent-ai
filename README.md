@@ -84,6 +84,11 @@ The commands below are for the local CLI.
 
 Full steps, including the credentials file and re-login, are in `docs/auth.md`.
 
+Use `/freeagent-ai:cash-flow` for a read-only 13-week forecast with receipt-delay
+scenarios, and `/freeagent-ai:profitability` for project/client revenue, time, budgets
+and unbilled work. Both show missing inputs and preserve currencies. See
+[analysis assumptions and calculation contracts](docs/analysis.md).
+
 ## Using it
 
 Ask your agent in plain language, for example:
