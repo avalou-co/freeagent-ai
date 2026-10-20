@@ -1,6 +1,6 @@
 [project]
 name = "freeagent-ai"
-version = "0.2.0"
+version = "0.3.0"
 description = "Generic FreeAgent API mechanics and agent workflows. No business-specific logic."
 requires-python = ">=3.10"
 dependencies = ["typer>=0.12", "httpx2>=2.13,<3", "tenacity>=9,<10"]

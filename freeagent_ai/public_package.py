@@ -14,17 +14,20 @@ from pathlib import Path
 from .hosted_auth import ORIGIN
 from .public_tools import REGISTRY, RESOURCES, audit
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 def render_hosted(text):
     # Preserve the canonical business/approval prose. Replace transport-specific instructions
     # deterministically; the appendix defines exact declared read/correction tool mappings.
-    text = text.replace("../../../docs/", "../../docs/")
+    text = text.replace("../../../docs/", "../../docs/").replace(
+        "../../../publication/receipt-review-cases.md", "../../docs/receipt-review-cases.md"
+    )
     text = text.replace("receipt_path", "receipt").replace("attachment_path", "attachment")
     for name in ["freeagent_get", "freeagent_post", "freeagent_put", "freeagent_delete"]:
         replacement = "the matching named read tool" if name.endswith("get") else "the matching named write tool"
         text = text.replace(name, replacement)
+    text = text.replace("GET expenses/mileage_settings", "get_mileage_settings")
     for endpoint, (root, _) in sorted(RESOURCES.items(), key=lambda item: len(item[0]), reverse=True):
         text = re.sub(r"GET\s+" + endpoint + r"(?:/<id>)?", "get_" + root + " or list_" + endpoint, text)
     text = text.replace("accounting/profit_and_loss/summary", "get_profit_and_loss")
@@ -87,6 +90,7 @@ def package_files(root, metadata=None):
             "Timesheets",
             "Draft invoices",
             "Expenses",
+            "Mileage",
             "Estimates",
             "Bills",
             "Bank reconciliation",
@@ -147,6 +151,10 @@ def package_files(root, metadata=None):
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
+    files["docs/receipt-review-cases.md"] = (root / "publication/receipt-review-cases.md").read_bytes()
+    preview = root / ".agents/skills/mileage/scripts/preview.py"
+    files["skills/mileage/scripts/preview.py"] = preview.read_bytes()
+    sources[str(preview.relative_to(root))] = hashlib.sha256(preview.read_bytes()).hexdigest()
     files["docs/source-digests.json"] = json.dumps(sources, sort_keys=True, indent=2).encode()
     for path in sorted((root / "publication/assets").glob("*.png")):
         if path.is_symlink() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):

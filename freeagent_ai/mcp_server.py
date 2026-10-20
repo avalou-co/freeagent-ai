@@ -160,13 +160,14 @@ def create_expense(
     description: str,
     sales_tax_rate: str = "",
     receipt_path: str = "",
+    currency: str = "",
 ) -> dict:
     """Create one expense claim and return it as FreeAgent holds it. `user` and `category` are
     resource URLs (list categories with freeagent_get 'categories'); `dated_on` is YYYY-MM-DD;
     `gross_value` is the total including VAT as a decimal string, negative for money spent
     (e.g. '-12.50'; check the sign against an existing expense); `sales_tax_rate` e.g. '20.0'.
     `receipt_path` is an optional local file to attach. Check for an existing
-    expense on that date first."""
+    expense on that date first. Supply `currency` explicitly for foreign-currency receipts."""
     exp: dict = {
         "user": user,
         "category": category,
@@ -176,9 +177,49 @@ def create_expense(
     }
     if sales_tax_rate:
         exp["sales_tax_rate"] = sales_tax_rate
+    if currency:
+        exp["currency"] = currency
     if receipt_path:
         exp["attachment"] = _attachment(receipt_path)
     created = _api_call("POST", "expenses", {"expense": exp})["expense"]
+    return _api_call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
+def create_mileage_expense(
+    user: str,
+    dated_on: str,
+    description: str,
+    mileage: str,
+    vehicle_type: str,
+    reclaim_mileage: int,
+    engine_type: str = "",
+    engine_size: str = "",
+    have_vat_receipt: bool | None = None,
+    project: str = "",
+) -> dict:
+    """Create one reviewed mileage claim and read it back. Mileage is a decimal string
+    in miles, not kilometres. Read expenses/mileage_settings for date-specific rates and
+    engine options; preview the amount and check duplicates before approval. Explicit
+    reclaim_mileage: 1 claims at provider AMAP rates, 0 is rebill-only. FreeAgent computes
+    the claim; no gross_value or tax rate is guessed. Engine and VAT-receipt details
+    come from the user. Custom reimbursement arrangements use the generic expense API.
+    Never retry an uncertain create or failed readback without inspecting expenses."""
+    expense: dict = {
+        "user": user,
+        "category": "Mileage",
+        "dated_on": dated_on,
+        "description": description,
+        "mileage": mileage,
+        "vehicle_type": vehicle_type,
+        "reclaim_mileage": reclaim_mileage,
+    }
+    for key, value in {"engine_type": engine_type, "engine_size": engine_size, "project": project}.items():
+        if value:
+            expense[key] = value
+    if have_vat_receipt is not None:
+        expense["have_vat_receipt"] = have_vat_receipt
+    created = _api_call("POST", "expenses", {"expense": expense})["expense"]
     return _api_call("GET", _path(created["url"]))
 
 
@@ -251,6 +292,7 @@ def create_bill(
     due_on: str,
     items: list[dict],
     attachment_path: str = "",
+    currency: str = "",
 ) -> dict:
     """Create one supplier bill and return it as FreeAgent holds it. `contact` is the supplier's
     resource URL; `dated_on` and `due_on` are YYYY-MM-DD. `items` are lines, each
@@ -258,7 +300,7 @@ def create_bill(
     (`total_value` includes taxes; use `total_value_ex_tax` for net amounts; `sales_tax_rate` optional; list categories with
     freeagent_get 'categories'). `attachment_path` is an optional local file to attach.
     Check for an existing bill with that reference first (freeagent_get 'bills?view=open'
-    lists unpaid bills, 'bills?view=overdue' overdue ones)."""
+    lists unpaid bills, 'bills?view=overdue' overdue ones). Supply `currency` explicitly for foreign-currency bills."""
     bill: dict = {
         "contact": contact,
         "reference": reference,
@@ -266,6 +308,8 @@ def create_bill(
         "due_on": due_on,
         "bill_items": items,
     }
+    if currency:
+        bill["currency"] = currency
     if attachment_path:
         bill["attachment"] = _attachment(attachment_path)
     created = _api_call("POST", "bills", {"bill": bill})["bill"]

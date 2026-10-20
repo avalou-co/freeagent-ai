@@ -12,7 +12,8 @@ python scripts/package_hosted_plugin.py /private/output/freeagent-ai.zip
 
 Provide `FREEAGENT_PLUGIN_CLIENT_ID` through protected deployment configuration.
 The package includes the public HTTPS endpoint, a pre-registered OAuth client,
-both scopes, nine skills and their shared safety/API references. It excludes
+both scopes, ten skills and their shared safety/API references, including the
+read-only decimal mileage preview script. It excludes
 application source, local launch commands, credentials, deployment runbooks and
 review evidence. Output must be outside this public checkout. Never add client
 secrets to the package; enter them privately in the publisher connection flow.

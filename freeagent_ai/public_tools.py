@@ -110,7 +110,7 @@ FIELDS = {
     "category": "url description nominal_code allowable_for_tax auto_sales_tax_rate",
     "timeslip": "url user project task dated_on hours comment billed_on invoice",
     "invoice": "url contact contact_name project reference dated_on due_on status currency net_value sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails invoice_items",
-    "expense": "url user category dated_on gross_value description sales_tax_rate sales_tax_value currency attachment",
+    "expense": "url user category dated_on gross_value description sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project",
     "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value bill_items attachment",
     "estimate": "url contact project reference dated_on status currency net_value sales_tax_value total_value estimate_items",
     "bank_account": "url name type currency current_balance",
@@ -139,6 +139,7 @@ CREATES = {
     "create_timeslip": "timeslip",
     "create_draft_invoice": "invoice",
     "create_expense": "expense",
+    "create_mileage_expense": "expense",
     "create_project": "project",
     "create_task": "task",
     "create_draft_estimate": "estimate",
@@ -349,6 +350,25 @@ def make_registry():
             helper,
             meta,
         )
+    add(
+        "get_mileage_settings",
+        "GET",
+        "expenses/mileage_settings",
+        "mileage_settings",
+        object_schema({}),
+        object_schema(
+            {
+                "mileage_settings": object_schema(
+                    {
+                        "engine_type_and_size_options": {"type": "array", "items": {"type": "object"}},
+                        "mileage_rates": {"type": "array", "items": {"type": "object"}},
+                    }
+                )
+            },
+            ["mileage_settings"],
+        ),
+        "Read date-specific provider mileage rates, thresholds and engine options. Select the journey's date; never assume a universal rate or cumulative mileage.",
+    )
     for endpoint, (root, update, delete) in CORRECTIONS.items():
         for verb, method, enabled in [("update", "PUT", update), ("delete", "DELETE", delete)]:
             if not enabled:
@@ -459,6 +479,14 @@ class Dispatcher:
         if op.endpoint.startswith("accounting/"):
             # Reports contain accounting summaries, no user profile or credential data.
             return {op.root: report_project(result[op.root])}
+        if op.name == "get_mileage_settings":
+            settings = result[op.root]
+            # Only provider accounting settings, not unrelated response metadata.
+            return {
+                op.root: {
+                    key: settings[key] for key in ("engine_type_and_size_options", "mileage_rates") if key in settings
+                }
+            }
         return {op.root: project_record(result[op.root], op.root)}
 
     def call_tool(self, name, arguments):

@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
@@ -15,8 +16,8 @@ def build(output: Path, client_id: str) -> None:
     manifest = {
         "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
         "name": "freeagent-ai",
-        "version": "0.3.0",
-        "description": "Manage FreeAgent timesheets, draft invoices, expenses, bills and reports through chat.",
+        "version": re.findall(r'^version = "([^"]+)"$', (ROOT / "pyproject.toml").read_text(), re.MULTILINE)[0],
+        "description": "Manage FreeAgent timesheets, mileage, draft invoices, expenses, bills and reports through chat.",
         "homepage": "https://freeagent-ai.avalou.co",
         "repository": "https://github.com/avalou-co/freeagent-ai",
         "extensions": {
@@ -71,8 +72,13 @@ def build(output: Path, client_id: str) -> None:
     # Explicit files only: never recursively archive the checkout, credentials or evidence.
     for name in ("agent-rules.md", "api-notes.md", "receipts.md"):
         entries[f"docs/{name}"] = (ROOT / "docs" / name).read_bytes()
+    entries["docs/receipt-review-cases.md"] = (ROOT / "publication/receipt-review-cases.md").read_bytes()
     for source in sorted((ROOT / ".agents/skills").glob("*/SKILL.md")):
-        content = source.read_text().replace("../../../docs/", "../../docs/")
+        content = (
+            source.read_text()
+            .replace("../../../docs/", "../../docs/")
+            .replace("../../../publication/receipt-review-cases.md", "../../docs/receipt-review-cases.md")
+        )
         content += (
             "\n## Hosted connection\n\n"
             "Use the installed plugin's FreeAgent MCP tools. If sign-in is required, use the host's "
@@ -81,6 +87,8 @@ def build(output: Path, client_id: str) -> None:
             "Read ../../docs/agent-rules.md before acting and ../../docs/api-notes.md before writes.\n"
         )
         entries[f"skills/{source.parent.name}/SKILL.md"] = content.encode()
+    preview = ROOT / ".agents/skills/mileage/scripts/preview.py"
+    entries["skills/mileage/scripts/preview.py"] = preview.read_bytes()
     # Refuse replacement and restrict local package access: it contains operator-supplied metadata.
     descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream, ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:

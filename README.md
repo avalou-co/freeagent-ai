@@ -27,7 +27,9 @@ Requires [uv](https://docs.astral.sh/uv/).
 /plugin install freeagent-ai@freeagent-ai
 ```
 
-The skills appear as `/freeagent-ai:clients`, `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:receipts`, `/freeagent-ai:expenses`, `/freeagent-ai:bills`, `/freeagent-ai:estimates`, `/freeagent-ai:bank-reconcile`, `/freeagent-ai:reports` and `/freeagent-ai:invoice-status`, and the MCP server is set up for you.
+The receipt review workflow is `/freeagent-ai:receipts`; it extracts source evidence, resolves missing details and duplicates, and requires approval before recording expenses or bills. See [receipt handling](docs/receipts.md).
+
+The skills appear as `/freeagent-ai:clients`, `/freeagent-ai:timesheets`, `/freeagent-ai:invoicing`, `/freeagent-ai:expenses`, `/freeagent-ai:bills`, `/freeagent-ai:estimates`, `/freeagent-ai:bank-reconcile`, `/freeagent-ai:reports` and `/freeagent-ai:invoice-status`, and the MCP server is set up for you.
 
 ### Codex
 
@@ -93,6 +95,11 @@ Ask your agent in plain language, for example:
 - "Record this supplier bill and attach the PDF." / "Which bills are overdue?"
 - "List my unexplained bank transactions and suggest explanations."
 
+Use `/freeagent-ai:mileage` to prepare mileage claims from journey logs. The agent
+resolves the claimant and dated rate settings, asks for cumulative mileage and
+vehicle details, checks possible duplicates, and previews each claim before filing.
+FreeAgent calculates the recorded claim; preview amounts are estimates.
+
 The agent shows you what it plans to create and waits for a clear yes before writing anything to FreeAgent.
 
 ### Command line and Python
@@ -133,6 +140,9 @@ If something is missing, the agent should ask rather than guess.
 ## Contributing
 
 Developer setup and checks are in `AGENTS.md`.
+
+See the [changelog](CHANGELOG.md) for version history and the
+[release guide](docs/releases.md) for version checks, tagging and publication.
 
 ### Direct API writes
 

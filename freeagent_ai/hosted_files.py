@@ -16,25 +16,32 @@ class OpenAIFile(TypedDict):
     file_name: NotRequired[str]
 
 
+def receipt_content_type(data: bytes) -> str:
+    """Check transport type without parsing untrusted document content."""
+    if data.startswith(b"%PDF-"):
+        return "application/x-pdf"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    raise ValueError("Receipt must be a PDF, PNG, JPEG or GIF document")
+
+
 def validate_receipt(data: bytes, declared: str | None = None) -> str:
-    """Constrain attachments by signature; never render or execute document content."""
-    if not data or len(data) > 5 * 1024 * 1024:
-        raise ValueError("Receipt must contain between 1 byte and 5 MiB")
-    signatures = (
-        (b"%PDF-", "application/pdf"),
-        (b"\x89PNG\r\n\x1a\n", "image/png"),
-        (b"\xff\xd8\xff", "image/jpeg"),
-        (b"GIF87a", "image/gif"),
-        (b"GIF89a", "image/gif"),
-    )
-    if declared is not None:
-        declared = {"application/x-pdf": "application/pdf", "image/x-png": "image/png", "image/jpg": "image/jpeg"}.get(
-            declared, declared
-        )
-    kind = next((mime for signature, mime in signatures if data.startswith(signature)), None)
-    if kind is None or declared not in {None, "", "application/octet-stream", kind}:
-        raise ValueError("Receipt must be a PDF, PNG, JPEG or GIF matching its declared type")
-    return kind
+    """Bound receipt bytes and normalize MIME metadata without parsing content."""
+    if len(data) > 5_000_000:
+        raise ValueError("Receipt must contain between 1 byte and 5 MB")
+    content_type = receipt_content_type(data)
+    aliases = {
+        "application/pdf": "application/x-pdf",
+        "image/jpg": "image/jpeg",
+        "image/x-png": "image/png",
+    }
+    if declared and declared != "application/octet-stream" and aliases.get(declared, declared) != content_type:
+        raise ValueError("Receipt MIME type does not match document content")
+    return content_type
 
 
 def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
@@ -68,10 +75,10 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                 response = connection.getresponse()
                 if response.status != 200 or response.getheader("Content-Encoding", "identity") != "identity":
                     raise ValueError("Receipt download rejected; obtain a fresh file reference")
-                limit = 5 * 1024 * 1024
+                limit = 5_000_000
                 length = response.getheader("Content-Length")
                 if length and int(length) > limit:
-                    raise ValueError("Receipt exceeds 5 MiB")
+                    raise ValueError("Receipt exceeds 5 MB")
                 parts, size = [], 0
                 while response.fp is not None:
                     set_read_timeout(response, budget)
@@ -81,10 +88,10 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                         break
                     size += len(chunk)
                     if size > limit:
-                        raise ValueError("Receipt exceeds 5 MiB")
+                        raise ValueError("Receipt exceeds 5 MB")
                     parts.append(chunk)
                 data = b"".join(parts)
-                kind = validate_receipt(data, file.get("mime_type"))
+                content_type = validate_receipt(data, file.get("mime_type"))
                 encoded = base64.b64encode(data).decode()
                 if len(encoded) > 7 * 1024 * 1024:
                     raise ValueError("Encoded receipt exceeds transport budget")
@@ -93,7 +100,7 @@ def download(file: OpenAIFile, allowed_hosts: frozenset[str], parent: Deadline):
                     raise ValueError("Invalid receipt filename")
                 return {
                     "file_name": name,
-                    "content_type": kind,
+                    "content_type": content_type,
                     "data": encoded,
                 }
         except (OSError, TimeoutError):
