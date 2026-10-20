@@ -15,7 +15,9 @@ Generic. The business supplies the category and VAT rules; ask for them or find 
 5. `create_expense` once per receipt, passing `receipt_path` for the file.
 6. Report what FreeAgent holds, including whether each attachment is present.
 
-Mileage claims are not covered yet.
+For business journey distances, use the `mileage` skill and `create_mileage_expense`
+instead of treating mileage as a receipt amount. It obtains the dated rate basis,
+checks cumulative mileage and previews the claim before approval.
 
 Follow `docs/agent-rules.md` throughout.
 

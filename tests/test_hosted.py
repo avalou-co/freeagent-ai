@@ -205,6 +205,82 @@ def test_dispatch_scope_and_approval_precede_provider_call(accounts):
         deadline_context.reset(d)
 
 
+def test_mileage_approval_and_scope_precede_any_provider_access(accounts):
+    principal = link(accounts)
+    dispatcher = Dispatcher(accounts, "id", "secret", client_factory=lambda *_: pytest.fail("provider must not run"))
+    arguments = {
+        "user": "1",
+        "dated_on": "2026-05-01",
+        "description": "Site visit",
+        "mileage": "20",
+        "vehicle_type": "Car",
+        "reclaim_mileage": 1,
+        "confirmed": False,
+    }
+    token = principal_context.set(principal)
+    try:
+        with pytest.raises(AccessDenied):
+            dispatcher.invoke("create_mileage_expense", arguments)
+        principal_context.set(Principal("alice", frozenset({"freeagent:read"}), 101))
+        with pytest.raises(AccessDenied):
+            dispatcher.invoke("create_mileage_expense", {**arguments, "confirmed": True})
+    finally:
+        principal_context.reset(token)
+
+
+def test_hosted_mileage_reads_back_full_vehicle_details_and_stops_on_uncertain_read(accounts):
+    principal = link(accounts)
+    calls = []
+    actual = {
+        "url": "https://api.freeagent.com/v2/expenses/12",
+        "user": "https://api.freeagent.com/v2/users/1",
+        "mileage": "20",
+        "vehicle_type": "Car",
+        "engine_type": "Diesel",
+        "engine_size": "All",
+        "reclaim_mileage": 1,
+        "have_vat_receipt": False,
+        "gross_value": "-7.00",
+        "currency": "GBP",
+    }
+    fail_readback = False
+
+    def transport(method, url, deadline, body=None, headers=None):
+        calls.append((method, url, body))
+        if method == "GET" and fail_readback:
+            raise TimeoutError()
+        return {"expense": actual}, {}
+
+    dispatcher = Dispatcher(
+        accounts, "id", "secret", client_factory=lambda *args: HostedClient(*args, transport=transport)
+    )
+    token = principal_context.set(principal)
+    deadline = deadline_context.set(Deadline())
+    arguments = {
+        "user": "1",
+        "dated_on": "2026-05-01",
+        "description": "Site visit",
+        "mileage": "20",
+        "vehicle_type": "Car",
+        "reclaim_mileage": 1,
+        "confirmed": True,
+        "have_vat_receipt": False,
+    }
+    try:
+        assert dispatcher.invoke("create_mileage_expense", arguments) == {"expense": actual}
+        assert calls[0][2]["expense"]["user"] == actual["user"]
+        calls.clear()
+        fail_readback = True
+        result = dispatcher.call_tool("create_mileage_expense", arguments)
+        assert result.is_error
+        assert "Created" in result.content[0].text
+        assert "readback was not verified" in result.content[0].text
+        assert [method for method, _, _ in calls] == ["POST", "GET"]
+    finally:
+        principal_context.reset(token)
+        deadline_context.reset(deadline)
+
+
 def test_successful_create_failed_readback_preserves_resource(accounts):
     principal = link(accounts)
     calls = []
@@ -375,7 +451,10 @@ def test_package_reproducible_and_release_gate(tmp_path):
     files = package_files(root)
     assert json.loads(files["mcp.json"])["mcpServers"]["freeagent"]["url"] == ORIGIN + "/mcp"
     expected_skills = {f"skills/{path.parent.name}/SKILL.md" for path in (root / ".agents/skills").glob("*/SKILL.md")}
-    assert {key for key in files if key.startswith("skills/")} == expected_skills
+    assert {key for key in files if key.endswith("SKILL.md")} == expected_skills
+    assert "skills/mileage/scripts/preview.py" in files
+    assert "get_mileage_settings" in files["docs/api-notes.md"].decode()
+    assert "list_expenses/mileage_settings" not in files["docs/api-notes.md"].decode()
     with pytest.raises(ValueError):
         build(root, tmp_path / "release.zip")
     with pytest.raises(ValueError):

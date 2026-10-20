@@ -12,6 +12,9 @@ verification and public directory publication remain pending; follow
 
 ### Added
 
+- Reviewed mileage workflow with decimal distance/rate previews, dated provider
+  mileage settings, and per-journey claim creation/readback for local and hosted tools.
+
 - Contact, project and task setup workflows.
 - Expense claims with receipts, supplier bills and draft estimates.
 - Bank transaction review, accounting reports and read-only invoice status.

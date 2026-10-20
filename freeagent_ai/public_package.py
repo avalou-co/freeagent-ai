@@ -25,6 +25,7 @@ def render_hosted(text):
     for name in ["freeagent_get", "freeagent_post", "freeagent_put", "freeagent_delete"]:
         replacement = "the matching named read tool" if name.endswith("get") else "the matching named write tool"
         text = text.replace(name, replacement)
+    text = text.replace("GET expenses/mileage_settings", "get_mileage_settings")
     for endpoint, (root, _) in sorted(RESOURCES.items(), key=lambda item: len(item[0]), reverse=True):
         text = re.sub(r"GET\s+" + endpoint + r"(?:/<id>)?", "get_" + root + " or list_" + endpoint, text)
     text = text.replace("accounting/profit_and_loss/summary", "get_profit_and_loss")
@@ -87,6 +88,7 @@ def package_files(root, metadata=None):
             "Timesheets",
             "Draft invoices",
             "Expenses",
+            "Mileage",
             "Estimates",
             "Bills",
             "Bank reconciliation",
@@ -147,6 +149,9 @@ def package_files(root, metadata=None):
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
+    preview = root / ".agents/skills/mileage/scripts/preview.py"
+    files["skills/mileage/scripts/preview.py"] = preview.read_bytes()
+    sources[str(preview.relative_to(root))] = hashlib.sha256(preview.read_bytes()).hexdigest()
     files["docs/source-digests.json"] = json.dumps(sources, sort_keys=True, indent=2).encode()
     for path in sorted((root / "publication/assets").glob("*.png")):
         if path.is_symlink() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
