@@ -95,6 +95,11 @@ Ask your agent in plain language, for example:
 - "Record this supplier bill and attach the PDF." / "Which bills are overdue?"
 - "List my unexplained bank transactions and suggest explanations."
 
+Use `/freeagent-ai:mileage` to prepare mileage claims from journey logs. The agent
+resolves the claimant and dated rate settings, asks for cumulative mileage and
+vehicle details, checks possible duplicates, and previews each claim before filing.
+FreeAgent calculates the recorded claim; preview amounts are estimates.
+
 The agent shows you what it plans to create and waits for a clear yes before writing anything to FreeAgent.
 
 ### Command line and Python

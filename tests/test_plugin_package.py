@@ -28,6 +28,7 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
         }
         assert "docs/receipts.md" in names
         assert "docs/receipt-review-cases.md" in names
+        assert "skills/mileage/scripts/preview.py" in names
         assert all(name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/")) for name in names)
         server = json.loads(archive.read("mcp.json"))["mcpServers"]["freeagent"]
         assert server["type"] == "streamable-http"

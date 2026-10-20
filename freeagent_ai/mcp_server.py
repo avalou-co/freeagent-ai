@@ -186,6 +186,44 @@ def create_expense(
 
 
 @mcp.tool(annotations=WRITE)
+def create_mileage_expense(
+    user: str,
+    dated_on: str,
+    description: str,
+    mileage: str,
+    vehicle_type: str,
+    reclaim_mileage: int,
+    engine_type: str = "",
+    engine_size: str = "",
+    have_vat_receipt: bool | None = None,
+    project: str = "",
+) -> dict:
+    """Create one reviewed mileage claim and read it back. Mileage is a decimal string
+    in miles, not kilometres. Read expenses/mileage_settings for date-specific rates and
+    engine options; preview the amount and check duplicates before approval. Explicit
+    reclaim_mileage: 1 claims at provider AMAP rates, 0 is rebill-only. FreeAgent computes
+    the claim; no gross_value or tax rate is guessed. Engine and VAT-receipt details
+    come from the user. Custom reimbursement arrangements use the generic expense API.
+    Never retry an uncertain create or failed readback without inspecting expenses."""
+    expense: dict = {
+        "user": user,
+        "category": "Mileage",
+        "dated_on": dated_on,
+        "description": description,
+        "mileage": mileage,
+        "vehicle_type": vehicle_type,
+        "reclaim_mileage": reclaim_mileage,
+    }
+    for key, value in {"engine_type": engine_type, "engine_size": engine_size, "project": project}.items():
+        if value:
+            expense[key] = value
+    if have_vat_receipt is not None:
+        expense["have_vat_receipt"] = have_vat_receipt
+    created = _api_call("POST", "expenses", {"expense": expense})["expense"]
+    return _api_call("GET", _path(created["url"]))
+
+
+@mcp.tool(annotations=WRITE)
 def create_project(
     contact: str,
     name: str,

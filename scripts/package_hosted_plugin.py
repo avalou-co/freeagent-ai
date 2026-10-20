@@ -17,7 +17,7 @@ def build(output: Path, client_id: str) -> None:
         "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
         "name": "freeagent-ai",
         "version": re.findall(r'^version = "([^"]+)"$', (ROOT / "pyproject.toml").read_text(), re.MULTILINE)[0],
-        "description": "Manage FreeAgent timesheets, draft invoices, expenses, bills and reports through chat.",
+        "description": "Manage FreeAgent timesheets, mileage, draft invoices, expenses, bills and reports through chat.",
         "homepage": "https://freeagent-ai.avalou.co",
         "repository": "https://github.com/avalou-co/freeagent-ai",
         "extensions": {
@@ -87,6 +87,8 @@ def build(output: Path, client_id: str) -> None:
             "Read ../../docs/agent-rules.md before acting and ../../docs/api-notes.md before writes.\n"
         )
         entries[f"skills/{source.parent.name}/SKILL.md"] = content.encode()
+    preview = ROOT / ".agents/skills/mileage/scripts/preview.py"
+    entries["skills/mileage/scripts/preview.py"] = preview.read_bytes()
     # Refuse replacement and restrict local package access: it contains operator-supplied metadata.
     descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream, ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:
