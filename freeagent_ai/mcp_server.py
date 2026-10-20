@@ -160,13 +160,14 @@ def create_expense(
     description: str,
     sales_tax_rate: str = "",
     receipt_path: str = "",
+    currency: str = "",
 ) -> dict:
     """Create one expense claim and return it as FreeAgent holds it. `user` and `category` are
     resource URLs (list categories with freeagent_get 'categories'); `dated_on` is YYYY-MM-DD;
     `gross_value` is the total including VAT as a decimal string, negative for money spent
     (e.g. '-12.50'; check the sign against an existing expense); `sales_tax_rate` e.g. '20.0'.
     `receipt_path` is an optional local file to attach. Check for an existing
-    expense on that date first."""
+    expense on that date first. Supply `currency` explicitly for foreign-currency receipts."""
     exp: dict = {
         "user": user,
         "category": category,
@@ -176,6 +177,8 @@ def create_expense(
     }
     if sales_tax_rate:
         exp["sales_tax_rate"] = sales_tax_rate
+    if currency:
+        exp["currency"] = currency
     if receipt_path:
         exp["attachment"] = _attachment(receipt_path)
     created = _api_call("POST", "expenses", {"expense": exp})["expense"]
@@ -289,6 +292,7 @@ def create_bill(
     due_on: str,
     items: list[dict],
     attachment_path: str = "",
+    currency: str = "",
 ) -> dict:
     """Create one supplier bill and return it as FreeAgent holds it. `contact` is the supplier's
     resource URL; `dated_on` and `due_on` are YYYY-MM-DD. `items` are lines, each
@@ -296,7 +300,7 @@ def create_bill(
     (`total_value` includes taxes; use `total_value_ex_tax` for net amounts; `sales_tax_rate` optional; list categories with
     freeagent_get 'categories'). `attachment_path` is an optional local file to attach.
     Check for an existing bill with that reference first (freeagent_get 'bills?view=open'
-    lists unpaid bills, 'bills?view=overdue' overdue ones)."""
+    lists unpaid bills, 'bills?view=overdue' overdue ones). Supply `currency` explicitly for foreign-currency bills."""
     bill: dict = {
         "contact": contact,
         "reference": reference,
@@ -304,6 +308,8 @@ def create_bill(
         "due_on": due_on,
         "bill_items": items,
     }
+    if currency:
+        bill["currency"] = currency
     if attachment_path:
         bill["attachment"] = _attachment(attachment_path)
     created = _api_call("POST", "bills", {"bill": bill})["bill"]

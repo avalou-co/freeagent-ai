@@ -6,13 +6,15 @@ argument-hint: "[receipts or date range]"
 
 # Expenses workflow
 
+For uploaded receipt images or PDFs, first follow the [receipts workflow](../receipts/SKILL.md) (`/freeagent-ai:receipts`) for extraction, uncertainty and duplicate review. Return here to create only the reviewed, approved items.
+
 Generic. The business supplies the category and VAT rules; ask for them or find them in the business's own instructions.
 
 1. Read each receipt for date, amount, VAT and a short description. Ask if any is unreadable; do not guess.
 2. `GET users/me` for the user and `GET categories` to pick the category. Ask if unclear.
 3. `GET expenses` for the dates and skip any that already exist. Report skips.
 4. Show the plan (date, category, gross, VAT, description, receipt file) and wait for approval, unless the user already gave the exact details and said to do it.
-5. `create_expense` once per receipt, passing `receipt_path` for the file.
+5. `create_expense` once per receipt, passing `receipt_path` for the file and the reviewed `currency`.
 6. Report what FreeAgent holds, including whether each attachment is present.
 
 For business journey distances, use the `mileage` skill and `create_mileage_expense`

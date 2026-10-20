@@ -22,7 +22,12 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
             re.MULTILINE,
         )[0]
         assert json.loads(archive.read("plugin.json"))["version"] == version
-        assert len([name for name in names if name.endswith("SKILL.md")]) == 10
+        assert {name for name in names if name.endswith("SKILL.md")} == {
+            f"skills/{source.parent.name}/SKILL.md"
+            for source in (Path(__file__).resolve().parents[1] / ".agents/skills").glob("*/SKILL.md")
+        }
+        assert "docs/receipts.md" in names
+        assert "docs/receipt-review-cases.md" in names
         assert "skills/mileage/scripts/preview.py" in names
         assert all(name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/")) for name in names)
         server = json.loads(archive.read("mcp.json"))["mcpServers"]["freeagent"]

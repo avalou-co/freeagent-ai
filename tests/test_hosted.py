@@ -718,3 +718,44 @@ def test_federated_jwt_requires_exact_generation_type():
         verifier.principal(
             jwt.encode({**payload, "sub": "auth0|legacy", GENERATION_CLAIM: 1}, private, algorithm="RS256")
         )
+
+
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_receipt_expense_approval_currency_and_readback(accounts, confirmed):
+    principal = link(accounts)
+    calls = []
+    record = {"url": "https://api.freeagent.com/v2/expenses/91", "currency": "EUR", "gross_value": "-60.00"}
+
+    def transport(method, url, deadline, **kwargs):
+        calls.append((method, kwargs.get("body")))
+        return {"expense": record}, {}
+
+    dispatcher = Dispatcher(
+        accounts, "id", "secret", client_factory=lambda *args: HostedClient(*args, transport=transport)
+    )
+    p, d = principal_context.set(principal), deadline_context.set(Deadline())
+    try:
+        args = dict(
+            user="1",
+            category="285",
+            dated_on="2026-10-02",
+            gross_value="-60.00",
+            description="Example Travel",
+            currency="EUR",
+            confirmed=confirmed,
+        )
+        if confirmed:
+            result = dispatcher.invoke("create_expense", args)
+            assert isinstance(result, dict)
+            expense = result["expense"]
+            assert isinstance(expense, dict)
+            assert expense["currency"] == "EUR"
+            assert [method for method, _ in calls] == ["POST", "GET"]
+            assert calls[0][1]["expense"]["currency"] == "EUR"
+        else:
+            with pytest.raises(AccessDenied):
+                dispatcher.invoke("create_expense", args)
+            assert calls == []
+    finally:
+        principal_context.reset(p)
+        deadline_context.reset(d)
