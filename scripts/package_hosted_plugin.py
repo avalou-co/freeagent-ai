@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
@@ -15,7 +16,7 @@ def build(output: Path, client_id: str) -> None:
     manifest = {
         "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
         "name": "freeagent-ai",
-        "version": "0.3.0",
+        "version": re.findall(r'^version = "([^"]+)"$', (ROOT / "pyproject.toml").read_text(), re.MULTILINE)[0],
         "description": "Manage FreeAgent timesheets, draft invoices, expenses, bills and reports through chat.",
         "homepage": "https://freeagent-ai.avalou.co",
         "repository": "https://github.com/avalou-co/freeagent-ai",

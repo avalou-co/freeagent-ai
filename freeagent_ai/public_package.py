@@ -14,7 +14,7 @@ from pathlib import Path
 from .hosted_auth import ORIGIN
 from .public_tools import REGISTRY, RESOURCES, audit
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 def render_hosted(text):

@@ -1,4 +1,5 @@
 import json
+import re
 import runpy
 from pathlib import Path
 from zipfile import ZipFile
@@ -15,6 +16,12 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
     assert first.read_bytes() == second.read_bytes()
     with ZipFile(first) as archive:
         names = archive.namelist()
+        version = re.findall(
+            r'^version = "([^"]+)"$',
+            (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(),
+            re.MULTILINE,
+        )[0]
+        assert json.loads(archive.read("plugin.json"))["version"] == version
         assert len([name for name in names if name.endswith("SKILL.md")]) == 9
         assert all(name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/")) for name in names)
         server = json.loads(archive.read("mcp.json"))["mcpServers"]["freeagent"]
