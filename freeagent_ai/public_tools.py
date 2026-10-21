@@ -17,6 +17,7 @@ from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool, ToolAn
 from pydantic import Field, SerializeAsAny
 
 from . import mcp_server as local
+from .api_mechanics import provider_error
 from .client import request_client
 from .hosted_accounts import AccessDenied
 from .hosted_client import HostedClient, principal_context
@@ -210,19 +211,11 @@ class Operation:
     helper: str = ""
 
 
-def annotations(method, destructive=False):
-    return ToolAnnotations(
-        read_only_hint=method == "GET",
-        destructive_hint=destructive,
-        open_world_hint=False,
-        idempotent_hint=method == "GET",
-    )
-
-
 def make_registry():
     registry = {}
 
     def add(name, method, endpoint, root, schema, output, description, helper="", meta=None):
+        schemes = [{"type": "oauth2", "scopes": ["freeagent:read" if method == "GET" else "freeagent:write"]}]
         registry[name] = Operation(
             name,
             method,
@@ -233,9 +226,7 @@ def make_registry():
                 description=description,
                 input_schema=schema,
                 output_schema=output,
-                securitySchemes=[
-                    {"type": "oauth2", "scopes": ["freeagent:read" if method == "GET" else "freeagent:write"]}
-                ],
+                securitySchemes=schemes,
                 annotations=ToolAnnotations(
                     read_only_hint=method == "GET",
                     destructive_hint=method in {"PUT", "DELETE"} or name == "explain_bank_transaction",
@@ -243,9 +234,7 @@ def make_registry():
                     idempotent_hint=method == "GET",
                 ),
                 _meta={
-                    "securitySchemes": [
-                        {"type": "oauth2", "scopes": ["freeagent:read" if method == "GET" else "freeagent:write"]}
-                    ],
+                    "securitySchemes": schemes,
                     **(meta or {}),
                 },
             ),
@@ -450,23 +439,16 @@ class Dispatcher:
                     return original(method, path, body, **kwargs)
 
                 client.call = attach
-            for key, resource in REFERENCE_RESOURCES.items():
-                if args.get(key):
-                    if not re.fullmatch(r"[0-9]+", args[key]):
-                        raise ValueError("Resource references must be numeric IDs")
-                    args[key] = client.base + resource + "/" + args[key]
+            self._expand_references(args, client.base)
             # No filesystem parameter exists in the public schema.
             result = getattr(local, op.helper)(**args)
             return {op.root: project_record(result[op.root], op.root)}
         path = op.endpoint.replace("{id}", args.pop("id", ""))
         paginate = args.pop("paginate", True)
-        args.setdefault("per_page", 100) if op.name.startswith("list_") else None
+        if op.name.startswith("list_"):
+            args.setdefault("per_page", 100)
         body = args.pop("body", None)
-        for key, resource in REFERENCE_RESOURCES.items():
-            if args.get(key):
-                if not re.fullmatch(r"[0-9]+", args[key]):
-                    raise ValueError("Resource filters must be numeric IDs")
-                args[key] = client.base + resource + "/" + args[key]
+        self._expand_references(args, client.base)
         if args:
             path += "?" + urlencode(args)
         result = client.call(op.method, path, body, paginate=paginate)
@@ -489,6 +471,14 @@ class Dispatcher:
             }
         return {op.root: project_record(result[op.root], op.root)}
 
+    @staticmethod
+    def _expand_references(args, base):
+        for key, resource in REFERENCE_RESOURCES.items():
+            if args.get(key):
+                if not re.fullmatch(r"[0-9]+", args[key]):
+                    raise ValueError("Resource references must be numeric IDs")
+                args[key] = base + resource + "/" + args[key]
+
     def call_tool(self, name, arguments):
         try:
             data = self.invoke(name, arguments)
@@ -509,14 +499,7 @@ class Dispatcher:
                 else "Provider operation failed; inspect before retrying"
             )
         except urllib.error.HTTPError as error:
-            message = f"FreeAgent HTTP {error.code}"
-            if error.code in {400, 409, 422}:
-                try:
-                    payload = json.loads(error.read(8192))
-                    if isinstance(payload, dict) and "errors" in payload:
-                        message += ": " + json.dumps(payload["errors"])
-                except (ValueError, AttributeError):
-                    pass
+            message = provider_error(error)
             message += "; inspect the original account before retrying a write"
         except Exception:
             message = (

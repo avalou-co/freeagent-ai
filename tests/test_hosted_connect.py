@@ -8,8 +8,8 @@ from dataclasses import replace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from conftest import settings
 from starlette.testclient import TestClient
-from test_hosted import settings
 
 from freeagent_ai.hosted_accounts import AccessDenied, Accounts, MemoryStore, Principal, TokenCipher, key_for
 from freeagent_ai.hosted_app import create_app

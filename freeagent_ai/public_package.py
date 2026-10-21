@@ -17,7 +17,7 @@ from .public_tools import REGISTRY, RESOURCES, audit
 VERSION = "0.3.0"
 
 
-def render_hosted(text):
+def render_hosted(text, *, docs_prefix="../../docs/"):
     # Preserve the canonical business/approval prose. Replace transport-specific instructions
     # deterministically; the appendix defines exact declared read/correction tool mappings.
     text = text.replace("../../../docs/", "../../docs/").replace(
@@ -39,6 +39,8 @@ def render_hosted(text):
 
 ## Hosted transport
 
+Use the host's Connect action when sign-in is required. Never ask the user to configure
+an MCP URL, tokens, environment variables, a CLI, or an Avalou account.
 Use only the named tools in the mapping below, never an API path or local file.
 Supply numeric resource IDs from returned resource URLs. Query examples above describe
 provider filters; use only the parameters declared by the named tool. When the provider
@@ -52,6 +54,7 @@ Never retry an uncertain write. After linking/replacement, sign in again and rec
 ChatGPT authorization lasts up to 30 days with automatic token renewal. Ask for business-specific defaults; never guess.
 
 """
+        + f"Read {docs_prefix}agent-rules.md before acting and {docs_prefix}api-notes.md before writes.\n\n"
         + "\n".join(f"- `{op.name}`: {op.method} {op.endpoint}" for op in REGISTRY.values())
         + "\n"
     )
@@ -149,7 +152,7 @@ def package_files(root, metadata=None):
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
     for name in ["agent-rules.md", "api-notes.md", "receipts.md"]:
         source = root / "docs" / name
-        files["docs/" + name] = render_hosted(source.read_text()).encode()
+        files["docs/" + name] = render_hosted(source.read_text(), docs_prefix="").encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
     files["docs/receipt-review-cases.md"] = (root / "publication/receipt-review-cases.md").read_bytes()
     preview = root / ".agents/skills/mileage/scripts/preview.py"
@@ -160,7 +163,19 @@ def package_files(root, metadata=None):
         if path.is_symlink() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
             raise ValueError("Invalid publication image")
         files["assets/" + path.name] = path.read_bytes()
+    validate_files(files)
     return files
+
+
+def validate_files(files):
+    """Check every package mode for unresolved or local-only tool instructions."""
+    for path, data in files.items():
+        if path.startswith("skills/"):
+            for name in re.findall(r"`((?:list_|get_|create_|update_|delete_|explain_)[a-z_]+)`", data.decode()):
+                if name not in REGISTRY:
+                    raise ValueError(f"Unresolved packaged tool reference: {name}")
+        if re.search(rb"freeagent_(?:get|post|put|delete)\b", data):
+            raise ValueError("Local generic executor leaked into hosted package")
 
 
 def build(root, output, *, draft=False, metadata=None):
@@ -194,21 +209,19 @@ def build(root, output, *, draft=False, metadata=None):
         files["DRAFT-NOT-FOR-SUBMISSION.txt"] = (
             b"No live OAuth, publisher approval or mobile verification is implied. See docs/hosted.md.\n"
         )
-    for path, data in files.items():
-        if path.startswith("skills/"):
-            for name in re.findall(r"`((?:list_|get_|create_|update_|delete_|explain_)[a-z_]+)`", data.decode()):
-                if name not in REGISTRY:
-                    raise ValueError(f"Unresolved packaged tool reference: {name}")
-        if re.search(rb"freeagent_(?:get|post|put|delete)\b", data):
-            raise ValueError("Local generic executor leaked into hosted package")
     output.parent.mkdir(parents=True, exist_ok=True)
+    write_archive(output, files)
+    return output
+
+
+def write_archive(output, files):
+    """Write allowlisted entries deterministically to a path or an already-private stream."""
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path, data in sorted(files.items()):
             info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, data)
-    return output
 
 
 def main():

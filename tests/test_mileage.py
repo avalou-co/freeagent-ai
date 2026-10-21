@@ -152,6 +152,8 @@ def test_hosted_mileage_settings_fixed_read_and_projection():
         calls.append((method, path))
         return {"mileage_settings": {**settings, "debug": "private"}}
 
-    result = Dispatcher(None, "", "")._run(REGISTRY["get_mileage_settings"], {}, SimpleNamespace(call=call))
+    result = Dispatcher(None, "", "")._run(
+        REGISTRY["get_mileage_settings"], {}, SimpleNamespace(call=call, base=mcp_server.BASE)
+    )
     assert result == {"mileage_settings": settings}
     assert calls == [("GET", "expenses/mileage_settings")]

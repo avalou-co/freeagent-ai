@@ -5,17 +5,17 @@ streamable HTTP for ChatGPT (`freeagent-ai mcp --http`). Needs the `mcp` extra.
 """
 
 import base64
-import json
 import mimetypes
 import urllib.error
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlencode, urlsplit
+from urllib.parse import urlencode
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
+from .api_mechanics import api_path, provider_error
 from .client import BASE as BASE
 from .client import api_base, call
 from .mcp_auth import BearerAuth, load_token
@@ -34,19 +34,7 @@ API_WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempot
 
 def _path(ref):
     """Accept a /v2/-relative path or a full FreeAgent URL; reject anything else."""
-    base = api_base()
-    path = ref[len(base) :] if ref.startswith(base) else ref
-    parsed = urlsplit(path)
-    if (
-        parsed.scheme
-        or parsed.netloc
-        or not parsed.path
-        or parsed.path.startswith("/")
-        or parsed.fragment
-        or ".." in unquote(parsed.path).split("/")
-    ):
-        raise ValueError(f"not a FreeAgent API path: {ref}")
-    return path
+    return api_path(ref, api_base())
 
 
 def _attachment(path):
@@ -103,8 +91,7 @@ def create_contact(
     contact: dict = {k: v for k, v in fields.items() if v}
     if payment_terms_in_days is not None:
         contact["default_payment_terms_in_days"] = payment_terms_in_days
-    created = _api_call("POST", "contacts", {"contact": contact})["contact"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("contacts", "contact", contact)
 
 
 @mcp.tool(annotations=WRITE)
@@ -115,8 +102,7 @@ def create_timeslip(user: str, project: str, task: str, dated_on: str, hours: st
     slip = {"user": user, "project": project, "task": task, "dated_on": dated_on, "hours": hours}
     if comment:
         slip["comment"] = comment
-    created = _api_call("POST", "timeslips", {"timeslip": slip})["timeslip"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("timeslips", "timeslip", slip)
 
 
 @mcp.tool(annotations=WRITE)
@@ -147,8 +133,7 @@ def create_draft_invoice(
         inv["bank_account"] = bank_account
     if include_timeslips:
         inv["include_timeslips"] = "billed_grouped_by_timeslip"
-    created = _api_call("POST", "invoices", {"invoice": inv})["invoice"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("invoices", "invoice", inv)
 
 
 @mcp.tool(annotations=WRITE)
@@ -181,8 +166,7 @@ def create_expense(
         exp["currency"] = currency
     if receipt_path:
         exp["attachment"] = _attachment(receipt_path)
-    created = _api_call("POST", "expenses", {"expense": exp})["expense"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("expenses", "expense", exp)
 
 
 @mcp.tool(annotations=WRITE)
@@ -219,8 +203,7 @@ def create_mileage_expense(
             expense[key] = value
     if have_vat_receipt is not None:
         expense["have_vat_receipt"] = have_vat_receipt
-    created = _api_call("POST", "expenses", {"expense": expense})["expense"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("expenses", "expense", expense)
 
 
 @mcp.tool(annotations=WRITE)
@@ -247,8 +230,7 @@ def create_project(
     }
     if budget:
         project.update(budget=budget, budget_units=budget_units)
-    created = _api_call("POST", "projects", {"project": project})["project"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("projects", "project", project)
 
 
 @mcp.tool(annotations=WRITE)
@@ -257,8 +239,7 @@ def create_task(project: str, name: str, billing_rate: str, billing_period: str 
     resource URL; `billing_rate` a decimal string; `billing_period` 'hour' or 'day'. To list the
     project's tasks first, use freeagent_get 'tasks?project=<url>&view=active'."""
     task = {"name": name, "status": "Active", "billing_rate": billing_rate, "billing_period": billing_period}
-    created = _api_call("POST", "tasks?" + urlencode({"project": project}), {"task": task})["task"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("tasks?" + urlencode({"project": project}), "task", task)
 
 
 @mcp.tool(annotations=WRITE)
@@ -280,8 +261,7 @@ def create_draft_estimate(
         est["currency"] = currency
     if reference:
         est["reference"] = reference
-    created = _api_call("POST", "estimates", {"estimate": est})["estimate"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("estimates", "estimate", est)
 
 
 @mcp.tool(annotations=WRITE)
@@ -312,8 +292,7 @@ def create_bill(
         bill["currency"] = currency
     if attachment_path:
         bill["attachment"] = _attachment(attachment_path)
-    created = _api_call("POST", "bills", {"bill": bill})["bill"]
-    return _api_call("GET", _path(created["url"]))
+    return _create_and_readback("bills", "bill", bill)
 
 
 @mcp.tool(annotations=WRITE)
@@ -336,8 +315,7 @@ def explain_bank_transaction(
     exp = {"bank_transaction": bank_transaction, "dated_on": dated_on, "gross_value": gross_value, **chosen}
     if description:
         exp["description"] = description
-    created = _api_call("POST", "bank_transaction_explanations", {"bank_transaction_explanation": exp})
-    return _api_call("GET", _path(created["bank_transaction_explanation"]["url"]))
+    return _create_and_readback("bank_transaction_explanations", "bank_transaction_explanation", exp)
 
 
 def _api_call(method, path, body=None, **kwargs):
@@ -345,15 +323,12 @@ def _api_call(method, path, body=None, **kwargs):
     try:
         return call(method, _path(path), body, **kwargs)
     except urllib.error.HTTPError as error:
-        detail = ""
-        if error.code in {400, 409, 422}:
-            try:
-                response = json.loads(error.read(8192))
-                if isinstance(response, dict) and "errors" in response:
-                    detail = ": " + json.dumps(response["errors"])
-            except (ValueError, AttributeError):
-                pass
-        raise ToolError(f"FreeAgent HTTP {error.code}{detail}") from error
+        raise ToolError(provider_error(error)) from error
+
+
+def _create_and_readback(endpoint, root, payload):
+    created = _api_call("POST", endpoint, {root: payload})[root]
+    return _api_call("GET", created["url"])
 
 
 def _write(method, path, confirmed, body=None):

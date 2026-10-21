@@ -13,24 +13,19 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
+from conftest import settings
 from cryptography.hazmat.primitives.asymmetric import rsa
 from mcp.types import TextContent
 from starlette.testclient import TestClient
 
 from freeagent_ai import hosted_files, hosted_network
-from freeagent_ai.hosted_accounts import AccessDenied, Accounts, MemoryStore, Principal, TokenCipher, key_for
+from freeagent_ai.hosted_accounts import AccessDenied, Principal, TokenCipher, key_for
 from freeagent_ai.hosted_app import create_app
 from freeagent_ai.hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from freeagent_ai.hosted_client import HostedClient, principal_context
 from freeagent_ai.hosted_deadline import Deadline, deadline_context, rpc_timeout
 from freeagent_ai.public_package import build, package_files
 from freeagent_ai.public_tools import REGISTRY, Dispatcher
-
-
-@pytest.fixture
-def accounts():
-    cipher = TokenCipher({"1": base64.b64encode(secrets.token_bytes(32)).decode()}, "1")
-    return Accounts(MemoryStore(), cipher, clock=lambda: 100)
 
 
 def link(accounts, subject="alice", company="1", generation=0):
@@ -119,19 +114,6 @@ def test_callback_states_one_use_and_expiring(accounts):
     accounts.clock = lambda: 102
     with pytest.raises(AccessDenied):
         accounts.take_state(expired, "freeagent")
-
-
-def settings():
-    return Settings(
-        "https://example.auth0.com/",
-        "mcp-client",
-        "web-client",
-        "test-only-web-secret",
-        "fa-client",
-        "test-only-fa-secret",
-        {},
-        "1",
-    )
 
 
 def test_jwt_signature_audience_scope_and_auth_time(monkeypatch):
@@ -273,6 +255,7 @@ def test_hosted_mileage_reads_back_full_vehicle_details_and_stops_on_uncertain_r
         fail_readback = True
         result = dispatcher.call_tool("create_mileage_expense", arguments)
         assert result.is_error
+        assert isinstance(result.content[0], TextContent)
         assert "Created" in result.content[0].text
         assert "readback was not verified" in result.content[0].text
         assert [method for method, _, _ in calls] == ["POST", "GET"]
@@ -281,7 +264,7 @@ def test_hosted_mileage_reads_back_full_vehicle_details_and_stops_on_uncertain_r
         deadline_context.reset(deadline)
 
 
-def test_successful_create_failed_readback_preserves_resource(accounts):
+def test_successful_create_failed_readback_preserves_resource(accounts, hosted_context):
     principal = link(accounts)
     calls = []
 
@@ -294,20 +277,16 @@ def test_successful_create_failed_readback_preserves_resource(accounts):
     dispatcher = Dispatcher(
         accounts, "id", "secret", client_factory=lambda *args: HostedClient(*args, transport=transport)
     )
-    p, d = principal_context.set(principal), deadline_context.set(Deadline())
-    try:
+    with hosted_context(principal):
         result = dispatcher.call_tool("create_contact", {"organisation_name": "Sample", "confirmed": True})
         assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert "contacts/7" in result.content[0].text
         assert "original company" in result.content[0].text
         assert calls == ["POST", "GET"]
-    finally:
-        principal_context.reset(p)
-        deadline_context.reset(d)
 
 
-def test_provider_validation_is_reported_without_retry_or_local_rules(accounts):
+def test_provider_validation_is_reported_without_retry_or_local_rules(accounts, hosted_context):
     principal = link(accounts)
     calls = []
 
@@ -320,8 +299,7 @@ def test_provider_validation_is_reported_without_retry_or_local_rules(accounts):
     dispatcher = Dispatcher(
         accounts, "id", "secret", client_factory=lambda *args: HostedClient(*args, transport=reject)
     )
-    p, d = principal_context.set(principal), deadline_context.set(Deadline())
-    try:
+    with hosted_context(principal):
         result = dispatcher.call_tool(
             "create_timeslip",
             {"user": "1", "project": "2", "task": "3", "dated_on": "2026-01-01", "hours": "-10", "confirmed": True},
@@ -331,9 +309,6 @@ def test_provider_validation_is_reported_without_retry_or_local_rules(accounts):
         assert "provider rejects value" in result.content[0].text
         assert len(calls) == 1
         assert calls[0][1]["timeslip"]["hours"] == "-10"
-    finally:
-        principal_context.reset(p)
-        deadline_context.reset(d)
 
 
 def test_pagination_rejects_cross_origin_and_deadline(accounts):
@@ -721,7 +696,7 @@ def test_federated_jwt_requires_exact_generation_type():
 
 
 @pytest.mark.parametrize("confirmed", [False, True])
-def test_receipt_expense_approval_currency_and_readback(accounts, confirmed):
+def test_receipt_expense_approval_currency_and_readback(accounts, confirmed, hosted_context):
     principal = link(accounts)
     calls = []
     record = {"url": "https://api.freeagent.com/v2/expenses/91", "currency": "EUR", "gross_value": "-60.00"}
@@ -733,8 +708,7 @@ def test_receipt_expense_approval_currency_and_readback(accounts, confirmed):
     dispatcher = Dispatcher(
         accounts, "id", "secret", client_factory=lambda *args: HostedClient(*args, transport=transport)
     )
-    p, d = principal_context.set(principal), deadline_context.set(Deadline())
-    try:
+    with hosted_context(principal):
         args = dict(
             user="1",
             category="285",
@@ -756,6 +730,3 @@ def test_receipt_expense_approval_currency_and_readback(accounts, confirmed):
             with pytest.raises(AccessDenied):
                 dispatcher.invoke("create_expense", args)
             assert calls == []
-    finally:
-        principal_context.reset(p)
-        deadline_context.reset(d)

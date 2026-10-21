@@ -87,7 +87,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## General
 
-- HTTPX2 handles API requests and parses Link headers; Tenacity manages retry scheduling and limits.
+- HTTPX2 handles API requests and parses Link headers; Google API Core's `HTTPIterator` follows pages through the existing transport. A shared adapter validates every next destination, enforces completeness limits, and merges list fields. Tenacity manages local retry scheduling and limits. Hosted requests retain their account binding and shared absolute deadline.
 - `call("GET", path)` and MCP `freeagent_get(path)` follow `Link: rel=next` automatically and combine top-level list fields into the original response object. Filters come from the server's next link; detail/report responses without a next link are unchanged. Use `paginate=False` for a single page or manual paging. Start without a `page` parameter to retrieve the complete collection; an explicit page starts aggregation there. Non-list metadata remains from the first page.
 - Pagination refuses links outside the API origin or `/v2/`, repeated links, inconsistent list responses, and collections exceeding 1,000 pages. Failures raise instead of returning partial results.
 - GET HTTP 429 responses retry up to three times per page. `Retry-After` seconds and HTTP dates are honoured; missing/invalid values use Tenacity exponential backoff (1, 2, then 4 seconds). A requested wait over 60 seconds raises immediately rather than retrying early. Writes are not retried on 429. Other rate-limit/server failures raise `urllib.error.HTTPError`; the body usually names the problem.
