@@ -29,7 +29,13 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
         assert "docs/receipts.md" in names
         assert "docs/receipt-review-cases.md" in names
         assert "skills/mileage/scripts/preview.py" in names
-        assert all(name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/")) for name in names)
+        assert all(
+            name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/", "assets/")) for name in names
+        )
+        interface = json.loads(archive.read("plugin.json"))["extensions"]["com.openai"]["interface"]
+        assert len(interface["shortDescription"]) <= 30
+        assert interface["logo"] == "./assets/icon.png"
+        assert archive.read("assets/icon.png").startswith(b"\x89PNG\r\n\x1a\n")
         server = json.loads(archive.read("mcp.json"))["mcpServers"]["freeagent"]
         assert server["type"] == "streamable-http"
         assert "command" not in server
