@@ -7,12 +7,13 @@ Upstream credentials are encrypted in short-lived records, never profile claims.
 import base64
 import hashlib
 import hmac
+import html
 import re
 import secrets
 from urllib.parse import urlencode
 
 import anyio
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.routing import Route
 
 from .hosted_accounts import AccessDenied, key_for
@@ -28,7 +29,6 @@ COOKIE = "__session"  # Firebase Hosting forwards only this cookie to Cloud Run.
 class FreeAgentConnect:
     def __init__(self, settings, accounts):
         self.settings, self.accounts = settings, accounts
-        self.base = freeagent_base(settings.environment)
 
     def enabled(self):
         if not self.settings.connection_secret:
@@ -73,29 +73,65 @@ class FreeAgentConnect:
         browser = secrets.token_urlsafe(32)
         state = await anyio.to_thread.run_sync(
             lambda: self.accounts.new_state(
-                "connect_browser",
+                "connect_choice" if self.settings.reviewer_sandbox_enabled else "connect_browser",
                 {
                     "browser": browser,
+                    "environment": self.settings.environment,
                     "state": q["state"],
                     "challenge": q["code_challenge"],
                     "prior_session": request.cookies.get(COOKIE, ""),
                 },
             )
         )
-        response = RedirectResponse(
-            self.base
+        if self.settings.reviewer_sandbox_enabled:
+            response = HTMLResponse(
+                '<!doctype html><html lang="en"><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width"><title>Connect FreeAgent</title>'
+                "<main><h1>Connect FreeAgent</h1><p>Connect your FreeAgent account to continue in ChatGPT.</p>"
+                '<form method="post" action="/connect/choose">'
+                f'<input type="hidden" name="state" value="{html.escape(state, quote=True)}">'
+                '<button name="environment" value="production">Connect my FreeAgent account</button>'
+                "<p>OpenAI reviewers: use the dedicated sandbox credentials supplied in Review details. "
+                "The sandbox contains sample data only.</p>"
+                '<button name="environment" value="sandbox">Connect reviewer sandbox</button>'
+                "</form></main></html>"
+            )
+        else:
+            response = self.upstream_redirect(state, self.settings)
+            response.status_code = 307
+        response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=600)
+        return response
+
+    def upstream_redirect(self, state, config):
+        return RedirectResponse(
+            freeagent_base(config.environment)
             + "approve_app?"
             + urlencode(
                 {
                     "response_type": "code",
-                    "client_id": self.settings.freeagent_client_id,
+                    "client_id": config.freeagent_client_id,
                     "redirect_uri": ORIGIN + "/freeagent/callback",
                     "state": state,
                 }
-            )
+            ),
+            status_code=303,
         )
-        response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=600)
-        return response
+
+    async def choose(self, request):
+        self.enabled()
+        if not self.settings.reviewer_sandbox_enabled or request.headers.get("origin") != ORIGIN:
+            raise AccessDenied("Invalid connection choice")
+        form = await request.form(max_fields=2, max_files=0)
+        token = str(form.get("state", ""))
+        pending = await anyio.to_thread.run_sync(self.peek, token, "connect_choice")
+        if not hmac.compare_digest(pending["browser"], request.cookies.get(COOKIE, "")):
+            raise AccessDenied("Connection browser mismatch; start again from ChatGPT")
+        config = self.settings.upstream(str(form.get("environment", "")))
+        pending = await anyio.to_thread.run_sync(self.accounts.take_state, token, "connect_choice")
+        state = await anyio.to_thread.run_sync(
+            lambda: self.accounts.new_state("connect_browser", {**pending, "environment": config.environment})
+        )
+        return self.upstream_redirect(state, config)
 
     def is_callback(self, request):
         token = request.query_params.get("state", "")
@@ -113,24 +149,30 @@ class FreeAgentConnect:
         else:
 
             def exchange():
+                config = self.settings.upstream(state["environment"])
                 credentials, company = exchange_identity(
-                    self.settings,
+                    config,
                     request.query_params["code"],
                     ORIGIN + "/freeagent/callback",
                     Deadline(),
                     request_json,
                 )
+                if (
+                    config.environment == "sandbox"
+                    and self.settings.reviewer_sandbox_enabled
+                    and str(company["id"]) not in self.settings.sandbox_company_ids
+                ):
+                    raise AccessDenied("This sandbox company is not configured for review")
                 user_url, company_url = credentials["user"], company["url"]
                 # Identity is company + user + environment, never an email address.
-                identity = hashlib.sha256(
-                    f"{self.settings.environment}|{company['id']}|{user_url}".encode()
-                ).hexdigest()
+                identity = hashlib.sha256(f"{config.environment}|{company['id']}|{user_url}".encode()).hexdigest()
                 subject = f"oauth2|{self.settings.connection_name}|{identity}"
                 current = self.accounts.store.get("account_links", key_for(subject))
                 return self.accounts.new_state(
                     "connect_code",
                     {
                         "identity": identity,
+                        "environment": config.environment,
                         "subject": subject,
                         "company": company_url,
                         "generation": current.get("generation", 0),
@@ -190,10 +232,11 @@ class FreeAgentConnect:
         record = await anyio.to_thread.run_sync(self.accounts.take_state, receipt, "connect_receipt")
 
         def commit():
+            self.settings.upstream(record["environment"])
             return self.accounts.replace(
                 record["subject"],
                 record["company"],
-                self.settings.environment,
+                record["environment"],
                 self.accounts.cipher.open(record["tokens"], record["subject"]),
                 record["generation"],
             )
@@ -209,6 +252,7 @@ class FreeAgentConnect:
         return [
             Route("/connect/ready", self.ready),
             Route("/connect/authorize", self.authorize),
+            Route("/connect/choose", self.choose, methods=["POST"]),
             Route("/connect/token", self.token, methods=["POST"]),
             Route("/connect/profile", self.profile),
             Route("/connect/complete", self.complete, methods=["POST"]),

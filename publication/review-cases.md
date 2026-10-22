@@ -24,3 +24,11 @@ five positives/three negatives. Include bank reconciliation with an individually
 approved sample transaction and readback in the walkthrough. Capture a real video
 and actual web/iOS/Android screenshots, including automatic renewal and 30-day reauthorization and account
 replacement. Mocked tests or this script alone are not submission evidence.
+
+When reviewer sandbox routing is enabled, choose **Connect reviewer sandbox** on
+the connection screen and use the dedicated credentials in Review details. The
+submitted MCP endpoint and tools stay the same; FreeAgent authorization, token
+exchange and accounting requests use its isolated sandbox. Disclose this to
+reviewers, including any sandbox limitations. Confirm every advertised workflow
+works with the supplied sample company before submission. Production customers
+continue to connect their own production accounts.

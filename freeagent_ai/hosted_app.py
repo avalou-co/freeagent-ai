@@ -21,7 +21,7 @@ from starlette.staticfiles import StaticFiles
 
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
 from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
-from .hosted_client import principal_context, request_json
+from .hosted_client import HostedClient, principal_context, request_json
 from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
 from .hosted_oauth import exchange_identity, freeagent_base
@@ -158,8 +158,17 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     )
     connect = FreeAgentConnect(settings, accounts)
     verifier = verifier or Verifier(settings)
+
+    def linked_client(accounts, binding, deadline, client_id, client_secret):
+        config = settings.upstream(binding.environment)
+        return HostedClient(accounts, binding, deadline, config.freeagent_client_id, config.freeagent_client_secret)
+
     dispatcher = dispatcher or Dispatcher(
-        accounts, settings.freeagent_client_id, settings.freeagent_client_secret, settings.file_hosts
+        accounts,
+        settings.freeagent_client_id,
+        settings.freeagent_client_secret,
+        settings.file_hosts,
+        client_factory=linked_client,
     )
 
     async def tools(context, params):

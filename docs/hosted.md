@@ -133,3 +133,36 @@ publication. Use `publication/review-cases.md` with dedicated sample accounts. K
 reviewer credentials, customer information and operational evidence outside this
 public repository. Do not equate a private connection or successful deployment with
 an approved directory listing.
+
+## Dedicated reviewer sandbox
+
+An optional reviewer choice uses the same hosted MCP endpoint, tool registry and
+approval rules with FreeAgent's separate sandbox OAuth/API. Normal account linking
+continues to use production. Configure all three protected deployment inputs to
+show the choice on the existing connection screen:
+
+- `FREEAGENT_REVIEWER_CLIENT_ID`: separate sandbox OAuth application ID.
+- `FREEAGENT_REVIEWER_CLIENT_SECRET`: sandbox application secret, from the secret store.
+- `FREEAGENT_REVIEWER_COMPANY_IDS`: comma-separated sandbox company IDs permitted for review.
+
+Partial configuration fails startup. This option requires the default environment
+to be production. The reviewer selects **Connect reviewer sandbox** during OAuth;
+production customers select **Connect my FreeAgent account**. No separate Avalou
+account or MCP configuration is needed. Sandbox users outside the configured sample
+companies are denied after FreeAgent verifies their identity. Never configure real
+customer accounts as reviewer accounts.
+
+The choice is browser-bound, one-use and stored server-side through callback,
+receipt redemption and account binding. Provider credentials and refresh requests
+follow the stored environment. Identities include the environment, so matching
+provider IDs cannot merge production and sandbox accounts. Removing sandbox
+configuration denies further sandbox API use; it does not redirect existing
+sandbox credentials to production.
+
+Disclose the sandbox OAuth/API routing, sample data and any provider differences
+in the private publisher Review details. Supply stable dedicated credentials with
+all required permissions and no MFA or operator intervention. Verify the full
+advertised toolset, refresh and isolation through ChatGPT before submission. This
+implementation is not evidence of reviewer approval or a successful live review.
+Keep account credentials, company IDs, deployment configuration and operational
+evidence in the private deployment repository and publisher portal.
