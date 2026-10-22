@@ -28,7 +28,6 @@ COOKIE = "__session"  # Firebase Hosting forwards only this cookie to Cloud Run.
 class FreeAgentConnect:
     def __init__(self, settings, accounts):
         self.settings, self.accounts = settings, accounts
-        self.base = freeagent_base(settings.environment)
 
     def enabled(self):
         if not self.settings.connection_secret:
@@ -70,32 +69,55 @@ class FreeAgentConnect:
             or not re.fullmatch(r"[A-Za-z0-9_-]{43}", q.get("code_challenge", ""))
         ):
             raise AccessDenied("Invalid connection authorization request")
+        environment = await anyio.to_thread.run_sync(self.browser_environment, request.cookies.get(COOKIE, ""))
+        config = self.settings.upstream(environment)
         browser = secrets.token_urlsafe(32)
         state = await anyio.to_thread.run_sync(
             lambda: self.accounts.new_state(
                 "connect_browser",
                 {
                     "browser": browser,
+                    "environment": environment,
                     "state": q["state"],
                     "challenge": q["code_challenge"],
                     "prior_session": request.cookies.get(COOKIE, ""),
                 },
             )
         )
-        response = RedirectResponse(
-            self.base
+        response = self.upstream_redirect(state, config)
+        response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=600)
+        return response
+
+    def upstream_redirect(self, state, config):
+        return RedirectResponse(
+            freeagent_base(config.environment)
             + "approve_app?"
             + urlencode(
                 {
                     "response_type": "code",
-                    "client_id": self.settings.freeagent_client_id,
+                    "client_id": config.freeagent_client_id,
                     "redirect_uri": ORIGIN + "/freeagent/callback",
                     "state": state,
                 }
-            )
+            ),
+            status_code=307,
         )
-        response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=600)
-        return response
+
+    def browser_environment(self, cookie):
+        """Only an expiring server-owned reviewer login/session selects sandbox."""
+        if not self.settings.reviewer_sandbox_enabled or not cookie:
+            return self.settings.environment
+        record = self.accounts.store.get("web_state", key_for(cookie))
+        if record.get("used") or record.get("expires", 0) <= self.accounts.clock():
+            return self.settings.environment
+        if record.get("kind") == "reviewer_entry":
+            self.accounts.take_state(cookie, "reviewer_entry")
+            return "sandbox"
+        if record.get("kind") == "session":
+            link = self.accounts.store.get("account_links", key_for(record.get("subject", "")))
+            if link.get("active") and link.get("environment") == "sandbox":
+                return "sandbox"
+        return self.settings.environment
 
     def is_callback(self, request):
         token = request.query_params.get("state", "")
@@ -113,24 +135,30 @@ class FreeAgentConnect:
         else:
 
             def exchange():
+                config = self.settings.upstream(state["environment"])
                 credentials, company = exchange_identity(
-                    self.settings,
+                    config,
                     request.query_params["code"],
                     ORIGIN + "/freeagent/callback",
                     Deadline(),
                     request_json,
                 )
+                if (
+                    config.environment == "sandbox"
+                    and self.settings.reviewer_sandbox_enabled
+                    and str(company["id"]) not in self.settings.sandbox_company_ids
+                ):
+                    raise AccessDenied("This sandbox company is not configured for review")
                 user_url, company_url = credentials["user"], company["url"]
                 # Identity is company + user + environment, never an email address.
-                identity = hashlib.sha256(
-                    f"{self.settings.environment}|{company['id']}|{user_url}".encode()
-                ).hexdigest()
+                identity = hashlib.sha256(f"{config.environment}|{company['id']}|{user_url}".encode()).hexdigest()
                 subject = f"oauth2|{self.settings.connection_name}|{identity}"
                 current = self.accounts.store.get("account_links", key_for(subject))
                 return self.accounts.new_state(
                     "connect_code",
                     {
                         "identity": identity,
+                        "environment": config.environment,
                         "subject": subject,
                         "company": company_url,
                         "generation": current.get("generation", 0),
@@ -190,10 +218,11 @@ class FreeAgentConnect:
         record = await anyio.to_thread.run_sync(self.accounts.take_state, receipt, "connect_receipt")
 
         def commit():
+            self.settings.upstream(record["environment"])
             return self.accounts.replace(
                 record["subject"],
                 record["company"],
-                self.settings.environment,
+                record["environment"],
                 self.accounts.cipher.open(record["tokens"], record["subject"]),
                 record["generation"],
             )

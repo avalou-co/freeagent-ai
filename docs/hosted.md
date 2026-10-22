@@ -133,3 +133,51 @@ publication. Use `publication/review-cases.md` with dedicated sample accounts. K
 reviewer credentials, customer information and operational evidence outside this
 public repository. Do not equate a private connection or successful deployment with
 an approved directory listing.
+
+## Dedicated reviewer sandbox
+
+The normal ChatGPT connection redirects directly to production FreeAgent. An
+optional dedicated reviewer login at `/reviewer/login` uses the same Auth0 issuer,
+MCP endpoint, tools and approval rules with FreeAgent's isolated sandbox OAuth/API.
+There is no sandbox selector in the normal user journey.
+
+Configure all three protected deployment inputs to enable reviewer login:
+
+- `FREEAGENT_REVIEWER_CLIENT_ID`: separate sandbox OAuth application ID.
+- `FREEAGENT_REVIEWER_CLIENT_SECRET`: sandbox application secret, from the secret store.
+- `FREEAGENT_REVIEWER_COMPANY_IDS`: comma-separated sandbox company IDs permitted for review.
+
+Partial configuration fails startup. This option requires the default environment
+to be production. The reviewer first opens the supplied reviewer login URL and
+signs into the dedicated sandbox company, then connects the plugin in ChatGPT
+using the same browser. No separate Avalou account or MCP configuration is needed.
+Sandbox users outside the configured sample companies are denied after FreeAgent
+verifies their identity. Never use real customer accounts for review.
+
+The reviewer entry creates a one-use, ten-minute server-owned browser marker.
+It selects a provider, not permission to read or write accounting data. A successful
+login replaces it with the normal authenticated management session; an active
+sandbox account binding selects sandbox for subsequent OAuth in that browser.
+The management session expires after one hour. `/login` starts an ordinary
+production login. A missing, expired or disconnected reviewer session follows the
+normal production path; sandbox selection never comes from callback query input.
+
+The selected environment is retained server-side through callback, receipt
+redemption and account binding. Provider credentials and refresh requests follow
+the stored binding. Identities include the environment, so matching provider IDs
+cannot merge production and sandbox accounts. Removing sandbox configuration
+denies sandbox API use instead of sending its credentials to production.
+
+Disclose the reviewer login URL, sandbox OAuth/API routing, sample data, any
+provider differences and same-browser requirement in private Review details.
+Supply stable dedicated credentials with all required permissions and no MFA or
+operator intervention. The reviewer bootstrap login and ChatGPT OAuth must share
+the service's browser cookie; different browsers or isolated cookie stores will
+not carry the selection. Verify this handoff through the actual publisher tool
+scan and ChatGPT review journey before claiming it works live. Local simulated
+browser tests do not establish that OpenAI preserves this session.
+
+Verify the full advertised toolset, refresh and isolation before submission. Keep
+account credentials, company IDs, deployment configuration and operational evidence
+in the private deployment repository and publisher portal. Implementation does
+not establish reviewer approval or successful publication.

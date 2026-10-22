@@ -21,7 +21,7 @@ from starlette.staticfiles import StaticFiles
 
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
 from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
-from .hosted_client import principal_context, request_json
+from .hosted_client import HostedClient, principal_context, request_json
 from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
 from .hosted_oauth import exchange_identity, freeagent_base
@@ -158,8 +158,17 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     )
     connect = FreeAgentConnect(settings, accounts)
     verifier = verifier or Verifier(settings)
+
+    def linked_client(accounts, binding, deadline, client_id, client_secret):
+        config = settings.upstream(binding.environment)
+        return HostedClient(accounts, binding, deadline, config.freeagent_client_id, config.freeagent_client_secret)
+
     dispatcher = dispatcher or Dispatcher(
-        accounts, settings.freeagent_client_id, settings.freeagent_client_secret, settings.file_hosts
+        accounts,
+        settings.freeagent_client_id,
+        settings.freeagent_client_secret,
+        settings.file_hosts,
+        client_factory=linked_client,
     )
 
     async def tools(context, params):
@@ -242,7 +251,15 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         )
 
     async def login(request):
-        sid = secrets.token_urlsafe(32)
+        if request.url.path == "/reviewer/login":
+            connect.enabled()
+            if not settings.reviewer_sandbox_enabled:
+                raise AccessDenied("Reviewer sandbox is not configured")
+            # This selects a provider only; FreeAgent must still authenticate a
+            # permitted sandbox account before any data access is granted.
+            sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("reviewer_entry", {}))
+        else:
+            sid = secrets.token_urlsafe(32)
         nonce, code_verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         state = await anyio.to_thread.run_sync(
             lambda: accounts.new_state("auth0", {"session": sid, "nonce": nonce, "verifier": code_verifier})
@@ -380,6 +397,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),
         Route("/login", login),
+        Route("/reviewer/login", login),
         Route("/auth/callback", auth_callback),
         Route("/link", action, methods=["POST"]),
         Route("/disconnect", action, methods=["POST"]),

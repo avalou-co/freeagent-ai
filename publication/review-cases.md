@@ -24,3 +24,15 @@ five positives/three negatives. Include bank reconciliation with an individually
 approved sample transaction and readback in the walkthrough. Capture a real video
 and actual web/iOS/Android screenshots, including automatic renewal and 30-day reauthorization and account
 replacement. Mocked tests or this script alone are not submission evidence.
+
+When reviewer sandbox routing is enabled, first visit the dedicated reviewer
+login URL supplied in Review details and sign into the sample FreeAgent sandbox
+account. Connect the plugin in ChatGPT using the same browser within the one-hour
+management session. The submitted MCP endpoint and tools stay the same; provider
+OAuth and accounting requests use the isolated sandbox. The normal user path
+redirects directly to production without displaying a sandbox selector.
+
+Disclose this routing and any sandbox limitations. Verify that the publisher tool
+scan and actual ChatGPT OAuth browser retain the reviewer session; if they use
+separate cookie stores, the handoff does not work. Confirm every advertised
+workflow with the supplied sample company before submission.

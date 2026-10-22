@@ -208,3 +208,324 @@ def test_bridge_restores_outer_management_session_cookie(flow):
 def test_readiness_exposes_only_protocol_version(flow):
     client, _, _, _ = flow
     assert client.get("/connect/ready").json() == {"protocol": "freeagent-sign-in-v1"}
+
+
+@pytest.fixture
+def sandbox_flow(monkeypatch):
+    accounts = Accounts(MemoryStore(), TokenCipher({"1": base64.b64encode(secrets.token_bytes(32)).decode()}, "1"))
+    config = replace(
+        settings(),
+        connection_secret="synthetic-bridge-secret",
+        sandbox_client_id="sandbox-client",
+        sandbox_client_secret="synthetic-sandbox-secret",
+        sandbox_company_ids=frozenset({"456"}),
+    )
+    calls = []
+
+    def transport(method, url, deadline, **kwargs):
+        calls.append((method, url, kwargs))
+        base = "https://api.sandbox.freeagent.com/v2/" if "sandbox" in url else "https://api.freeagent.com/v2/"
+        if url.endswith("token_endpoint"):
+            return {"access_token": "upstream-private", "refresh_token": "upstream-refresh", "expires_in": 3600}, {}
+        if url.endswith("users/me"):
+            return {"user": {"url": base + "users/123"}}, {}
+        if url.endswith("company"):
+            return {"company": {"url": base + "company", "id": "456"}}, {}
+        pytest.fail("Unexpected upstream call")
+
+    monkeypatch.setattr("freeagent_ai.hosted_connect.request_json", transport)
+    with TestClient(create_app(config, accounts, verifier=object()), base_url=ORIGIN, follow_redirects=False) as client:
+        yield client, accounts, config, calls
+
+
+def start_environment(client, config, environment):
+    if environment == "sandbox":
+        login = client.get("/reviewer/login")
+        assert login.status_code == 307
+        assert urlsplit(login.headers["location"]).hostname == "example.auth0.com"
+    verifier = "a" * 43
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+    response = client.get(
+        "/connect/authorize",
+        params={
+            "client_id": BRIDGE_CLIENT,
+            "response_type": "code",
+            "redirect_uri": config.issuer + "login/callback",
+            "state": "auth0-transaction",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        },
+    )
+    assert response.status_code == 307
+    location = urlsplit(response.headers["location"])
+    query = parse_qs(location.query)
+    assert query["client_id"] == ["sandbox-client" if environment == "sandbox" else config.freeagent_client_id]
+    assert location.hostname == ("api.sandbox.freeagent.com" if environment == "sandbox" else "api.freeagent.com")
+    return query["state"][0], verifier
+
+
+@pytest.mark.parametrize("environment", ["production", "sandbox"])
+def test_reviewer_login_environment_is_pinned_through_callback_and_completion(sandbox_flow, environment):
+    client, accounts, config, calls = sandbox_flow
+    state, verifier = start_environment(client, config, environment)
+    # Callback input cannot override the environment selected in browser-bound state.
+    response = client.get("/freeagent/callback", params={"state": state, "code": "x", "environment": "other"})
+    assert response.status_code == 307
+    code = parse_qs(urlsplit(response.headers["location"]).query)["code"][0]
+    response = client.post(
+        "/connect/token",
+        headers=headers(config),
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": config.issuer + "login/callback",
+            "code_verifier": verifier,
+        },
+    )
+    token = response.json()["access_token"]
+    info = client.get("/connect/profile", headers={"Authorization": "Bearer " + token}).json()
+    result = complete(client, config, info)
+    assert result.status_code == 200
+    subject = "oauth2|freeagent|" + info["user_id"]
+    binding = accounts.bind(
+        Principal(subject, frozenset(), result.json()["authenticated_at"], result.json()["generation"])
+    )
+    assert binding.environment == environment
+    expected = config.upstream(environment)
+    basic = (
+        "Basic "
+        + base64.b64encode(f"{expected.freeagent_client_id}:{expected.freeagent_client_secret}".encode()).decode()
+    )
+    assert calls[0][2]["headers"]["Authorization"] == basic
+    assert all(("sandbox" in url) == (environment == "sandbox") for _, url, _ in calls)
+    other = "production" if environment == "sandbox" else "sandbox"
+    other_base = "https://api.freeagent.com/v2/" if other == "production" else "https://api.sandbox.freeagent.com/v2/"
+    assert info["user_id"] != hashlib.sha256(f"{other}|456|{other_base}users/123".encode()).hexdigest()
+
+
+def test_unlisted_sandbox_company_cannot_complete_login(sandbox_flow):
+    client, accounts, config, _ = sandbox_flow
+    state, _ = start_environment(client, config, "sandbox")
+    object.__setattr__(config, "sandbox_company_ids", frozenset({"999"}))
+    assert client.get("/freeagent/callback", params={"state": state, "code": "x"}).status_code == 400
+    assert not any(collection == "account_links" for collection, _ in accounts.store.records)
+
+
+def test_sandbox_configuration_is_all_or_nothing(monkeypatch):
+    import json
+
+    from freeagent_ai.hosted_auth import Settings
+
+    values = {
+        "GOOGLE_CLOUD_PROJECT": "example-project",
+        "AUTH0_ISSUER": "https://example.auth0.com/",
+        "AUTH0_MCP_CLIENT_ID": "mcp-client",
+        "AUTH0_WEB_CLIENT_ID": "web-client",
+        "AUTH0_WEB_CLIENT_SECRET": "synthetic-secret",
+        "FREEAGENT_CLIENT_ID": "production-client",
+        "FREEAGENT_CLIENT_SECRET": "synthetic-production-secret",
+        "FREEAGENT_TOKEN_ENCRYPTION_KEY": json.dumps({"active": "1", "keys": {"1": "synthetic-key"}}),
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    for name in (
+        "FREEAGENT_ENVIRONMENT",
+        "FREEAGENT_REVIEWER_CLIENT_ID",
+        "FREEAGENT_REVIEWER_CLIENT_SECRET",
+        "FREEAGENT_REVIEWER_COMPANY_IDS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    assert not Settings.from_env().reviewer_sandbox_enabled
+    monkeypatch.setenv("FREEAGENT_REVIEWER_CLIENT_ID", "sandbox-client")
+    with pytest.raises(ValueError, match="Reviewer sandbox"):
+        Settings.from_env()
+    monkeypatch.setenv("FREEAGENT_REVIEWER_CLIENT_SECRET", "synthetic-sandbox-secret")
+    monkeypatch.setenv("FREEAGENT_REVIEWER_COMPANY_IDS", "456")
+    config = Settings.from_env()
+    assert config.upstream("production").freeagent_client_id == "production-client"
+    assert config.upstream("sandbox").freeagent_client_id == "sandbox-client"
+    for invalid in ("0", "*", "456, ", "https://attacker.invalid"):
+        monkeypatch.setenv("FREEAGENT_REVIEWER_COMPANY_IDS", invalid)
+        with pytest.raises(ValueError, match="Reviewer sandbox"):
+            Settings.from_env()
+    monkeypatch.setenv("FREEAGENT_REVIEWER_COMPANY_IDS", "456")
+    monkeypatch.setenv("FREEAGENT_ENVIRONMENT", "sandbox")
+    with pytest.raises(ValueError, match="Reviewer sandbox"):
+        Settings.from_env()
+
+
+def test_reviewer_marker_is_one_use_expiring_and_cannot_be_forged(sandbox_flow):
+    from freeagent_ai.hosted_connect import FreeAgentConnect
+
+    client, accounts, config, calls = sandbox_flow
+    connect = FreeAgentConnect(config, accounts)
+    client.get("/reviewer/login")
+    marker = client.cookies.get(COOKIE)
+    assert connect.browser_environment(marker) == "sandbox"
+    assert connect.browser_environment(marker) == "production"
+    assert connect.browser_environment("sandbox") == "production"
+    client.get("/reviewer/login")
+    marker = client.cookies.get(COOKIE)
+    accounts.clock = lambda: time.time() + 601
+    assert connect.browser_environment(marker) == "production"
+    assert calls == []
+
+
+def test_normal_login_does_not_inherit_reviewer_marker(sandbox_flow):
+    client, accounts, config, _ = sandbox_flow
+    client.get("/reviewer/login")
+    client.get("/login")
+    start_environment(client, config, "production")
+
+
+def test_only_active_authenticated_sandbox_session_selects_sandbox(sandbox_flow):
+    from freeagent_ai.hosted_connect import FreeAgentConnect
+
+    _, accounts, config, _ = sandbox_flow
+    connect = FreeAgentConnect(config, accounts)
+    subject = "oauth2|freeagent|synthetic-reviewer"
+    session = accounts.new_state("session", {"subject": subject})
+    assert connect.browser_environment(session) == "production"
+    record = accounts.replace(
+        subject, "https://api.sandbox.freeagent.com/v2/company", "sandbox", {"access_token": "synthetic-token"}, 0
+    )
+    assert connect.browser_environment(session) == "sandbox"
+    accounts.disconnect(subject, record["generation"])
+    assert connect.browser_environment(session) == "production"
+
+
+def test_reviewer_login_is_disabled_without_complete_configuration(flow):
+    client, _, _, _ = flow
+    assert client.get("/reviewer/login").status_code == 400
+
+
+def test_sandbox_refresh_uses_sandbox_credentials_and_disabled_config_denies(sandbox_flow):
+    from types import SimpleNamespace
+
+    from freeagent_ai.hosted_client import HostedClient
+    from freeagent_ai.hosted_deadline import Deadline
+
+    _, accounts, config, _ = sandbox_flow
+    calls = []
+
+    def transport(method, url, deadline, **kwargs):
+        calls.append((url, kwargs))
+        return {"access_token": "new-synthetic-token", "expires_in": 3600}, {}
+
+    upstream = config.upstream("sandbox")
+    client = HostedClient(
+        accounts,
+        SimpleNamespace(environment="sandbox"),
+        Deadline(),
+        upstream.freeagent_client_id,
+        upstream.freeagent_client_secret,
+        transport,
+    )
+    client.exchange({"refresh_token": "synthetic-refresh"})
+    assert calls[0][0] == "https://api.sandbox.freeagent.com/v2/token_endpoint"
+    assert (
+        calls[0][1]["headers"]["Authorization"]
+        == "Basic " + base64.b64encode(b"sandbox-client:synthetic-sandbox-secret").decode()
+    )
+    disabled = replace(config, sandbox_client_secret="")
+    with pytest.raises(AccessDenied):
+        disabled.upstream("sandbox")
+
+
+def test_app_selects_refresh_client_from_binding_not_default_config(sandbox_flow, monkeypatch):
+    from types import SimpleNamespace
+
+    import freeagent_ai.hosted_app as hosted_app
+    from freeagent_ai.hosted_deadline import Deadline
+
+    _, accounts, config, _ = sandbox_flow
+    factories = []
+    original = hosted_app.Dispatcher
+
+    def capture(*args, **kwargs):
+        factories.append(kwargs["client_factory"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(hosted_app, "Dispatcher", capture)
+    create_app(config, accounts, verifier=object())
+    factory = factories[0]
+    sandbox = factory(accounts, SimpleNamespace(environment="sandbox"), Deadline(), "ignored", "ignored")
+    production = factory(accounts, SimpleNamespace(environment="production"), Deadline(), "ignored", "ignored")
+    assert sandbox.client_id == "sandbox-client"
+    assert sandbox.client_secret == "synthetic-sandbox-secret"
+    assert sandbox.base == "https://api.sandbox.freeagent.com/v2/"
+    assert production.client_id == config.freeagent_client_id
+    assert production.base == "https://api.freeagent.com/v2/"
+    object.__setattr__(config, "sandbox_client_secret", "")
+    with pytest.raises(AccessDenied):
+        factory(accounts, SimpleNamespace(environment="sandbox"), Deadline(), "ignored", "ignored")
+
+
+def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow, monkeypatch):
+    from types import SimpleNamespace
+
+    from freeagent_ai.hosted_auth import PRIMARY_AUTH_CLAIM
+
+    _, accounts, config, _ = sandbox_flow
+    claims = {}
+    verifier = SimpleNamespace(claims=lambda *args: claims)
+    monkeypatch.setattr(
+        "freeagent_ai.hosted_app.request_json", lambda *args, **kwargs: ({"id_token": "synthetic-id-token"}, {})
+    )
+    with TestClient(create_app(config, accounts, verifier=verifier), base_url=ORIGIN, follow_redirects=False) as client:
+        login = client.get("/reviewer/login")
+        outer = parse_qs(urlsplit(login.headers["location"]).query)
+        marker = client.cookies.get(COOKIE)
+        pkce = "a" * 43
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(pkce.encode()).digest()).decode().rstrip("=")
+        response = client.get(
+            "/connect/authorize",
+            params={
+                "client_id": BRIDGE_CLIENT,
+                "response_type": "code",
+                "redirect_uri": config.issuer + "login/callback",
+                "state": "auth0-reviewer-login",
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+            },
+        )
+        assert urlsplit(response.headers["location"]).hostname == "api.sandbox.freeagent.com"
+        state = parse_qs(urlsplit(response.headers["location"]).query)["state"][0]
+        response = client.get("/freeagent/callback", params={"state": state, "code": "synthetic-code"})
+        assert client.cookies.get(COOKIE) == marker
+        code = parse_qs(urlsplit(response.headers["location"]).query)["code"][0]
+        token = client.post(
+            "/connect/token",
+            headers=headers(config),
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": config.issuer + "login/callback",
+                "code_verifier": pkce,
+            },
+        ).json()["access_token"]
+        info = client.get("/connect/profile", headers={"Authorization": "Bearer " + token}).json()
+        linked = complete(client, config, info)
+        assert linked.status_code == 200
+        claims.update(
+            sub="oauth2|freeagent|" + info["user_id"],
+            nonce=outer["nonce"][0],
+            **{PRIMARY_AUTH_CLAIM: linked.json()["authenticated_at"]},
+        )
+        response = client.get("/auth/callback", params={"state": outer["state"][0], "code": "synthetic-auth0-code"})
+        assert response.headers["location"] == "/account"
+        assert client.cookies.get(COOKIE) != marker
+        # A new ChatGPT transaction has no sandbox parameter or selector.
+        response = client.get(
+            "/connect/authorize",
+            params={
+                "client_id": BRIDGE_CLIENT,
+                "response_type": "code",
+                "redirect_uri": config.issuer + "login/callback",
+                "state": "chatgpt-transaction",
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+            },
+        )
+        assert response.status_code == 307
+        assert urlsplit(response.headers["location"]).hostname == "api.sandbox.freeagent.com"

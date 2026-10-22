@@ -5,7 +5,7 @@ import math
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import jwt
 
@@ -35,6 +35,26 @@ class Settings:
     connection_secret: str = ""
     connection_name: str = "freeagent"
 
+    sandbox_client_id: str = ""
+    sandbox_client_secret: str = ""
+    sandbox_company_ids: frozenset[str] = frozenset()
+
+    @property
+    def reviewer_sandbox_enabled(self):
+        return bool(self.sandbox_client_id and self.sandbox_client_secret and self.sandbox_company_ids)
+
+    def upstream(self, environment):
+        if environment == self.environment:
+            return self
+        if environment == "sandbox" and self.reviewer_sandbox_enabled:
+            return replace(
+                self,
+                environment="sandbox",
+                freeagent_client_id=self.sandbox_client_id,
+                freeagent_client_secret=self.sandbox_client_secret,
+            )
+        raise AccessDenied("FreeAgent environment is not configured")
+
     @classmethod
     def from_env(cls):
         required = [
@@ -56,6 +76,15 @@ class Settings:
         environment = os.environ.get("FREEAGENT_ENVIRONMENT", "production")
         if environment not in {"production", "sandbox"}:
             raise ValueError("FREEAGENT_ENVIRONMENT must be production or sandbox")
+        sandbox_id = os.environ.get("FREEAGENT_REVIEWER_CLIENT_ID", "")
+        sandbox_secret = os.environ.get("FREEAGENT_REVIEWER_CLIENT_SECRET", "")
+        sandbox_companies = frozenset(filter(None, os.environ.get("FREEAGENT_REVIEWER_COMPANY_IDS", "").split(",")))
+        if any((sandbox_id, sandbox_secret, sandbox_companies)) and (
+            environment != "production"
+            or not all((sandbox_id, sandbox_secret, sandbox_companies))
+            or any(not re.fullmatch(r"[1-9][0-9]*", value) for value in sandbox_companies)
+        ):
+            raise ValueError("Reviewer sandbox requires separate credentials and explicit company IDs in production")
         hosts = frozenset(filter(None, os.environ.get("OPENAI_FILE_DOWNLOAD_HOSTS", "").split(",")))
         if any(not re.fullmatch(r"[a-z0-9.-]+", host) for host in hosts):
             raise ValueError("File origins must be exact DNS hostnames, no wildcards")
@@ -72,6 +101,9 @@ class Settings:
             environment=environment,
             file_hosts=hosts,
             challenge=os.environ.get("OPENAI_DOMAIN_CHALLENGE", ""),
+            sandbox_client_id=sandbox_id,
+            sandbox_client_secret=sandbox_secret,
+            sandbox_company_ids=sandbox_companies,
             connection_secret=os.environ.get("AUTH0_FREEAGENT_CONNECTION_SECRET", ""),
         )
 
