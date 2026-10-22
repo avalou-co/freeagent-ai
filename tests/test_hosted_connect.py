@@ -238,7 +238,11 @@ def sandbox_flow(monkeypatch):
         yield client, accounts, config, calls
 
 
-def choose_environment(client, config, environment):
+def start_environment(client, config, environment):
+    if environment == "sandbox":
+        login = client.get("/reviewer/login")
+        assert login.status_code == 307
+        assert urlsplit(login.headers["location"]).hostname == "example.auth0.com"
     verifier = "a" * 43
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
     response = client.get(
@@ -252,17 +256,7 @@ def choose_environment(client, config, environment):
             "code_challenge_method": "S256",
         },
     )
-    assert response.status_code == 200
-    import re
-
-    match = re.search(r'name="state" value="([^"]+)"', response.text)
-    assert match is not None
-    token = match[1]
-    form = {"state": token, "environment": environment}
-    assert client.post("/connect/choose", data=form).status_code == 400
-    response = client.post("/connect/choose", data=form, headers={"Origin": ORIGIN})
-    assert response.status_code == 303
-    assert client.post("/connect/choose", data=form, headers={"Origin": ORIGIN}).status_code == 400
+    assert response.status_code == 307
     location = urlsplit(response.headers["location"])
     query = parse_qs(location.query)
     assert query["client_id"] == ["sandbox-client" if environment == "sandbox" else config.freeagent_client_id]
@@ -271,9 +265,9 @@ def choose_environment(client, config, environment):
 
 
 @pytest.mark.parametrize("environment", ["production", "sandbox"])
-def test_reviewer_choice_is_pinned_through_callback_and_completion(sandbox_flow, environment):
+def test_reviewer_login_environment_is_pinned_through_callback_and_completion(sandbox_flow, environment):
     client, accounts, config, calls = sandbox_flow
-    state, verifier = choose_environment(client, config, environment)
+    state, verifier = start_environment(client, config, environment)
     # Callback input cannot override the environment selected in browser-bound state.
     response = client.get("/freeagent/callback", params={"state": state, "code": "x", "environment": "other"})
     assert response.status_code == 307
@@ -311,7 +305,7 @@ def test_reviewer_choice_is_pinned_through_callback_and_completion(sandbox_flow,
 
 def test_unlisted_sandbox_company_cannot_complete_login(sandbox_flow):
     client, accounts, config, _ = sandbox_flow
-    state, _ = choose_environment(client, config, "sandbox")
+    state, _ = start_environment(client, config, "sandbox")
     object.__setattr__(config, "sandbox_company_ids", frozenset({"999"}))
     assert client.get("/freeagent/callback", params={"state": state, "code": "x"}).status_code == 400
     assert not any(collection == "account_links" for collection, _ in accounts.store.records)
@@ -360,21 +354,49 @@ def test_sandbox_configuration_is_all_or_nothing(monkeypatch):
         Settings.from_env()
 
 
-def test_choice_rejects_wrong_browser_unknown_environment_and_expired_state(sandbox_flow):
+def test_reviewer_marker_is_one_use_expiring_and_cannot_be_forged(sandbox_flow):
+    from freeagent_ai.hosted_connect import FreeAgentConnect
+
     client, accounts, config, calls = sandbox_flow
-    choose_environment(client, config, "production")
-    # Use an unconsumed choice state generated for this same browser.
-    choice = accounts.new_state("connect_choice", {"browser": client.cookies.get(COOKIE)})
-    form = {"state": choice, "environment": "other"}
-    assert client.post("/connect/choose", data=form, headers={"Origin": ORIGIN}).status_code == 400
-    form["environment"] = "sandbox"
-    browser = client.cookies.get(COOKIE)
-    client.cookies.clear()
-    assert client.post("/connect/choose", data=form, headers={"Origin": ORIGIN}).status_code == 400
-    client.cookies.set(COOKIE, browser, domain="freeagent-ai.avalou.co", path="/")
+    connect = FreeAgentConnect(config, accounts)
+    client.get("/reviewer/login")
+    marker = client.cookies.get(COOKIE)
+    assert connect.browser_environment(marker) == "sandbox"
+    assert connect.browser_environment(marker) == "production"
+    assert connect.browser_environment("sandbox") == "production"
+    client.get("/reviewer/login")
+    marker = client.cookies.get(COOKIE)
     accounts.clock = lambda: time.time() + 601
-    assert client.post("/connect/choose", data=form, headers={"Origin": ORIGIN}).status_code == 400
+    assert connect.browser_environment(marker) == "production"
     assert calls == []
+
+
+def test_normal_login_does_not_inherit_reviewer_marker(sandbox_flow):
+    client, accounts, config, _ = sandbox_flow
+    client.get("/reviewer/login")
+    client.get("/login")
+    start_environment(client, config, "production")
+
+
+def test_only_active_authenticated_sandbox_session_selects_sandbox(sandbox_flow):
+    from freeagent_ai.hosted_connect import FreeAgentConnect
+
+    _, accounts, config, _ = sandbox_flow
+    connect = FreeAgentConnect(config, accounts)
+    subject = "oauth2|freeagent|synthetic-reviewer"
+    session = accounts.new_state("session", {"subject": subject})
+    assert connect.browser_environment(session) == "production"
+    record = accounts.replace(
+        subject, "https://api.sandbox.freeagent.com/v2/company", "sandbox", {"access_token": "synthetic-token"}, 0
+    )
+    assert connect.browser_environment(session) == "sandbox"
+    accounts.disconnect(subject, record["generation"])
+    assert connect.browser_environment(session) == "production"
+
+
+def test_reviewer_login_is_disabled_without_complete_configuration(flow):
+    client, _, _, _ = flow
+    assert client.get("/reviewer/login").status_code == 400
 
 
 def test_sandbox_refresh_uses_sandbox_credentials_and_disabled_config_denies(sandbox_flow):
@@ -437,3 +459,73 @@ def test_app_selects_refresh_client_from_binding_not_default_config(sandbox_flow
     object.__setattr__(config, "sandbox_client_secret", "")
     with pytest.raises(AccessDenied):
         factory(accounts, SimpleNamespace(environment="sandbox"), Deadline(), "ignored", "ignored")
+
+
+def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow, monkeypatch):
+    from types import SimpleNamespace
+
+    from freeagent_ai.hosted_auth import PRIMARY_AUTH_CLAIM
+
+    _, accounts, config, _ = sandbox_flow
+    claims = {}
+    verifier = SimpleNamespace(claims=lambda *args: claims)
+    monkeypatch.setattr(
+        "freeagent_ai.hosted_app.request_json", lambda *args, **kwargs: ({"id_token": "synthetic-id-token"}, {})
+    )
+    with TestClient(create_app(config, accounts, verifier=verifier), base_url=ORIGIN, follow_redirects=False) as client:
+        login = client.get("/reviewer/login")
+        outer = parse_qs(urlsplit(login.headers["location"]).query)
+        marker = client.cookies.get(COOKIE)
+        pkce = "a" * 43
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(pkce.encode()).digest()).decode().rstrip("=")
+        response = client.get(
+            "/connect/authorize",
+            params={
+                "client_id": BRIDGE_CLIENT,
+                "response_type": "code",
+                "redirect_uri": config.issuer + "login/callback",
+                "state": "auth0-reviewer-login",
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+            },
+        )
+        assert urlsplit(response.headers["location"]).hostname == "api.sandbox.freeagent.com"
+        state = parse_qs(urlsplit(response.headers["location"]).query)["state"][0]
+        response = client.get("/freeagent/callback", params={"state": state, "code": "synthetic-code"})
+        assert client.cookies.get(COOKIE) == marker
+        code = parse_qs(urlsplit(response.headers["location"]).query)["code"][0]
+        token = client.post(
+            "/connect/token",
+            headers=headers(config),
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": config.issuer + "login/callback",
+                "code_verifier": pkce,
+            },
+        ).json()["access_token"]
+        info = client.get("/connect/profile", headers={"Authorization": "Bearer " + token}).json()
+        linked = complete(client, config, info)
+        assert linked.status_code == 200
+        claims.update(
+            sub="oauth2|freeagent|" + info["user_id"],
+            nonce=outer["nonce"][0],
+            **{PRIMARY_AUTH_CLAIM: linked.json()["authenticated_at"]},
+        )
+        response = client.get("/auth/callback", params={"state": outer["state"][0], "code": "synthetic-auth0-code"})
+        assert response.headers["location"] == "/account"
+        assert client.cookies.get(COOKIE) != marker
+        # A new ChatGPT transaction has no sandbox parameter or selector.
+        response = client.get(
+            "/connect/authorize",
+            params={
+                "client_id": BRIDGE_CLIENT,
+                "response_type": "code",
+                "redirect_uri": config.issuer + "login/callback",
+                "state": "chatgpt-transaction",
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+            },
+        )
+        assert response.status_code == 307
+        assert urlsplit(response.headers["location"]).hostname == "api.sandbox.freeagent.com"

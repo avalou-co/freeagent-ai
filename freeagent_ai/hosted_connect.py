@@ -7,13 +7,12 @@ Upstream credentials are encrypted in short-lived records, never profile claims.
 import base64
 import hashlib
 import hmac
-import html
 import re
 import secrets
 from urllib.parse import urlencode
 
 import anyio
-from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Route
 
 from .hosted_accounts import AccessDenied, key_for
@@ -70,35 +69,22 @@ class FreeAgentConnect:
             or not re.fullmatch(r"[A-Za-z0-9_-]{43}", q.get("code_challenge", ""))
         ):
             raise AccessDenied("Invalid connection authorization request")
+        environment = await anyio.to_thread.run_sync(self.browser_environment, request.cookies.get(COOKIE, ""))
+        config = self.settings.upstream(environment)
         browser = secrets.token_urlsafe(32)
         state = await anyio.to_thread.run_sync(
             lambda: self.accounts.new_state(
-                "connect_choice" if self.settings.reviewer_sandbox_enabled else "connect_browser",
+                "connect_browser",
                 {
                     "browser": browser,
-                    "environment": self.settings.environment,
+                    "environment": environment,
                     "state": q["state"],
                     "challenge": q["code_challenge"],
                     "prior_session": request.cookies.get(COOKIE, ""),
                 },
             )
         )
-        if self.settings.reviewer_sandbox_enabled:
-            response = HTMLResponse(
-                '<!doctype html><html lang="en"><meta charset="utf-8">'
-                '<meta name="viewport" content="width=device-width"><title>Connect FreeAgent</title>'
-                "<main><h1>Connect FreeAgent</h1><p>Connect your FreeAgent account to continue in ChatGPT.</p>"
-                '<form method="post" action="/connect/choose">'
-                f'<input type="hidden" name="state" value="{html.escape(state, quote=True)}">'
-                '<button name="environment" value="production">Connect my FreeAgent account</button>'
-                "<p>OpenAI reviewers: use the dedicated sandbox credentials supplied in Review details. "
-                "The sandbox contains sample data only.</p>"
-                '<button name="environment" value="sandbox">Connect reviewer sandbox</button>'
-                "</form></main></html>"
-            )
-        else:
-            response = self.upstream_redirect(state, self.settings)
-            response.status_code = 307
+        response = self.upstream_redirect(state, config)
         response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=600)
         return response
 
@@ -114,24 +100,24 @@ class FreeAgentConnect:
                     "state": state,
                 }
             ),
-            status_code=303,
+            status_code=307,
         )
 
-    async def choose(self, request):
-        self.enabled()
-        if not self.settings.reviewer_sandbox_enabled or request.headers.get("origin") != ORIGIN:
-            raise AccessDenied("Invalid connection choice")
-        form = await request.form(max_fields=2, max_files=0)
-        token = str(form.get("state", ""))
-        pending = await anyio.to_thread.run_sync(self.peek, token, "connect_choice")
-        if not hmac.compare_digest(pending["browser"], request.cookies.get(COOKIE, "")):
-            raise AccessDenied("Connection browser mismatch; start again from ChatGPT")
-        config = self.settings.upstream(str(form.get("environment", "")))
-        pending = await anyio.to_thread.run_sync(self.accounts.take_state, token, "connect_choice")
-        state = await anyio.to_thread.run_sync(
-            lambda: self.accounts.new_state("connect_browser", {**pending, "environment": config.environment})
-        )
-        return self.upstream_redirect(state, config)
+    def browser_environment(self, cookie):
+        """Only an expiring server-owned reviewer login/session selects sandbox."""
+        if not self.settings.reviewer_sandbox_enabled or not cookie:
+            return self.settings.environment
+        record = self.accounts.store.get("web_state", key_for(cookie))
+        if record.get("used") or record.get("expires", 0) <= self.accounts.clock():
+            return self.settings.environment
+        if record.get("kind") == "reviewer_entry":
+            self.accounts.take_state(cookie, "reviewer_entry")
+            return "sandbox"
+        if record.get("kind") == "session":
+            link = self.accounts.store.get("account_links", key_for(record.get("subject", "")))
+            if link.get("active") and link.get("environment") == "sandbox":
+                return "sandbox"
+        return self.settings.environment
 
     def is_callback(self, request):
         token = request.query_params.get("state", "")
@@ -252,7 +238,6 @@ class FreeAgentConnect:
         return [
             Route("/connect/ready", self.ready),
             Route("/connect/authorize", self.authorize),
-            Route("/connect/choose", self.choose, methods=["POST"]),
             Route("/connect/token", self.token, methods=["POST"]),
             Route("/connect/profile", self.profile),
             Route("/connect/complete", self.complete, methods=["POST"]),

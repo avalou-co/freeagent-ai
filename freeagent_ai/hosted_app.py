@@ -251,7 +251,15 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         )
 
     async def login(request):
-        sid = secrets.token_urlsafe(32)
+        if request.url.path == "/reviewer/login":
+            connect.enabled()
+            if not settings.reviewer_sandbox_enabled:
+                raise AccessDenied("Reviewer sandbox is not configured")
+            # This selects a provider only; FreeAgent must still authenticate a
+            # permitted sandbox account before any data access is granted.
+            sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("reviewer_entry", {}))
+        else:
+            sid = secrets.token_urlsafe(32)
         nonce, code_verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         state = await anyio.to_thread.run_sync(
             lambda: accounts.new_state("auth0", {"session": sid, "nonce": nonce, "verifier": code_verifier})
@@ -389,6 +397,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),
         Route("/login", login),
+        Route("/reviewer/login", login),
         Route("/auth/callback", auth_callback),
         Route("/link", action, methods=["POST"]),
         Route("/disconnect", action, methods=["POST"]),
