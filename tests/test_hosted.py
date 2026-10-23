@@ -666,6 +666,18 @@ def test_hosted_project_must_be_explicit_without_operator_fallback(monkeypatch):
         Settings.from_env()
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "example-project")
     assert Settings.from_env().project == "example-project"
+    monkeypatch.setenv("MCP_BACKEND_HOST", "service-synthetic.europe-west2.run.app")
+    assert Settings.from_env().backend_host == "service-synthetic.europe-west2.run.app"
+    for invalid in (
+        "*.run.app",
+        "https://service.run.app",
+        "service.run.app:443",
+        "service..run.app",
+        "attacker.invalid",
+    ):
+        monkeypatch.setenv("MCP_BACKEND_HOST", invalid)
+        with pytest.raises(ValueError, match="MCP_BACKEND_HOST"):
+            Settings.from_env()
 
 
 def test_federated_jwt_requires_exact_generation_type():

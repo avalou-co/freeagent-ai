@@ -26,6 +26,7 @@ Configure these values privately in the operator's deployment system:
 | FREEAGENT_ENVIRONMENT | `production` or `sandbox`; use separate upstream applications |
 | FREEAGENT_TOKEN_ENCRYPTION_KEY | Encryption keyring, provisioned outside source/state |
 | OPENAI_FILE_DOWNLOAD_HOSTS | Verified exact upload download hosts; empty denies downloads |
+| MCP_BACKEND_HOST | Optional exact Cloud Run backend DNS hostname forwarded by the hosting proxy; no scheme, port or wildcard |
 | OPENAI_DOMAIN_CHALLENGE | Plain-text challenge supplied by the publishing portal |
 
 Keyring format: `{"active":"1","keys":{"1":"<base64 32-byte key>"}}`.
@@ -181,3 +182,12 @@ Verify the full advertised toolset, refresh and isolation before submission. Kee
 account credentials, company IDs, deployment configuration and operational evidence
 in the private deployment repository and publisher portal. Implementation does
 not establish reviewer approval or successful publication.
+
+
+The hosting proxy may forward the backend hostname as `Host`. Configure that exact
+Cloud Run hostname privately through `MCP_BACKEND_HOST` when needed; otherwise an
+authorized MCP request can fail the SDK host check with HTTP 421. The public host
+remains allowed and the public OAuth resource/audience is unchanged. DNS rebinding
+protection stays enabled. Unlisted hosts and disallowed browser origins remain
+rejected; `X-Forwarded-Host` does not grant trust. Never commit a real backend
+hostname or private deployment identifier to this public repository.

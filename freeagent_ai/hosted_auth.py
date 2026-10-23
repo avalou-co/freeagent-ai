@@ -35,6 +35,7 @@ class Settings:
     connection_secret: str = ""
     connection_name: str = "freeagent"
 
+    backend_host: str = ""
     sandbox_client_id: str = ""
     sandbox_client_secret: str = ""
     sandbox_company_ids: frozenset[str] = frozenset()
@@ -76,6 +77,11 @@ class Settings:
         environment = os.environ.get("FREEAGENT_ENVIRONMENT", "production")
         if environment not in {"production", "sandbox"}:
             raise ValueError("FREEAGENT_ENVIRONMENT must be production or sandbox")
+        backend_host = os.environ.get("MCP_BACKEND_HOST", "")
+        if backend_host and not re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+run\.app", backend_host):
+            raise ValueError(
+                "MCP_BACKEND_HOST must be an exact Cloud Run DNS hostname without scheme, port or wildcard"
+            )
         sandbox_id = os.environ.get("FREEAGENT_REVIEWER_CLIENT_ID", "")
         sandbox_secret = os.environ.get("FREEAGENT_REVIEWER_CLIENT_SECRET", "")
         sandbox_companies = frozenset(filter(None, os.environ.get("FREEAGENT_REVIEWER_COMPANY_IDS", "").split(",")))
@@ -101,6 +107,7 @@ class Settings:
             environment=environment,
             file_hosts=hosts,
             challenge=os.environ.get("OPENAI_DOMAIN_CHALLENGE", ""),
+            backend_host=backend_host,
             sandbox_client_id=sandbox_id,
             sandbox_client_secret=sandbox_secret,
             sandbox_company_ids=sandbox_companies,
