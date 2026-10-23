@@ -189,7 +189,10 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         server,
         json_response=True,
         stateless=True,
-        security_settings=TransportSecuritySettings(allowed_hosts=["freeagent-ai.avalou.co"], allowed_origins=[ORIGIN]),
+        security_settings=TransportSecuritySettings(
+            allowed_hosts=["freeagent-ai.avalou.co"] + ([settings.backend_host] if settings.backend_host else []),
+            allowed_origins=[ORIGIN],
+        ),
     )
 
     @asynccontextmanager
