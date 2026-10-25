@@ -27,6 +27,7 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
             for source in (Path(__file__).resolve().parents[1] / ".agents/skills").glob("*/SKILL.md")
         }
         assert "docs/receipts.md" in names
+        assert "docs/bank-attachments.md" in names
         assert "docs/receipt-review-cases.md" in names
         assert "skills/mileage/scripts/preview.py" in names
         assert all(
@@ -78,3 +79,11 @@ def test_operator_archive_matches_shared_named_tool_package_and_stays_private(tm
                 assert not re.search(r"freeagent_(?:get|post|put|delete)\b", text)
                 assert "../../docs/agent-rules.md" in text
                 assert "../../docs/api-notes.md" in text
+
+
+@pytest.mark.parametrize("name", ["add_missing_attachment", "remove_missing_attachment"])
+def test_package_validates_attachment_tool_references(name):
+    from freeagent_ai.public_package import validate_files
+
+    with pytest.raises(ValueError, match="Unresolved packaged tool reference"):
+        validate_files({"skills/bank-reconcile/SKILL.md": f"Use `{name}`".encode()})

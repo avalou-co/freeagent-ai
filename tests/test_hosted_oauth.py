@@ -25,7 +25,9 @@ def test_management_callback_verifies_provider_identity_before_account_replaceme
     def transport(method, url, deadline, **kwargs):
         calls.append((method, url))
         if url.endswith("token_endpoint"):
+            assert "X-Api-Version" not in kwargs["headers"]
             return {"access_token": "synthetic-access", "refresh_token": "synthetic-refresh", "expires_in": 3600}, {}
+        assert kwargs["headers"]["X-Api-Version"] == "2026-09-01"
         if url.endswith("users/me"):
             return {"user": {"url": "https://attacker.invalid/users/1" if invalid == "user" else base + "users/1"}}, {}
         return {

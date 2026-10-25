@@ -85,6 +85,36 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Match invoices/bills by amount and contact: `GET invoices?view=open` / `GET bills?view=open`. A partial explanation may leave the transaction partly unexplained; re-read it afterwards.
 - Category URLs and any VAT treatment come from the business's own instructions; never guess them.
 
+### Versioned bank attachments
+
+The client explicitly sends `X-Api-Version: 2026-09-01` on authenticated API
+requests (local and hosted), including pagination and writes; OAuth exchanges are
+unchanged. This opts into the documented bank-attachment contract before the
+1 December 2026 default change. See [migration and release gates](bank-attachments.md).
+
+- Bank transactions and explanations can return plural `attachments`; transaction
+  responses may nest `bank_transaction_explanations`. Hosted reads retain these
+  relationships and safe metadata. Legacy singular `attachment` is also preserved
+  when returned; missing fields remain unknown, not evidence of no attachment.
+- Use `GET bank_transaction_explanations/<id>/attachments` for complete metadata.
+  The provider's explanation response may contain only attachment URLs. Signed
+  `content_src`/thumbnail URLs, expiry values and content are omitted by hosted tools.
+- Add via `POST` to that same collection with `{"attachments": [{"file_name": ...,
+  "content_type": ..., "data": "base64", "description": ...}]}`. Update via `PUT`
+  with the existing attachment's `url`; remove via `PUT` with that `url` and
+  `"_destroy": "true"`. Do not put legacy `attachment` on an explanation write.
+- The provider supports 10 files per call and 50 per explanation. Hosted named
+  writes handle one file per invocation using the existing bounded receipt
+  downloader; provider count/model validation remains authoritative. Local generic
+  writes support the documented payload unchanged, with locally encoded files.
+- Current-request ownership applies to both the explanation and any existing
+  attachment changed/removed. Do not attach to an explanation from an earlier
+  request under the current policy. Preview exact file/description/IDs, get approval,
+  read the collection after each write and compare metadata/counts to the preview.
+  Empty successful responses do not prove a change. Stop and inspect timeouts,
+  rejected/partial batches, missing attachments and failed readbacks; never replay
+  an uncertain upload. Keep existing attachments unless their removal was approved.
+
 ## General
 
 - HTTPX2 handles API requests and parses Link headers; Google API Core's `HTTPIterator` follows pages through the existing transport. A shared adapter validates every next destination, enforces completeness limits, and merges list fields. Tenacity manages local retry scheduling and limits. Hosted requests retain their account binding and shared absolute deadline.

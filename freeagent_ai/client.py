@@ -34,6 +34,7 @@ from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_expo
 from .pagination import collect_pages
 
 BASE = "https://api.freeagent.com/v2/"
+API_VERSION = "2026-09-01"
 CREDS_PATH = os.path.expanduser(os.environ.get("FREEAGENT_CREDENTIALS", "~/.config/freeagent/credentials.json"))
 PORT = 47821
 REDIRECT = f"http://localhost:{PORT}/callback"
@@ -159,7 +160,11 @@ def _request(method, path, body, refresh=True):
                 method,
                 BASE + path,
                 json=body,
-                headers={"Authorization": "Bearer " + creds["access_token"], "Accept": "application/json"},
+                headers={
+                    "Authorization": "Bearer " + creds["access_token"],
+                    "Accept": "application/json",
+                    "X-Api-Version": API_VERSION,
+                },
             )
             try:
                 if resp.status_code == 401 and refresh:

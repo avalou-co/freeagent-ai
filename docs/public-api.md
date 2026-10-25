@@ -19,7 +19,8 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Estimates | list/get/create draft/update/delete | https://dev.freeagent.com/docs/estimates |
 | Bills | list/get/create/update/delete | https://dev.freeagent.com/docs/bills |
 | Bank accounts/transactions | list/get | https://dev.freeagent.com/docs/bank_accounts and https://dev.freeagent.com/docs/bank_transactions |
-| Bank explanations | get/create/delete | https://dev.freeagent.com/docs/bank_transaction_explanations |
+| Bank explanations | get/create/delete; safe legacy/plural attachment references | https://dev.freeagent.com/docs/bank_transaction_explanations |
+| Bank-explanation attachments | list/add one/update one/remove one; automatic collection readback after writes | https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01 |
 | Users/company/categories | list/get, current-user/company | https://dev.freeagent.com/docs/users and https://dev.freeagent.com/docs/company and https://dev.freeagent.com/docs/categories |
 | Tax returns | VAT, Corporation Tax and user-scoped self-assessment list/get only | https://dev.freeagent.com/docs/vat_returns and https://dev.freeagent.com/docs/corporation_tax_returns and https://dev.freeagent.com/docs/income_tax_returns |
 | Accounting reports | P&L summary, balance sheet, trial balance summary | https://dev.freeagent.com/docs/profit_and_loss and https://dev.freeagent.com/docs/balance_sheet and https://dev.freeagent.com/docs/trial_balance |
@@ -50,6 +51,23 @@ are introduced. Local generic payloads/responses remain direct API mechanics.
 
 Analysis projection coverage, required fields, incomplete-data behavior and provider
 verification limits are audited in [the hosted coverage table](analysis.md#hosted-field-coverage).
+
+Bank API requests explicitly opt into `X-Api-Version: 2026-09-01`; see the
+[attachment migration](bank-attachments.md). Named attachment operations accept an
+explanation numeric `id`, and update/remove also take numeric `attachment_id`.
+`add_bank_transaction_explanation_attachment` requires a `file` reference;
+`update_bank_transaction_explanation_attachment` accepts optional `file` and
+`description` (including an explicit empty description). Both file-bearing tools
+publish `openai/fileParams`. Removal uses the provider's PUT `_destroy`, not an
+invented DELETE-item path. A bulk delete-all tool is intentionally absent: each
+existing attachment requires current-request ownership and exact approval.
+
+Attachment validation errors expose status only because provider bodies can echo
+file contents. Safe collection projections return `url`, `file_name`, `content_type`,
+`file_size`, `description`; signed content/thumbnail URLs and bytes never enter
+hosted results. An unavailable/malformed read is incomplete, never an empty list.
+Local generic calls remain direct API mechanics and can return raw provider
+attachment data; agents must not print signed URLs or content.
 
 Tax payment projection, permission and partial-balance limits are documented in
 [tax evidence rules](tax-overview.md). Date-addressed return details use period_ends_on;
