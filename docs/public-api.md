@@ -21,6 +21,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Bank accounts/transactions | list/get | https://dev.freeagent.com/docs/bank_accounts and https://dev.freeagent.com/docs/bank_transactions |
 | Bank explanations | get/create/delete | https://dev.freeagent.com/docs/bank_transaction_explanations |
 | Users/company/categories | list/get, current-user/company | https://dev.freeagent.com/docs/users and https://dev.freeagent.com/docs/company and https://dev.freeagent.com/docs/categories |
+| Tax returns | VAT, Corporation Tax and user-scoped self-assessment list/get only | https://dev.freeagent.com/docs/vat_returns and https://dev.freeagent.com/docs/corporation_tax_returns and https://dev.freeagent.com/docs/income_tax_returns |
 | Accounting reports | P&L summary, balance sheet, trial balance summary | https://dev.freeagent.com/docs/profit_and_loss and https://dev.freeagent.com/docs/balance_sheet and https://dev.freeagent.com/docs/trial_balance |
 
 Task DELETE is intentionally unavailable: the provider's task-deletion section
@@ -49,3 +50,7 @@ are introduced. Local generic payloads/responses remain direct API mechanics.
 
 Analysis projection coverage, required fields, incomplete-data behavior and provider
 verification limits are audited in [the hosted coverage table](analysis.md#hosted-field-coverage).
+
+Tax payment projection, permission and partial-balance limits are documented in
+[tax evidence rules](tax-overview.md). Date-addressed return details use period_ends_on;
+no filing or payment transitions are exposed.

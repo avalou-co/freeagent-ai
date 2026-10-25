@@ -169,3 +169,6 @@ The Avalou-branded launch page, local preview command and publication configurat
 are documented in [docs/landing-page.md](docs/landing-page.md). It remains disabled
 until approved policy/support links are configured. ChatGPT and Claude remain
 disabled until each verified listing or connection URL is supplied.
+
+Use `/freeagent-ai:tax-overview` for read-only VAT, Corporation Tax and user-scoped
+Income Tax evidence, with separate filing/payment dates and reviewed forecast commitments.

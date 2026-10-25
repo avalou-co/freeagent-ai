@@ -132,3 +132,9 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 - Project day budgets require `hours_per_day`. Expense/bill reads retain project,
   rebilling and net/tax allocation evidence; never count bill headers and lines
   together. See [field coverage and incomplete reads](analysis.md#hosted-field-coverage).
+
+## Tax returns (read-only)
+
+See [tax evidence rules](tax-overview.md) for verified paths, date identifiers,
+user-scoped self-assessment, distinct payment/filing dates, partial-payment limits
+and reviewed cash-flow handoff. No tax filing or payment action is added.

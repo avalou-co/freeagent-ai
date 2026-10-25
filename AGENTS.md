@@ -25,6 +25,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `bank-reconcile` | Listing unexplained bank transactions and proposing explanations |
 | `cash-flow` | Read-only 13-week cash forecast and payment-delay scenarios |
 | `profitability` | Read-only project/contact time, revenue, budgets and cost review |
+| `tax-overview` | Read-only tax liabilities, filing/payment deadlines and reviewed cash-flow handoff |
 | `reports` | Read-only P&L, balance sheet, trial balance, cash, overdue invoices and bills |
 | `invoice-status` | Read-only: list invoices by status/contact/date, show payment status, draft overdue chasers |
 
