@@ -331,6 +331,11 @@ def make_registry():
     for helper, root in CREATES.items():
         schema = FunctionTool.from_function(getattr(local, helper)).parameters
         schema["additionalProperties"] = False
+        if helper == "create_project":
+            schema["properties"]["budget"]["description"] = "Decimal budget; omit or use zero for no budget."
+            schema["properties"]["budget_units"]["description"] = (
+                "FreeAgent budget units: Hours, Days or Monetary. Required upstream even with no budget; defaults to Days."
+            )
         schema["properties"]["confirmed"] = {
             "type": "boolean",
             "description": "Agent assertion that the user approved the exact write plan.",
