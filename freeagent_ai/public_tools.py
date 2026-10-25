@@ -101,20 +101,30 @@ ITEM_FIELDS = [
     "sales_tax_rate",
     "category",
     "project",
+    "invoice_item",
+    "bill",
+    "net_value",
+    "sales_tax_value",
+    "second_sales_tax_value",
+    "second_sales_tax_rate",
+    "sales_tax_status",
+    "second_sales_tax_status",
 ]
 ATTACHMENT_FIELDS = ["url", "file_name", "content_type", "file_size"]
 FIELDS = {
     "contact": "url organisation_name first_name last_name status default_payment_terms_in_days account_balance country",
-    "project": "url contact name status currency normal_billing_rate billing_period budget budget_units",
-    "task": "url project name status billing_rate billing_period is_deletable",
+    "project": "url contact name status currency normal_billing_rate billing_period budget budget_units hours_per_day",
+    "task": "url project name status billing_rate billing_period is_billable currency is_deletable",
     "user": "url first_name last_name role permission_level",
     "category": "url description nominal_code allowable_for_tax auto_sales_tax_rate",
-    "timeslip": "url user project task dated_on hours comment billed_on invoice",
+    "timeslip": "url user project task dated_on hours comment billed_on_invoice timer",
     "invoice": "url contact contact_name project reference dated_on due_on status currency net_value sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails invoice_items",
-    "expense": "url user category dated_on gross_value description sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project",
-    "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value bill_items attachment",
+    "credit_note": "url contact project reference dated_on due_on status currency net_value sales_tax_value total_value due_value second_sales_tax_value refunded_value refunded_on written_off_date credit_note_items",
+    "credit_note_reconciliation": "url credit_note invoice dated_on currency gross_value exchange_rate",
+    "expense": "url user category dated_on gross_value description sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status",
+    "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor",
     "estimate": "url contact project reference dated_on status currency net_value sales_tax_value total_value estimate_items",
-    "bank_account": "url name type currency current_balance",
+    "bank_account": "url name type currency current_balance latest_activity_date is_personal status",
     "bank_transaction": "url bank_account dated_on amount description unexplained_amount",
     "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable",
     "company": "url name currency type sales_tax_registration_status",
@@ -126,7 +136,9 @@ RESOURCES = {
     "tasks": ("task", "project view"),
     "users": ("user", ""),
     "categories": ("category", ""),
-    "timeslips": ("timeslip", "from_date to_date user project task"),
+    "timeslips": ("timeslip", "from_date to_date user project task view"),
+    "credit_notes": ("credit_note", "view contact project updated_since sort nested_credit_note_items"),
+    "credit_note_reconciliations": ("credit_note_reconciliation", "from_date to_date updated_since"),
     "invoices": ("invoice", "view contact project updated_since"),
     "expenses": ("expense", "from_date to_date user project view"),
     "bills": ("bill", "view contact from_date to_date"),
@@ -180,6 +192,15 @@ def record_schema(root):
     for field in FIELDS[root].split():
         if field.endswith("_items"):
             props[field] = {"type": "array", "items": object_schema({name: SCALAR for name in ITEM_FIELDS})}
+        elif field == "timer":
+            props[field] = {
+                "anyOf": [
+                    object_schema(
+                        {"running": {"type": "boolean"}, "start_from": {"type": "string"}}, ["running", "start_from"]
+                    ),
+                    {"type": "null"},
+                ]
+            }
         elif field == "attachment":
             props[field] = {"anyOf": [object_schema({name: SCALAR for name in ATTACHMENT_FIELDS}), {"type": "null"}]}
         else:
@@ -195,6 +216,8 @@ def project_record(record, root):
         value = record[field]
         if field.endswith("_items"):
             value = [{key: item[key] for key in ITEM_FIELDS if key in item} for item in value]
+        elif field == "timer" and value is not None:
+            value = {key: value[key] for key in ("running", "start_from") if key in value}
         elif field == "attachment" and value is not None:
             value = {key: value[key] for key in ATTACHMENT_FIELDS if key in value}
         result[field] = value
@@ -469,6 +492,9 @@ class Dispatcher:
                     key: settings[key] for key in ("engine_type_and_size_options", "mileage_rates") if key in settings
                 }
             }
+        if op.root == "credit_note_reconciliation" and op.root not in result:
+            # Provider detail JSON documents a plural root, unlike XML/create.
+            result = {op.root: result["credit_note_reconciliations"]}
         return {op.root: project_record(result[op.root], op.root)}
 
     @staticmethod
@@ -505,6 +531,8 @@ class Dispatcher:
             message = (
                 "Operation failed or write outcome/readback uncertain; inspect the original account before retrying"
             )
+        if name in REGISTRY and REGISTRY[name].method == "GET":
+            message = "Read incomplete; do not calculate from missing data or substitute zero. " + message
         return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
 
 

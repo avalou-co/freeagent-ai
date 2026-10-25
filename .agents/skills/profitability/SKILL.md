@@ -44,3 +44,16 @@ Follow `docs/agent-rules.md` and `docs/analysis.md`. GET tools only for analysis
    skill. Show exact selection, obtain approval and re-read time/invoices before any
    draft. Provider duplicate-time protection remains authoritative. Project-wide
    include_timeslips may include time outside the period: preview actual inclusion.
+
+## Hosted collection
+
+Use the fixed `list_*`/`get_*` tools in
+[the field coverage table](../../../docs/analysis.md#hosted-field-coverage).
+Omit `page` and leave `paginate=true` for complete collections. A denied, failed or
+invalid read is incomplete data, never an empty collection or zero. Report the
+failed operation and stop the calculation until resolved. Preserve helper
+`status="incomplete"` and missing-input/rate evidence in the result.
+Use `list_timeslips(view="all")` and `list_tasks(view="all", project=...)`.
+`billed_on_invoice` includes Draft invoice links. Fetch project `hours_per_day` for
+Days budgets; resolve running `timer` objects and missing task billability. Review
+expense/bill net/tax values and project allocations rather than inventing costs.

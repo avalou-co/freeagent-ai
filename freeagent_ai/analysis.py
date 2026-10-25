@@ -11,6 +11,18 @@ from typing import Any
 Record = dict[str, Any]
 
 
+class IncompleteData(ValueError):
+    """The snapshot cannot support a complete calculation; never substitute zero."""
+
+
+def require_fields(rows: list[Record], fields: str, label: str) -> None:
+    """Make absent required provider fields explicit before doing arithmetic."""
+    for index, row in enumerate(rows):
+        missing = [field for field in fields.split() if field not in row or row[field] is None]
+        if missing:
+            raise IncompleteData(f"Incomplete {label} row {index}: missing {', '.join(missing)}")
+
+
 def number(value: str) -> Decimal:
     """Reject floats, missing data and non-finite amounts rather than guessing."""
     if not isinstance(value, str):
@@ -59,6 +71,11 @@ def forecast(
         raise ValueError("Start must match the UTC snapshot date for current balances")
     if type(receipt_delay_days) is not int or receipt_delay_days < 0:
         raise ValueError("Receipt delay must be a nonnegative integer")
+    require_fields(accounts, "url currency current_balance", "bank account")
+    require_fields(invoices + bills, "url currency status due_value due_on", "outstanding document")
+    if any(row.get("additional") is not True for row in commitments):
+        raise ValueError("Commitments require confirmed additional=True")
+    require_fields(commitments, "url currency date amount additional", "commitment")
     balance = Decimal(0)
     for account in unique(accounts):
         if account["currency"] != currency:
@@ -115,6 +132,7 @@ def forecast(
         )
         balance = closing
     return {
+        "status": "incomplete" if missing_inputs else "complete",
         "timestamp": timestamp,
         "currency": currency,
         "accounts": [a["url"] for a in accounts],
@@ -150,6 +168,11 @@ def profitability(
     """
     if end < start or not timestamp:
         raise ValueError("Supply ordered period and snapshot timestamp")
+    require_fields(projects, "url contact currency", "project")
+    require_fields(tasks, "url project is_billable", "task")
+    require_fields(timeslips, "url project task user dated_on hours", "timeslip")
+    require_fields(invoices + credit_notes, "url currency dated_on status net_value", "revenue document")
+    require_fields(costs, "url dated_on currency amount", "cost allocation")
     unique(projects)
     unique(tasks)
     unique(timeslips)
@@ -182,6 +205,8 @@ def profitability(
             h = number(slip["hours"])
             if h < 0 or slip.get("timer"):
                 raise ValueError("Resolve negative time or running timers first")
+            if slip["task"] not in task_map:
+                raise IncompleteData("Incomplete task coverage for timeslip; resolve missing task")
             task = task_map[slip["task"]]
             if task.get("project") != project["url"] or type(task.get("is_billable")) is not bool:
                 raise ValueError("Resolve task project and billability")
@@ -202,6 +227,8 @@ def profitability(
         direct_cost = sum((number(c["amount"]) for c in allocated), Decimal(0))
         budget = number(project["budget"]) if project.get("budget") is not None else None
         usage = None
+        if budget is not None and budget > 0:
+            require_fields([project], "budget_units", "project budget")
         if budget is None or budget == 0:
             pass
         elif budget < 0:
@@ -209,6 +236,7 @@ def profitability(
         elif project["budget_units"] == "Hours":
             usage = hours
         elif project["budget_units"] == "Days":
+            require_fields([project], "hours_per_day", "day budget")
             day = number(project["hours_per_day"])
             if day <= 0:
                 raise ValueError("Hours per day must be positive")
@@ -243,6 +271,9 @@ def profitability(
         )
     project_urls = {p["url"] for p in projects}
     return {
+        "status": "complete"
+        if costs_complete and all(not row["missing_cost_rates"] for row in results)
+        else "incomplete",
         "from": start.isoformat(),
         "to": end.isoformat(),
         "timestamp": timestamp,
