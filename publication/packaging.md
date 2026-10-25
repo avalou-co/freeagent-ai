@@ -34,3 +34,20 @@ Keep deployment-specific package copies and operational evidence private.
 See [OpenAI packaging](https://developers.openai.com/plugins/build/plugins) and
 [review cases](review-cases.md). A local marketplace or custom connection does
 not satisfy public directory publication in issue #36.
+
+## Backend delivery
+
+Merging application code runs CI. Successful main-branch push CI triggers
+`Build hosted image`, which checks out that exact tested commit and publishes an
+immutable digest handoff. `Promote backend` then requests deployment through the
+protected deployment workflow. Website publication is separate and is not proof
+that the backend changed. Pull requests and failed tests cannot promote images.
+
+The production environment must supply `BACKEND_PROMOTION_APP_ID`,
+`BACKEND_PROMOTION_APP_PRIVATE_KEY` and
+`BACKEND_DEPLOYMENT_REPOSITORY_NAME` through protected configuration. The GitHub
+App installation is restricted to the deployment repository and Actions write;
+it dispatches the deployment workflow without repository contents write or cloud
+apply permissions. Never put private destinations or credentials in this public
+repository. A successful image build alone is not deployment success; inspect the
+private apply and running-revision verification.

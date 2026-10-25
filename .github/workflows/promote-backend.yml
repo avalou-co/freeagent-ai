@@ -1,0 +1,38 @@
+name: Promote backend
+on:
+  workflow_run:
+    workflows: [Build hosted image]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  promote:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_run' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check backend promotion configuration
+        env:
+          PROMOTION_APP_ID: ${{ secrets.BACKEND_PROMOTION_APP_ID }}
+          PROMOTION_APP_KEY: ${{ secrets.BACKEND_PROMOTION_APP_PRIVATE_KEY }}
+          PROMOTION_REPOSITORY: ${{ secrets.BACKEND_DEPLOYMENT_REPOSITORY_NAME }}
+        run: test -n "$PROMOTION_APP_ID" && test -n "$PROMOTION_APP_KEY" && test -n "$PROMOTION_REPOSITORY"
+      - name: Create deployment dispatch token
+        id: promotion
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.BACKEND_PROMOTION_APP_ID }}
+          private-key: ${{ secrets.BACKEND_PROMOTION_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ secrets.BACKEND_DEPLOYMENT_REPOSITORY_NAME }}
+          permission-actions: write
+      - name: Request private backend deployment
+        env:
+          GH_TOKEN: ${{ steps.promotion.outputs.token }}
+          DEPLOYMENT_REPOSITORY: ${{ secrets.BACKEND_DEPLOYMENT_REPOSITORY_NAME }}
+          BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set +x
+          echo "::add-mask::$DEPLOYMENT_REPOSITORY"
+          gh workflow run production-apply.yml --repo "$GITHUB_REPOSITORY_OWNER/$DEPLOYMENT_REPOSITORY" --ref main -f build_run_id="$BUILD_RUN_ID" >/dev/null
