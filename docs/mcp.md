@@ -39,7 +39,7 @@ readback must be investigated before another create.
 
 ## Tool audit
 
-All 18 registered tools were reviewed against the design contract. Named create
+All 17 registered tools were reviewed against the design contract. Named create
 helpers share the same POST/readback implementation; local and hosted errors use
 the same bounded provider-error formatter. This introduces no accounting validation. None performs
 local accounting or model eligibility validation. This audit and the mocked tests
@@ -54,6 +54,8 @@ verify wrapper behavior; they do not independently test FreeAgent's accounting r
 | `find_contacts` | GET all contacts and filter names and email locally, case-insensitively; no duplicate enforcement. |
 | `create_contact` | POST supplied contact fields and read back; omitted payment terms use provider defaults, explicit zero is preserved. |
 | `create_timeslip` | POST supplied timeslip fields and read back; no date, hours, relationship or duplicate checks. |
+| `create_draft_credit_note` | POST supplied signed credit items using FreeAgent default Draft status, then read back; no issuance/email/allocation. |
+| `create_credit_note_reconciliation` | POST separately approved allocation fields, then read reconciliation, credit note and invoice; destructive, non-idempotent, and subject to the explicit policy gate. |
 | `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
 | `create_expense` | POST expense fields and optional encoded local attachment, then read back; no amount, tax or file-type validation. |
 | `create_mileage_expense` | POST `category: Mileage`, supplied miles, vehicle and explicit reclaim flag, optional engine/VAT-receipt/project fields, then read back. No local rates, tax validation, amount calculation or duplicate enforcement. |
@@ -152,3 +154,15 @@ provider accounting validation is authoritative. Both are writes. The hosted
 versions require confirmed=true; local helpers follow the shared approval rules.
 See [policy gate](credit-notes.md): tool availability does not relax ownership or
 approve issuing/allocating. No task ledger or local eligibility validator is added.
+
+## Bank attachment migration
+
+API calls explicitly use `X-Api-Version: 2026-09-01`. The local generic API tools
+already support the provider's separate attachment collection: GET metadata, POST
+encoded files, PUT replacement/description or `_destroy`, then GET readback.
+Their arbitrary approved bodies remain unchanged; no local attachment model/count
+validator is added. The hosted audit adds four fixed named attachment tools with
+numeric explanation/attachment IDs and bounded file references. POST and PUT
+read the collection back automatically. This does not confer ownership or approval:
+follow current-request rules for the explanation and existing attachment.
+See [migration inventory, rollout and fallback](bank-attachments.md).

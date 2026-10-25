@@ -17,7 +17,7 @@ from urllib.parse import urlencode, urlsplit
 import httpx2
 
 from .api_mechanics import api_path
-from .client import _retry_after
+from .client import API_VERSION, _retry_after
 from .hosted_accounts import AccessDenied
 from .hosted_network import PinnedHTTPS, read_bounded, resolve_public, socket_budget
 from .hosted_oauth import freeagent_base
@@ -104,7 +104,7 @@ class HostedClient:
                     self.base + path,
                     self.deadline,
                     body=body,
-                    headers={"Authorization": "Bearer " + creds["access_token"]},
+                    headers={"Authorization": "Bearer " + creds["access_token"], "X-Api-Version": API_VERSION},
                 )
             except urllib.error.HTTPError as error:
                 if method == "GET" and error.code == 429 and attempt < 3:

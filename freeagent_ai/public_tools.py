@@ -9,6 +9,7 @@ import re
 import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlencode
 
 import jsonschema
@@ -110,7 +111,7 @@ ITEM_FIELDS = [
     "sales_tax_status",
     "second_sales_tax_status",
 ]
-ATTACHMENT_FIELDS = ["url", "file_name", "content_type", "file_size"]
+ATTACHMENT_FIELDS = ["url", "file_name", "content_type", "file_size", "description"]
 TAX_PAYMENT_FIELDS = ["label", "due_on", "amount_due", "status"]
 TAX_RETURNS = {
     "vat_returns": "vat_return",
@@ -135,8 +136,8 @@ FIELDS = {
     "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor",
     "estimate": "url contact project reference dated_on status currency net_value sales_tax_value total_value estimate_items",
     "bank_account": "url name type currency current_balance latest_activity_date is_personal status",
-    "bank_transaction": "url bank_account dated_on amount description unexplained_amount",
-    "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable",
+    "bank_transaction": "url bank_account dated_on amount description unexplained_amount attachment attachments bank_transaction_explanations",
+    "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable attachment attachments",
     "company": "url name currency type sales_tax_registration_status",
 }
 RESOURCES = {
@@ -155,7 +156,7 @@ RESOURCES = {
     "estimates": ("estimate", "view contact project"),
     "bank_accounts": ("bank_account", ""),
     "bank_transactions": ("bank_transaction", "bank_account view from_date to_date"),
-    # Provider has a single-explanation GET, not a general collection-list operation.
+    # Bank-account-filtered explanation collection is not exposed by this inventory.
 }
 CREATES = {
     "create_contact": "contact",
@@ -217,6 +218,10 @@ def record_schema(root):
                     {"type": "null"},
                 ]
             }
+        elif field == "bank_transaction_explanations":
+            props[field] = {"type": "array", "items": record_schema("bank_transaction_explanation")}
+        elif field == "attachments":
+            props[field] = {"type": "array", "items": object_schema({name: SCALAR for name in ATTACHMENT_FIELDS})}
         elif field == "attachment":
             props[field] = {"anyOf": [object_schema({name: SCALAR for name in ATTACHMENT_FIELDS}), {"type": "null"}]}
         else:
@@ -224,7 +229,16 @@ def record_schema(root):
     return object_schema(props)
 
 
-def project_record(record, root):
+def project_attachments(value):
+    """Reject incomplete collection shapes before projecting private provider fields."""
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError("Attachment collection is malformed; read incomplete")
+    return [{key: item[key] for key in ATTACHMENT_FIELDS if key in item} for item in value]
+
+
+def project_record(record: Any, root):
+    if not isinstance(record, dict):
+        raise ValueError("Resource response is malformed; read incomplete")
     result = {}
     for field in FIELDS[root].split():
         if field not in record:
@@ -236,7 +250,15 @@ def project_record(record, root):
             value = [{key: item[key] for key in ITEM_FIELDS if key in item} for item in value]
         elif field == "timer" and value is not None:
             value = {key: value[key] for key in ("running", "start_from") if key in value}
+        elif field == "bank_transaction_explanations":
+            if not isinstance(value, list):
+                raise ValueError("Explanation collection is malformed; read incomplete")
+            value = [project_record(item, "bank_transaction_explanation") for item in value]
+        elif field == "attachments":
+            value = project_attachments(value)
         elif field == "attachment" and value is not None:
+            if not isinstance(value, dict):
+                raise ValueError("Attachment response is malformed; read incomplete")
             value = {key: value[key] for key in ATTACHMENT_FIELDS if key in value}
         result[field] = value
     return result
@@ -322,6 +344,44 @@ def make_registry():
             object_schema({"id": id_schema}, ["id"]) if "{id}" in endpoint else object_schema({}),
             object_schema({root: record_schema(root)}, [root]),
             f"Read the linked company's {root.replace('_', ' ')}.",
+        )
+    # The versioned provider collection separates attachment changes from explanations.
+    # One file per write keeps the existing bounded invocation-only upload contract.
+    attachment_output = object_schema(
+        {"attachments": {"type": "array", "items": object_schema({name: SCALAR for name in ATTACHMENT_FIELDS})}},
+        ["attachments"],
+    )
+    file_schema = object_schema(
+        {key: {"type": "string"} for key in ("download_url", "file_id", "mime_type", "file_name")},
+        ["download_url", "file_id"],
+    )
+    for action, method in [("list", "GET"), ("add", "POST"), ("update", "PUT"), ("remove", "PUT")]:
+        props = {"id": id_schema}
+        required = ["id"]
+        if action != "list":
+            props["confirmed"] = {"type": "boolean"}
+            required.append("confirmed")
+        if action in {"update", "remove"}:
+            props["attachment_id"] = id_schema
+            required.append("attachment_id")
+        if action in {"add", "update"}:
+            props["file"] = file_schema
+            props["description"] = {"type": "string"}
+        if action == "add":
+            required.append("file")
+        name = action + "_bank_transaction_explanation_attachment" + ("s" if action == "list" else "")
+        add(
+            name,
+            method,
+            "bank_transaction_explanations/{id}/attachments",
+            "attachments",
+            object_schema(props, required),
+            attachment_output,
+            "Read attachment metadata, or change one attachment only on an explanation created during this user request. "
+            "Updates/removals also require attachment ownership in this request. Show exact file/description/ID change and "
+            "obtain approval before writes. Reads back the collection automatically; inspect uncertain outcomes before retry. "
+            "Signed content URLs and bytes are not returned.",
+            meta={"openai/fileParams": ["file"]} if action in {"add", "update"} else None,
         )
     # Tax returns use period end dates, not numeric record IDs; income tax is user-scoped.
     period_schema = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
@@ -511,6 +571,8 @@ class Dispatcher:
 
     def _run(self, op, args, client):
         args.pop("confirmed", None)
+        if op.root == "attachments":
+            return self._attachments(op, args, client)
         if op.helper:
             file = args.pop("receipt", args.pop("attachment", None))
             if file is not None:
@@ -567,6 +629,35 @@ class Dispatcher:
             result = {op.root: result["credit_note_reconciliations"]}
         return {op.root: project_record(result[op.root], op.root)}
 
+    def _attachments(self, op, args, client):
+        path = op.endpoint.replace("{id}", args.pop("id"))
+        if op.method != "GET":
+            item = {}
+            if "attachment_id" in args:
+                item["url"] = client.base + "attachments/" + args.pop("attachment_id")
+            if op.name.startswith("remove_"):
+                item["_destroy"] = "true"
+            else:
+                file = args.pop("file", None)
+                if file is not None:
+                    item.update(download(file, self.file_hosts, client.deadline))
+                if "description" in args:
+                    item["description"] = args["description"]
+            client.call(op.method, path, {"attachments": [item]})
+            try:
+                result = client.call("GET", path)
+                projected = {"attachments": project_attachments(result["attachments"])}
+                jsonschema.validate(projected, op.descriptor.output_schema)
+                return projected
+            except Exception:
+                raise UnverifiedWrite(
+                    "Attachment write returned success but collection readback was not verified. "
+                    f"Inspect {client.base + path} in the original linked company before any retry."
+                ) from None
+        else:
+            result = client.call("GET", path)
+        return {"attachments": project_attachments(result["attachments"])}
+
     @staticmethod
     def _expand_references(args, base):
         for key, resource in REFERENCE_RESOURCES.items():
@@ -595,7 +686,12 @@ class Dispatcher:
                 else "Provider operation failed; inspect before retrying"
             )
         except urllib.error.HTTPError as error:
-            message = provider_error(error)
+            # Attachment validation responses may echo bytes or signed source URLs.
+            message = (
+                f"FreeAgent HTTP {error.code}"
+                if name in REGISTRY and REGISTRY[name].root == "attachments"
+                else provider_error(error)
+            )
             message += "; inspect the original account before retrying a write"
         except Exception:
             message = (
