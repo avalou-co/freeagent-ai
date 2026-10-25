@@ -149,6 +149,7 @@ def package_files(root, metadata=None):
         "docs/public-tool-audit.json": json.dumps(audit(), indent=2, sort_keys=True).encode(),
     }
     sources = {}
+    files["docs/tax-overview.md"] = render_hosted((root / "docs/tax-overview.md").read_text(), docs_prefix="").encode()
     for source in sorted((root / ".agents/skills").glob("*/SKILL.md")):
         files[f"skills/{source.parent.name}/SKILL.md"] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
