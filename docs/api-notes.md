@@ -28,9 +28,9 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 - `POST expenses` body: `{"expense": {"user", "category", "dated_on", "gross_value", "description"}}` with full resource URLs and `gross_value` as a string including VAT. Expenses are negative (`"-12.50"`).
 - `sales_tax_rate` (e.g. `"20.0"`) sets VAT; the category may need to allow it.
-- Receipt: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF with a size limit; the tool allows only those types.
+- Receipt: `attachment: {file_name, content_type, data}` with `data` base64. FreeAgent documents PDF, PNG, JPG and GIF with a 5 MB limit. Local tools encode the supplied file and leave acceptance to FreeAgent; hosted downloads enforce the bounded type contract in [receipt handling](receipts.md).
 - Categories: `GET categories`; admin expenses categories are the ones valid for expense claims.
-- Check `GET expenses?from_date=&to_date=` for duplicates before posting.
+- Check both expenses and bills, across all pages, before recording a receipt. Hosted expense reads retain `receipt_reference` for reference matching. They also preserve documented native/manual tax fields separately from original-currency amounts; do not compare a native-currency manual tax amount directly with foreign-currency printed tax. Missing fields are unavailable, never zero. See the [receipts workflow](../.agents/skills/receipts/SKILL.md).
 
 ## Mileage expenses
 
@@ -74,7 +74,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 - `POST bills` body: `{"bill": {"contact", "reference", "dated_on", "due_on", "bill_items": [{"category", "description", "total_value", "sales_tax_rate"}]}}` with full resource URLs and decimal strings; `total_value` includes taxes; use `total_value_ex_tax` for a net line amount.
 - `sales_tax_rate` (e.g. `"20.0"`) sets VAT per line; the category may need to allow it.
-- Attachment: `attachment: {file_name, content_type, data}` with `data` base64. Accepts PDF, PNG, JPG, GIF; the tool allows only those types.
+- Attachment: `attachment: {file_name, content_type, data}` with `data` base64. FreeAgent documents PDF, PNG, JPG and GIF with a 5 MB limit. Local tools leave file acceptance to FreeAgent; hosted downloads enforce the [receipt transport contract](receipts.md).
 - Unpaid and overdue: `GET bills?view=open` and `GET bills?view=overdue`.
 - Categories: `GET categories`. Check `GET bills?from_date=&to_date=` for the same reference before posting.
 

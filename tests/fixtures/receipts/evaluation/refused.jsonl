@@ -1,0 +1,5 @@
+{"request": {"arguments": {"path": "company"}, "tool": "freeagent_get"}, "response": {"company": {"currency": "GBP", "name": "Synthetic Review Co", "url": "https://api.freeagent.com/v2/company/1"}}, "scenario": "clean"}
+{"request": {"arguments": {"path": "users/me"}, "tool": "freeagent_get"}, "response": {"user": {"first_name": "Example", "last_name": "Claimant", "url": "https://api.freeagent.com/v2/users/1"}}, "scenario": "clean"}
+{"request": {"arguments": {"path": "categories"}, "tool": "freeagent_get"}, "response": {"categories": [{"description": "Travel", "url": "https://api.freeagent.com/v2/categories/285"}]}, "scenario": "clean"}
+{"request": {"arguments": {"path": "expenses?from_date=2026-10-02&to_date=2026-10-02"}, "tool": "freeagent_get"}, "response": {"expenses": []}, "scenario": "clean"}
+{"request": {"arguments": {"path": "bills?from_date=2026-10-02&to_date=2026-10-02"}, "tool": "freeagent_get"}, "response": {"bills": []}, "scenario": "clean"}

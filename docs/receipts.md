@@ -60,3 +60,21 @@ lookup or 24-hour deletion worker. Its signed source URL is a bearer capability;
 source platform authorization and user-provided file association remain required.
 A host allowlist alone does not establish account ownership. Do not enable a
 persistent upload service until the contract and independent review pass.
+
+## Hosted review fields
+
+Expense list/get and creation readbacks preserve the provider's `receipt_reference`,
+original-currency amounts and available native/manual tax fields. A supplier
+reference can identify a possible duplicate even when the amount or posting date
+differs. `manual_sales_tax_amount` is in company-native currency, as documented by
+[FreeAgent](https://dev.freeagent.com/docs/expenses); do not present it as extracted
+foreign-currency tax. Preserve missing fields as unknown. The assistant compares
+source evidence and record details; the server does not decide duplicate matches
+or tax eligibility.
+
+The automated receipt tests exercise dispatcher approval, attachment forwarding,
+record projections and failed-readback handling using synthetic transport responses.
+They do not establish assistant extraction accuracy, resistance to document
+instructions, deployed account isolation or successful sandbox writes. The visual
+and behavioral cases in the evaluation guide and independent upload security
+review remain release gates.
