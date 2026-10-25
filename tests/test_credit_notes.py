@@ -60,7 +60,7 @@ def credit(accounts, hosted_context):
             return {root: deepcopy(state[root])}, {"Location": state[root]["url"]}
         if path.startswith("company"):
             return {"company": {"url": BASE + "company/1"}}, {}
-        if state["failure"] == "readback":
+        if state["failure"] == "readback" or (state["failure"] == "invoice_readback" and path == "invoices/7"):
             raise urllib.error.HTTPError(url, 503, "unavailable", Message(), None)
         if path == "credit_notes":
             return {"credit_notes": [deepcopy(state["credit_note"])]}, {}
@@ -129,6 +129,7 @@ def test_draft_signed_foreign_currency_and_provider_default(credit):
 def test_allocation_reads_all_affected_records_without_local_accounting_validation(credit, amount):
     invoke, state, calls = credit
     state["credit_note_reconciliation"]["gross_value"] = amount
+    state["credit_note"]["status"] = "Open"
     result = invoke("create_credit_note_reconciliation", **{**allocation_args(), "gross_value": amount})
     assert not result.is_error
     assert result.structured_content == {k: state[k] for k in ("credit_note_reconciliation", "credit_note", "invoice")}
@@ -187,5 +188,27 @@ def test_allocation_is_destructive_non_idempotent_and_policy_gated():
     descriptor = REGISTRY["create_credit_note_reconciliation"].descriptor
     assert descriptor.annotations.destructive_hint
     assert not descriptor.annotations.idempotent_hint
-    assert "policy review" in descriptor.description
-    assert "ownership" in descriptor.description
+    assert "ownership exception" in descriptor.description
+    assert "existing issued credit" in descriptor.description
+    assert "separate approval" in descriptor.description
+    assert "No issuing, invoice edits, cash refunds" in descriptor.description
+
+
+def test_existing_issued_allocation_partial_verification_never_repeats_or_edits(credit):
+    invoke, state, calls = credit
+    state["credit_note"]["status"] = "Open"
+    state["failure"] = "invoice_readback"
+    result = invoke("create_credit_note_reconciliation", **allocation_args())
+    assert result.is_error
+    assert "readback was not verified" in result.content[0].text
+    assert len([c for c in calls if c[0] == "POST"]) == 1
+    assert any(m == "GET" and p == "credit_notes/8" for m, p, _ in calls)
+    assert any(m == "GET" and p == "invoices/7" for m, p, _ in calls)
+    assert not any(m in {"PUT", "DELETE"} or "transitions" in p or "send_email" in p for m, p, _ in calls)
+
+
+def test_allocation_policy_does_not_expose_issuing_or_refund_operations():
+    # Surface audit only: agent behavior remains subject to independent workflow review.
+    assert not any(
+        "credit_note" in name and any(x in name for x in ("sent", "issue", "refund", "email")) for name in REGISTRY
+    )

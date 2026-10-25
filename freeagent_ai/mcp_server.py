@@ -22,7 +22,7 @@ from .mcp_auth import BearerAuth, load_token
 
 INSTRUCTIONS = """Generic FreeAgent API tools. Business IDs, rates and rules come from the user's own instructions; ask if missing, never guess.
 Rules: reads are free. Before any write call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
-Never touch entries you did not create in this task. After every write, read back with freeagent_get and report what FreeAgent holds, not what you sent. FreeAgent validates accounting rules and resource relationships.
+Never touch entries you did not create in this task except the separately approved credit-allocation exception in docs/agent-rules.md (selected existing issued credit/invoice only; no issuing, invoice edits or cash refunds). After every write, read back with freeagent_get and report what FreeAgent holds, not what you sent. FreeAgent validates accounting rules and resource relationships.
 Pass resources as full URLs (e.g. https://api.freeagent.com/v2/projects/123) as returned by freeagent_get."""
 
 mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
@@ -171,10 +171,11 @@ def create_credit_note_reconciliation(
     currency: str = "",
     exchange_rate: str = "",
 ) -> dict:
-    """Create an approved credit allocation, not a cash refund. Policy review is a
-    prerequisite: do not allocate to pre-existing records under current ownership rules.
+    """Create a separately approved allocation of a selected existing issued credit
+    to a selected invoice under the narrow ownership exception, not a cash refund.
     Preview both records and exact amount/currency first. FreeAgent validates eligibility
-    and over-allocation. Read back reconciliation AND affected credit note/invoice; any
+    and over-allocation. No issuing, invoice edits or unrelated changes are authorized.
+    Read back reconciliation AND affected credit note/invoice; any
     failure requires inspection before retry. No issuance or email is performed."""
     fields = {"credit_note": credit_note, "invoice": invoice, "gross_value": gross_value}
     for key, value in (("dated_on", dated_on), ("currency", currency), ("exchange_rate", exchange_rate)):

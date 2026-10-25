@@ -13,7 +13,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Timeslips | list/get/create/update/delete | https://dev.freeagent.com/docs/timeslips |
 | Invoices | list/get/create draft/update/delete | https://dev.freeagent.com/docs/invoices |
 | Credit notes | list/get/create draft; signed values, refund and item context | https://dev.freeagent.com/docs/credit_notes |
-| Credit-note reconciliations | list/get/create; affected credit/invoice readback, policy-gated allocation | https://dev.freeagent.com/docs/credit_note_reconciliations |
+| Credit-note reconciliations | list/get/create; affected credit/invoice readback, separately approved narrow allocation | https://dev.freeagent.com/docs/credit_note_reconciliations |
 | Expenses | list/get/create/update/delete; reads retain receipt reference and original/native/manual tax evidence | https://dev.freeagent.com/docs/expenses |
 | Mileage expenses | get_mileage_settings/create_mileage_expense; list/get use expenses and retain mileage/engine/reclaim fields | https://dev.freeagent.com/docs/expenses |
 | Estimates | list/get/create draft/update/delete | https://dev.freeagent.com/docs/estimates |
@@ -73,4 +73,4 @@ Tax payment projection, permission and partial-balance limits are documented in
 [tax evidence rules](tax-overview.md). Date-addressed return details use period_ends_on;
 no filing or payment transitions are exposed.
 
-Credit-note creation/allocation mechanics and the inactive proposed ownership exception are documented in [credit policy](credit-notes.md). Issuing/sending remain unavailable; current restrictions remain active.
+Credit-note creation/allocation mechanics and the approved narrow ownership exception are documented in [credit policy](credit-notes.md). Allocation may affect only the selected existing issued credit/invoice after exact preview and separate approval. Issuing, invoice edits and cash refunds remain excluded; other ownership restrictions remain active.

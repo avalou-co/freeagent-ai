@@ -174,6 +174,7 @@ Use `/freeagent-ai:tax-overview` for read-only VAT, Corporation Tax and user-sco
 Income Tax evidence, with separate filing/payment dates and reviewed forecast commitments.
 
 Use `/freeagent-ai:credit-notes` to review duplicate credits and create approved
-Draft credit notes. Issuing and invoice allocations remain behind the explicit
-[policy review gate](docs/credit-notes.md); adding tools does not authorize changes
-to pre-existing invoices. Allocation mechanics return all affected records.
+Draft credit notes. A [narrow allocation exception](docs/credit-notes.md) permits
+separately approved allocation of a selected existing issued credit to a selected
+invoice after complete reads and an exact preview. Issuing, invoice edits and cash
+refunds remain excluded. Allocation mechanics return all affected records.

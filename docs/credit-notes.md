@@ -1,4 +1,4 @@
-# Credit-note workflow and policy gate
+# Credit-note workflow and allocation policy
 
 Provider contracts checked 2026-10-25: [credit notes](https://dev.freeagent.com/docs/credit_notes)
 and [reconciliations](https://dev.freeagent.com/docs/credit_note_reconciliations).
@@ -22,24 +22,46 @@ Read/create tools are mechanics, not authorization to bypass the workflow policy
 Hosted top-level reference inputs are numeric IDs; item payloads retain documented
 provider fields and resource URLs. Generic local tools remain unchanged.
 
-## Current policy and decision required
+## Approved narrow allocation policy
 
-The current ownership restriction remains in force: do not change records created
-outside the current user request. Invoice allocation affects an existing invoice's
-balance even though the reconciliation is a new resource. Thus ordinary allocations
-to historical invoices are not authorized by adding a create tool. The credit-note
-workflow stops before issuing or allocating until an explicit policy review.
-No issuing/status-transition/email operation is added here.
+The user approved a narrow exception to current-request ownership on 2026-10-25.
+The exception permits only a new reconciliation affecting a specifically selected
+existing issued credit note and existing invoice. It does not authorize invoice
+edits, credit issuing/status changes, sending/email, cash refunds, unrelated record
+changes or mutation of old reconciliations. All other ownership restrictions remain.
 
-A proposed future decision for human review (NOT active policy): permit a separately
-approved reconciliation against an explicitly selected pre-existing invoice after
-reading its current state, all related credits/reconciliations and currency basis;
-preview both record identities, exact amount/date/currency and expected balances;
-obtain separate approval, write once and read all affected records. Restrict the
-exception to allocation, not invoice edits, issuing or cash refunds. Define whether
-same-request credit issuance is authorized separately. Until that decision is
-approved, retain current restrictions and explain the blocked action to the user.
-An implementation review or PR merge does not itself approve this future policy.
+Before allocation, read the original linked company, selected credit and invoice,
+all related credits/reconciliations and current currency/balance evidence. Resolve
+duplicates and unavailable evidence before action. Preview both identities, exact
+amount/date/currency/exchange-rate basis, current balances and expected resulting
+balances. Obtain separate approval of that allocation, submit once and read back
+reconciliation, credit and invoice. Report actual remaining/unapplied values and
+partial failures; inspect an uncertain result before any retry, never replay blindly.
+FreeAgent decides accounting eligibility, signs and over-allocation. Missing fields
+are unknown; do not invent balances or exchange rates.
+
+A newly created Draft remains Draft. This policy does NOT authorize issuing it to
+make it allocatable. Use a provider-eligible existing issued credit for allocation;
+if none exists, prepare the draft and explain that issuance needs a separate future
+policy decision. No issuance/status-transition/email operation is added. Draft
+approval and this policy approval do not substitute for exact per-allocation approval.
+The approved exception is shared in [agent rules](agent-rules.md#approved-credit-allocation-exception).
+
+## Review examples and safeguards
+
+These are policy review examples, not claims of observed assistant execution:
+
+- Selected existing issued credit + existing invoice, complete duplicate/balance
+  reads and separate exact approval: allocate once and compare all three readbacks.
+- Draft credit, even created and approved in the same request: leave Draft, explain
+  issuance is unavailable, do not call a transition or allocate it to bypass issuance.
+- User refuses allocation or only approves draft creation: no allocation write.
+- Missing currency/balance/duplicate coverage: stop before proposing a verified
+  result; obtain missing evidence instead of treating it as zero.
+- Partial/full or foreign-currency allocation: preserve the provider's accepted
+  signs and currency basis; over-allocation rejection is reported without replay.
+- Created reconciliation but invoice readback fails: report partial verification,
+  inspect all original records and do not apply the amount a second time.
 
 ## Evidence and release limits
 

@@ -21,19 +21,24 @@ exact signed line quantities/prices/tax. Never assume a full refund, tax rate or
    `create_draft_credit_note` once, then verify provider Draft status, reference,
    contact, currency, every line and totals. Never treat a POST response as readback.
    Report any changed or absent provider values and leave the credit unissued.
-4. Before issuing OR allocating, STOP at the explicit policy gate in the linked
-   policy document. Draft approval does not approve issuing, sending or allocation.
-   Current instructions do not authorize allocations affecting pre-existing invoices.
-   Do not use generic API tools to bypass this gate. Prepare a separate exact action
-   preview; a general request to credit an invoice is not an ownership-policy change.
-5. Only after the policy gate is explicitly reviewed and approved, and the exact
-   allocation separately approved, use `create_credit_note_reconciliation` for the
-   selected credit/invoice/amount/date/currency/exchange rate. Current-request
-   ownership still applies unless explicitly changed by that reviewed decision.
-   FreeAgent decides eligibility, signs and over-allocation. Inspect its rejection;
-   do not change numbers to force acceptance. The helper reads reconciliation,
-   credit note and invoice; report due/unapplied values in their own currencies,
-   and distinguish allocation from cash paid/refunded. Missing balances are unknown.
+4. Issuing, marking sent, emailing and cash refunds remain outside this workflow.
+   A new Draft stays unissued: do not transition it to enable allocation. If the
+   request is allocation only, skip draft creation and select an existing issued
+   credit and invoice explicitly. Read both records, source lines, all related
+   credits/reconciliations and current balances in the original linked company.
+   Missing status/balance/currency or incomplete duplicate reads means stop and ask.
+5. The approved narrow ownership exception permits only allocation affecting that
+   selected existing issued credit and invoice. Preview both identities, exact
+   amount/date/currency/exchange-rate basis, current and expected remaining balances
+   and duplicate evidence. Obtain separate approval for this exact allocation;
+   draft approval is not allocation approval. If refused, stop without a write.
+   Use `create_credit_note_reconciliation` once. FreeAgent decides eligibility,
+   signs and over-allocation; inspect rejection rather than changing numbers to
+   force acceptance. The helper reads reconciliation, credit note and invoice;
+   compare all three with the preview, report actual due/unapplied balances in
+   each currency, and flag unexpected balances/relationships or partial failure.
+   Allocation is not cash paid/refunded. Do not edit the invoice, issue the credit,
+   change an old reconciliation or touch unrelated records under this exception.
 6. For timeout, failed readback or partial outcome, STOP. Inspect original company,
    credit/invoice and complete reconciliation list. Reconcile what exists before
    asking whether to resume. Never blindly repeat a create or reapply an allocation.

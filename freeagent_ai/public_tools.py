@@ -478,7 +478,7 @@ def make_registry():
             ),
             f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. Resource reference inputs are numeric IDs. FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create."
             + (
-                " Allocation requires explicit policy review first; existing ownership restrictions remain. Draft approval is not allocation approval. This is not a cash refund."
+                " Narrow ownership exception: allocate only a selected existing issued credit to a selected invoice after complete related-credit/balance reads, exact amount/date/currency/balance preview and separate approval. No issuing, invoice edits, cash refunds or unrelated changes. Draft approval is not allocation approval."
                 if helper == "create_credit_note_reconciliation"
                 else ""
             ),
