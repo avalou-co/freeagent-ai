@@ -370,3 +370,30 @@ def test_missing_cash_balance_is_not_zero(collect):
             commitments=[],
             missing_inputs=[],
         )
+
+
+def test_credit_note_filters_expand_fixed_resource_ids(collect):
+    read, _, _, _, calls = collect
+    assert read("credit_notes", contact="1", project="1")
+    query = parse_qs(urlsplit(calls[0]).query)
+    assert query["contact"] == [BASE + "contacts/1"]
+    assert query["project"] == [BASE + "projects/1"]
+
+
+def test_hosted_expense_preserves_native_and_manual_tax_evidence(collect):
+    read, data, _, _, _ = collect
+    data["expenses"][0].update(
+        currency="USD",
+        gross_value="-30",
+        sales_tax_value="-5",
+        native_gross_value="-24",
+        native_sales_tax_value="-4",
+        manual_sales_tax_amount="-3.50",
+    )
+    expense = read("expenses")[0]
+    assert expense["currency"] == "USD"
+    assert expense["gross_value"] == "-30"
+    assert expense["sales_tax_value"] == "-5"
+    assert expense["native_gross_value"] == "-24"
+    assert expense["native_sales_tax_value"] == "-4"
+    assert expense["manual_sales_tax_amount"] == "-3.50"

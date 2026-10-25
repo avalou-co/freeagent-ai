@@ -92,15 +92,19 @@ provider URLs. Local `freeagent_get` remains available without projection change
 | Project grouping/budget | `list_projects`, `get_project` | `url`, `contact`, `currency`, `budget`, `budget_units`, `hours_per_day`; day budgets need the provider's day length |
 | Task billability | `list_tasks`, `get_task` | `url`, `project`, `is_billable`, `currency`, `billing_rate`, `billing_period`, `status`; fetch all tasks including inactive ones |
 | Recorded/unbilled time | `list_timeslips`, `get_timeslip` | `url`, `project`, `task`, `user`, `dated_on`, `hours`, `billed_on_invoice`, `timer.running`, `timer.start_from`; `view=all` supported; a Draft invoice link still excludes time from unbilled WIP |
-| Expense cost evidence | `list_expenses`, `get_expense` | `url`, `project`, `dated_on`, `currency`, `gross_value`, `sales_tax_value`, native values, second tax fields, tax status, `rebill_to_project`, `rebill_type`, `rebill_factor`, `rebilled_on_invoice`; review signed net costs, currency/tax basis and allocation |
+| Expense cost evidence | `list_expenses`, `get_expense` | `url`, `project`, `dated_on`, `currency`, `gross_value`, `sales_tax_value`, `native_gross_value`, `native_sales_tax_value`, `manual_sales_tax_amount` (company-native currency), second tax fields, tax status, `rebill_to_project`, `rebill_type`, `rebill_factor`, `rebilled_on_invoice`; review signed net costs, currency/tax basis and allocation |
 | Bill item evidence | Bill reads above | `bill_items` preserve `url`, `bill`, `project`, `category`, `total_value`, `total_value_ex_tax`, tax amounts/rates/status; never count a whole bill and its allocated lines together |
 | Sales line evidence | Invoice/credit-note reads above | line `url`, `project`, `invoice_item`, quantity/price and tax fields support source review; credit-note item links are evidence, not inferred allocation cash |
 | Additional commitments/cost rates | User-reviewed input | No API projection can prove external commitments absent, establish account assignment or supply internal hourly rates. Confirm overlap and completeness explicitly |
 
-Credit-note collection filters are `view`, `updated_since`, `sort`, and
+Credit-note collection filters are `view`, `contact`, `project`, `updated_since`, `sort`, and
 `nested_credit_note_items` (string `"true"`/`"false"`); reconciliation
-filters are `from_date`, `to_date`, `updated_since`. Do not send invented contact,
-project or date-range filters to credit notes; select from the complete collection.
+filters are `from_date`, `to_date`, `updated_since`. Hosted contact/project filters
+accept numeric IDs and expand them to provider references. Credit-note date-range
+filters are not exposed; select the requested dates from the complete collection.
+Keep native and transaction-currency tax amounts separate. Where the available
+evidence cannot establish a consistent net-cost basis, leave costs incomplete and
+ask for the missing allocation or tax detail rather than subtract unlike currencies.
 The provider's reconciliation detail JSON example uses a plural root while its
 XML/create examples use singular; hosted detail reads accept either spelling and
 return the canonical singular root. Verify this shape in a dedicated sandbox before
