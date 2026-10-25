@@ -24,3 +24,8 @@ Record run date, assistant/runtime, stub transcript, observed result and reviewe
 in private evaluation evidence. All cases must pass behavioral evaluation; green
 Python unit tests only validate API mechanics. Independent upload security review
 must also cover the hosted contract before receipt uploads are advertised ready.
+
+
+The repository contributor procedure `publication/receipt-visual-evaluation.md`
+uses valid image/PDF fixtures and an offline tool recorder. The fixture pack and
+recorder are development assets, separate from the installed hosted package.

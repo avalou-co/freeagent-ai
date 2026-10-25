@@ -1,0 +1,2 @@
+# PDF byte offsets and syntax whitespace must remain intact.
+tests/fixtures/**/*.pdf binary

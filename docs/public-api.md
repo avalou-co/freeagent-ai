@@ -14,7 +14,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Invoices | list/get/create draft/update/delete | https://dev.freeagent.com/docs/invoices |
 | Credit notes | list/get (read-only); signed values, refund and item context | https://dev.freeagent.com/docs/credit_notes |
 | Credit-note reconciliations | list/get (read-only); invoice allocation evidence | https://dev.freeagent.com/docs/credit_note_reconciliations |
-| Expenses | list/get/create/update/delete | https://dev.freeagent.com/docs/expenses |
+| Expenses | list/get/create/update/delete; reads retain receipt reference and original/native/manual tax evidence | https://dev.freeagent.com/docs/expenses |
 | Mileage expenses | get_mileage_settings/create_mileage_expense; list/get use expenses and retain mileage/engine/reclaim fields | https://dev.freeagent.com/docs/expenses |
 | Estimates | list/get/create draft/update/delete | https://dev.freeagent.com/docs/estimates |
 | Bills | list/get/create/update/delete | https://dev.freeagent.com/docs/bills |

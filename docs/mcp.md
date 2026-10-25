@@ -139,4 +139,6 @@ or timeouts; it can refresh credentials once after a rejected 401.
 Receipt interpretation and duplicate review use the [receipts workflow](../.agents/skills/receipts/SKILL.md).
 `create_expense` and `create_bill` forward optional explicit `currency` unchanged;
 this also appears in hosted schemas. No extraction or duplicate policy tool is
-added. See the [hosted upload contract](receipts.md) for attachment boundaries.
+added. Hosted expense projections retain `receipt_reference` and available original,
+native and manual tax fields for evidence comparison; they do not decide duplicates
+or tax treatment. See the [hosted upload contract](receipts.md) for attachment boundaries.
