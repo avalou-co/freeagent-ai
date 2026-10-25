@@ -33,3 +33,15 @@ Follow `docs/agent-rules.md` and `docs/analysis.md`. GET tools only.
    outside the horizon and first negative opening/closing week. An overdue receipt
    is assumed at start plus delay, not promised. Positive weekly closing balances
    can hide shortfalls within the week. Incomplete forecasts remain provisional.
+
+## Hosted collection
+
+Use the fixed `list_*`/`get_*` tools in
+[the field coverage table](../../../docs/analysis.md#hosted-field-coverage).
+Omit `page` and leave `paginate=true` for complete collections. A denied, failed or
+invalid read is incomplete data, never an empty collection or zero. Report the
+failed operation and stop the calculation until resolved. Preserve helper
+`status="incomplete"` and missing-input/rate evidence in the result.
+Read `list_credit_note_reconciliations` as allocation evidence alongside
+`list_credit_notes`. Review outstanding signed `due_value` refunds separately;
+confirm payment date, account, currency and overlap before adding a commitment.
