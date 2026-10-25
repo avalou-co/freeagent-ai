@@ -1,0 +1,191 @@
+"""Synthetic authenticated credit mechanics; no live writes or assistant behavior claims."""
+
+import time
+import urllib.error
+from copy import deepcopy
+from email.message import Message
+from io import BytesIO
+from urllib.parse import urlsplit
+
+import pytest
+
+from freeagent_ai.hosted_accounts import Principal
+from freeagent_ai.hosted_client import HostedClient
+from freeagent_ai.public_tools import REGISTRY, Dispatcher
+
+BASE = "https://api.freeagent.com/v2/"
+
+
+@pytest.fixture
+def credit(accounts, hosted_context):
+    accounts.replace(
+        "credit", BASE + "company/1", "production", {"access_token": "dummy", "expires_at": time.time() + 3600}, 0
+    )
+    principal = Principal("credit", frozenset({"freeagent:read", "freeagent:write"}), 101)
+    calls = []
+    state = {
+        "credit_note": dict(
+            url=BASE + "credit_notes/8",
+            contact=BASE + "contacts/1",
+            currency="EUR",
+            status="Draft",
+            due_value="-120",
+            refunded_value="0",
+            total_value="-120",
+            credit_note_items=[dict(description="credit", quantity="1", price="-100", sales_tax_rate="20")],
+        ),
+        "invoice": dict(url=BASE + "invoices/7", currency="EUR", status="Open", due_value="60"),
+        "credit_note_reconciliation": dict(
+            url=BASE + "credit_note_reconciliations/9",
+            credit_note=BASE + "credit_notes/8",
+            invoice=BASE + "invoices/7",
+            gross_value="60",
+            currency="EUR",
+            exchange_rate="0.85",
+        ),
+        "failure": None,
+    }
+
+    def transport(method, url, deadline, **kwargs):
+        path = urlsplit(url).path.removeprefix("/v2/")
+        calls.append((method, path, kwargs.get("body")))
+        if method == "POST":
+            if state["failure"] == "reject":
+                raise urllib.error.HTTPError(
+                    url, 422, "invalid", Message(), BytesIO(b'{"errors":{"gross_value":"too much"}}')
+                )
+            if state["failure"] == "timeout":
+                raise TimeoutError("uncertain")
+            root = "credit_note" if path == "credit_notes" else "credit_note_reconciliation"
+            return {root: deepcopy(state[root])}, {"Location": state[root]["url"]}
+        if path.startswith("company"):
+            return {"company": {"url": BASE + "company/1"}}, {}
+        if state["failure"] == "readback":
+            raise urllib.error.HTTPError(url, 503, "unavailable", Message(), None)
+        if path == "credit_notes":
+            return {"credit_notes": [deepcopy(state["credit_note"])]}, {}
+        if path == "credit_note_reconciliations":
+            return {"credit_note_reconciliations": [deepcopy(state["credit_note_reconciliation"])]}, {}
+        root = (
+            "credit_note_reconciliation"
+            if path.startswith("credit_note_reconciliations/")
+            else "credit_note"
+            if path.startswith("credit_notes/")
+            else "invoice"
+        )
+        output = "credit_note_reconciliations" if root == "credit_note_reconciliation" else root
+        return {output: deepcopy(state[root])}, {}
+
+    dispatcher = Dispatcher(
+        accounts, "dummy", "dummy", client_factory=lambda *args: HostedClient(*args, transport=transport)
+    )
+
+    def invoke(name, **args):
+        with hosted_context(principal):
+            return dispatcher.call_tool(name, args)
+
+    return invoke, state, calls
+
+
+def draft_args():
+    return dict(
+        contact="1",
+        dated_on="2026-10-25",
+        payment_terms_in_days=0,
+        items=[dict(description="credit", quantity="1", price="-100", sales_tax_rate="20")],
+        currency="EUR",
+        confirmed=True,
+    )
+
+
+def allocation_args():
+    return dict(
+        credit_note="8",
+        invoice="7",
+        gross_value="60",
+        dated_on="2026-10-25",
+        currency="EUR",
+        exchange_rate="0.85",
+        confirmed=True,
+    )
+
+
+def test_draft_signed_foreign_currency_and_provider_default(credit):
+    invoke, state, calls = credit
+    result = invoke("create_draft_credit_note", **draft_args())
+    assert not result.is_error
+    assert result.structured_content == {"credit_note": state["credit_note"]}
+    writes = [c for c in calls if c[0] == "POST"]
+    assert len(writes) == 1
+    body = writes[0][2]["credit_note"]
+    assert body["contact"] == BASE + "contacts/1"
+    assert body["credit_note_items"] == draft_args()["items"]
+    assert body["currency"] == "EUR"
+    assert "status" not in body
+    assert not any("transitions" in path or "send_email" in path for _, path, _ in calls)
+
+
+@pytest.mark.parametrize("amount", ["60", "120", "999"])
+def test_allocation_reads_all_affected_records_without_local_accounting_validation(credit, amount):
+    invoke, state, calls = credit
+    state["credit_note_reconciliation"]["gross_value"] = amount
+    result = invoke("create_credit_note_reconciliation", **{**allocation_args(), "gross_value": amount})
+    assert not result.is_error
+    assert result.structured_content == {k: state[k] for k in ("credit_note_reconciliation", "credit_note", "invoice")}
+    write = next(c for c in calls if c[0] == "POST")
+    assert write[2]["credit_note_reconciliation"]["invoice"] == BASE + "invoices/7"
+    assert write[2]["credit_note_reconciliation"]["credit_note"] == BASE + "credit_notes/8"
+    assert write[2]["credit_note_reconciliation"]["gross_value"] == amount
+    assert {p for m, p, _ in calls if m == "GET"} >= {"credit_note_reconciliations/9", "credit_notes/8", "invoices/7"}
+
+
+@pytest.mark.parametrize(
+    "name,args", [("create_draft_credit_note", draft_args()), ("create_credit_note_reconciliation", allocation_args())]
+)
+def test_refused_writes_never_reach_provider(credit, name, args):
+    invoke, _, calls = credit
+    result = invoke(name, **{**args, "confirmed": False})
+    assert result.is_error
+    assert not calls
+
+
+@pytest.mark.parametrize("failure", ["reject", "timeout", "readback"])
+@pytest.mark.parametrize(
+    "name,args", [("create_draft_credit_note", draft_args()), ("create_credit_note_reconciliation", allocation_args())]
+)
+def test_provider_rejection_and_uncertain_outcomes_never_replay(credit, failure, name, args):
+    invoke, state, calls = credit
+    state["failure"] = failure
+    result = invoke(name, **args)
+    assert result.is_error
+    assert len([c for c in calls if c[0] == "POST"]) == 1
+    if failure != "reject":
+        assert "inspect" in result.content[0].text.lower()
+    if failure == "reject":
+        assert "422" in result.content[0].text
+
+
+def test_existing_draft_and_allocation_evidence_available_for_duplicate_review(credit):
+    invoke, state, calls = credit
+    note = invoke("list_credit_notes", contact="1", nested_credit_note_items="true")
+    reconciliations = invoke("list_credit_note_reconciliations")
+    assert note.structured_content["credit_notes"][0]["status"] == "Draft"
+    assert reconciliations.structured_content["credit_note_reconciliations"][0]["invoice"] == state["invoice"]["url"]
+    assert not [c for c in calls if c[0] == "POST"]
+
+
+def test_duplicate_lookup_failure_is_explicitly_incomplete(credit):
+    invoke, state, calls = credit
+    state["failure"] = "readback"
+    result = invoke("list_credit_notes", contact="1")
+    assert result.is_error
+    assert "incomplete" in result.content[0].text.lower()
+    assert not [c for c in calls if c[0] == "POST"]
+
+
+def test_allocation_is_destructive_non_idempotent_and_policy_gated():
+    descriptor = REGISTRY["create_credit_note_reconciliation"].descriptor
+    assert descriptor.annotations.destructive_hint
+    assert not descriptor.annotations.idempotent_hint
+    assert "policy review" in descriptor.description
+    assert "ownership" in descriptor.description

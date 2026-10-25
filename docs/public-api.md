@@ -12,8 +12,8 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Tasks | list/get/create/update | https://dev.freeagent.com/docs/tasks |
 | Timeslips | list/get/create/update/delete | https://dev.freeagent.com/docs/timeslips |
 | Invoices | list/get/create draft/update/delete | https://dev.freeagent.com/docs/invoices |
-| Credit notes | list/get (read-only); signed values, refund and item context | https://dev.freeagent.com/docs/credit_notes |
-| Credit-note reconciliations | list/get (read-only); invoice allocation evidence | https://dev.freeagent.com/docs/credit_note_reconciliations |
+| Credit notes | list/get/create draft; signed values, refund and item context | https://dev.freeagent.com/docs/credit_notes |
+| Credit-note reconciliations | list/get/create; affected credit/invoice readback, policy-gated allocation | https://dev.freeagent.com/docs/credit_note_reconciliations |
 | Expenses | list/get/create/update/delete; reads retain receipt reference and original/native/manual tax evidence | https://dev.freeagent.com/docs/expenses |
 | Mileage expenses | get_mileage_settings/create_mileage_expense; list/get use expenses and retain mileage/engine/reclaim fields | https://dev.freeagent.com/docs/expenses |
 | Estimates | list/get/create draft/update/delete | https://dev.freeagent.com/docs/estimates |
@@ -54,3 +54,5 @@ verification limits are audited in [the hosted coverage table](analysis.md#hoste
 Tax payment projection, permission and partial-balance limits are documented in
 [tax evidence rules](tax-overview.md). Date-addressed return details use period_ends_on;
 no filing or payment transitions are exposed.
+
+Credit-note creation/allocation mechanics and the inactive proposed ownership exception are documented in [credit policy](credit-notes.md). Issuing/sending remain unavailable; current restrictions remain active.

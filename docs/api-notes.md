@@ -138,3 +138,15 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 See [tax evidence rules](tax-overview.md) for verified paths, date identifiers,
 user-scoped self-assessment, distinct payment/filing dates, partial-payment limits
 and reviewed cash-flow handoff. No tax filing or payment action is added.
+
+## Credit notes and invoice allocations
+
+Use the [credit workflow and policy gate](credit-notes.md). Provider creates credit
+notes as Draft. Named helper forwards signed credit_note_items and reads back;
+issuing/email are separate and not exposed by this workflow. Reconciliations use
+POST credit_note_reconciliations with credit_note/invoice/gross_value; helper reads
+reconciliation, credit note and invoice. Detail JSON may use a plural root.
+Allocation is not a cash refund. Current-request ownership still applies to the
+affected invoice; a new reconciliation does not authorize changing an old invoice.
+Policy review and separate action approval are prerequisites. Preserve provider
+errors and inspect uncertain writes before any retry.

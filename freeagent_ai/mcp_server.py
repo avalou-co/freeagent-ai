@@ -137,6 +137,62 @@ def create_draft_invoice(
 
 
 @mcp.tool(annotations=WRITE)
+def create_draft_credit_note(
+    contact: str,
+    dated_on: str,
+    payment_terms_in_days: int,
+    items: list[dict],
+    currency: str = "",
+    project: str = "",
+    reference: str = "",
+) -> dict:
+    """Create one provider-default Draft credit note and read it back. Preview exact
+    signed lines, tax and currency, inspect existing credits and obtain approval first.
+    Items are documented credit_note_items fields, forwarded unchanged. This neither
+    issues nor emails nor allocates the credit; those are separate policy-gated actions."""
+    note: dict = {
+        "contact": contact,
+        "dated_on": dated_on,
+        "payment_terms_in_days": payment_terms_in_days,
+        "credit_note_items": items,
+    }
+    for key, value in (("currency", currency), ("project", project), ("reference", reference)):
+        if value:
+            note[key] = value
+    return _create_and_readback("credit_notes", "credit_note", note)
+
+
+@mcp.tool(annotations=API_WRITE)
+def create_credit_note_reconciliation(
+    credit_note: str,
+    invoice: str,
+    gross_value: str,
+    dated_on: str = "",
+    currency: str = "",
+    exchange_rate: str = "",
+) -> dict:
+    """Create an approved credit allocation, not a cash refund. Policy review is a
+    prerequisite: do not allocate to pre-existing records under current ownership rules.
+    Preview both records and exact amount/currency first. FreeAgent validates eligibility
+    and over-allocation. Read back reconciliation AND affected credit note/invoice; any
+    failure requires inspection before retry. No issuance or email is performed."""
+    fields = {"credit_note": credit_note, "invoice": invoice, "gross_value": gross_value}
+    for key, value in (("dated_on", dated_on), ("currency", currency), ("exchange_rate", exchange_rate)):
+        if value:
+            fields[key] = value
+    created = _api_call("POST", "credit_note_reconciliations", {"credit_note_reconciliation": fields})
+    record = created["credit_note_reconciliation"]
+    result = _api_call("GET", record["url"])
+    # The provider detail example uses a plural root, unlike create/XML.
+    reconciliation = result.get("credit_note_reconciliation", result.get("credit_note_reconciliations"))
+    return {
+        "credit_note_reconciliation": reconciliation,
+        "credit_note": _api_call("GET", credit_note)["credit_note"],
+        "invoice": _api_call("GET", invoice)["invoice"],
+    }
+
+
+@mcp.tool(annotations=WRITE)
 def create_expense(
     user: str,
     category: str,

@@ -172,3 +172,8 @@ disabled until each verified listing or connection URL is supplied.
 
 Use `/freeagent-ai:tax-overview` for read-only VAT, Corporation Tax and user-scoped
 Income Tax evidence, with separate filing/payment dates and reviewed forecast commitments.
+
+Use `/freeagent-ai:credit-notes` to review duplicate credits and create approved
+Draft credit notes. Issuing and invoice allocations remain behind the explicit
+[policy review gate](docs/credit-notes.md); adding tools does not authorize changes
+to pre-existing invoices. Allocation mechanics return all affected records.

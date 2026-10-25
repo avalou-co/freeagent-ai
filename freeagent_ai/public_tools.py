@@ -129,7 +129,7 @@ FIELDS = {
     "category": "url description nominal_code allowable_for_tax auto_sales_tax_rate",
     "timeslip": "url user project task dated_on hours comment billed_on_invoice timer",
     "invoice": "url contact contact_name project reference dated_on due_on status currency net_value sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails invoice_items",
-    "credit_note": "url contact project reference dated_on due_on status currency net_value sales_tax_value total_value due_value second_sales_tax_value refunded_value refunded_on written_off_date credit_note_items",
+    "credit_note": "url contact project reference dated_on due_on status currency exchange_rate payment_terms_in_days net_value sales_tax_value total_value due_value second_sales_tax_value refunded_value refunded_on written_off_date credit_note_items",
     "credit_note_reconciliation": "url credit_note invoice dated_on currency gross_value exchange_rate",
     "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status",
     "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor",
@@ -161,6 +161,8 @@ CREATES = {
     "create_contact": "contact",
     "create_timeslip": "timeslip",
     "create_draft_invoice": "invoice",
+    "create_draft_credit_note": "credit_note",
+    "create_credit_note_reconciliation": "credit_note_reconciliation",
     "create_expense": "expense",
     "create_mileage_expense": "expense",
     "create_project": "project",
@@ -188,6 +190,8 @@ REFERENCE_RESOURCES = {
     "category": "categories",
     "bank_account": "bank_accounts",
     "bank_transaction": "bank_transactions",
+    "invoice": "invoices",
+    "credit_note": "credit_notes",
     "paid_invoice": "invoices",
     "paid_bill": "bills",
 }
@@ -266,7 +270,8 @@ def make_registry():
                 securitySchemes=schemes,
                 annotations=ToolAnnotations(
                     read_only_hint=method == "GET",
-                    destructive_hint=method in {"PUT", "DELETE"} or name == "explain_bank_transaction",
+                    destructive_hint=method in {"PUT", "DELETE"}
+                    or name in {"explain_bank_transaction", "create_credit_note_reconciliation"},
                     open_world_hint=name == "update_invoice",
                     idempotent_hint=method == "GET",
                 ),
@@ -399,11 +404,24 @@ def make_registry():
         add(
             helper,
             "POST",
-            "tasks" if helper == "create_task" else next(key for key in CORRECTIONS if CORRECTIONS[key][0] == root),
+            next(key for key, value in {**CORRECTIONS, **RESOURCES}.items() if value[0] == root),
             root,
             schema,
-            object_schema({root: record_schema(root)}, [root]),
-            f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. Resource reference inputs are numeric IDs. FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create.",
+            object_schema(
+                {
+                    key: record_schema(key)
+                    for key in (
+                        [root, "credit_note", "invoice"] if helper == "create_credit_note_reconciliation" else [root]
+                    )
+                },
+                [root, "credit_note", "invoice"] if helper == "create_credit_note_reconciliation" else [root],
+            ),
+            f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. Resource reference inputs are numeric IDs. FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create."
+            + (
+                " Allocation requires explicit policy review first; existing ownership restrictions remain. Draft approval is not allocation approval. This is not a cash refund."
+                if helper == "create_credit_note_reconciliation"
+                else ""
+            ),
             helper,
             meta,
         )
@@ -510,7 +528,10 @@ class Dispatcher:
             self._expand_references(args, client.base)
             # No filesystem parameter exists in the public schema.
             result = getattr(local, op.helper)(**args)
-            return {op.root: project_record(result[op.root], op.root)}
+            roots = (
+                [op.root, "credit_note", "invoice"] if op.helper == "create_credit_note_reconciliation" else [op.root]
+            )
+            return {root: project_record(result[root], root) for root in roots}
         path = op.endpoint.replace("{id}", args.pop("id", ""))
         for parameter in ("user_id", "period_ends_on"):
             if "{" + parameter + "}" in path:
