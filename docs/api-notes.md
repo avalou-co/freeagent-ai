@@ -168,3 +168,17 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 See [tax evidence rules](tax-overview.md) for verified paths, date identifiers,
 user-scoped self-assessment, distinct payment/filing dates, partial-payment limits
 and reviewed cash-flow handoff. No tax filing or payment action is added.
+
+
+## Recurring invoices
+
+- The [documented recurring invoice API](https://dev.freeagent.com/docs/recurring_invoices)
+  offers GET collection/detail and contact/view filters, not profile creation.
+- Preserve view membership separately from recurring_status: inactive is a list view;
+  documented status values are Active/Draft. Read all linked pages once.
+- Frequency, next_recurs_on and recurring_end_date describe billing, not cash.
+  Calendar clamping, end inclusivity and expected payment dates require reviewed
+  scenario assumptions; no guaranteed collection or FX conversion.
+- No generated invoice/profile relationship field is documented. Require reviewed
+  occurrence evidence before additional forecast cash; unresolved overlaps stay
+  incomplete. See [recurring scenarios](recurring-revenue.md).

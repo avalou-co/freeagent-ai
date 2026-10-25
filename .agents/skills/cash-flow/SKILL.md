@@ -49,3 +49,10 @@ confirm payment date, account, currency and overlap before adding a commitment.
 Tax commitments may come from the tax-overview workflow only after review of
 taxpayer scope, residual amounts, dates, currency and overlap with opening balances,
 bills and existing commitments. Filing deadlines are never payment dates.
+
+
+For recurring invoice scenarios, use the recurring-revenue workflow and
+[its explicit calendar/payment/overlap contract](../../../docs/recurring-revenue.md).
+Billing dates are not expected cash dates. Only reviewed additional occurrences
+become commitments; already-generated invoices stay in normal invoice due_value
+reads and unresolved overlaps propagate missing_inputs.

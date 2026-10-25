@@ -154,3 +154,10 @@ numeric explanation/attachment IDs and bounded file references. POST and PUT
 read the collection back automatically. This does not confer ownership or approval:
 follow current-request rules for the explanation and existing attachment.
 See [migration inventory, rollout and fallback](bank-attachments.md).
+
+Hosted recurring profile reads use the fixed `list_recurring_invoices` and
+`get_recurring_invoice` operations from the generated registry audit. Both are
+read-only and preserve shared scope, account isolation and pagination mechanics.
+Local clients use the unchanged generic GET. No profile mutation or API scheduling
+validation is added; [recurring arithmetic](recurring-revenue.md) uses explicitly
+reviewed calendar/payment/overlap assumptions outside the transport layer.

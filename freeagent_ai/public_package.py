@@ -152,7 +152,14 @@ def package_files(root, metadata=None):
     for source in sorted((root / ".agents/skills").glob("*/SKILL.md")):
         files[f"skills/{source.parent.name}/SKILL.md"] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
-    for name in ["agent-rules.md", "api-notes.md", "receipts.md", "bank-attachments.md", "tax-overview.md"]:
+    for name in [
+        "agent-rules.md",
+        "api-notes.md",
+        "receipts.md",
+        "bank-attachments.md",
+        "tax-overview.md",
+        "recurring-revenue.md",
+    ]:
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text(), docs_prefix="").encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()

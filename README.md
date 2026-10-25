@@ -89,6 +89,10 @@ scenarios, and `/freeagent-ai:profitability` for project/client revenue, time, b
 and unbilled work. Both show missing inputs and preserve currencies. See
 [analysis assumptions and calculation contracts](docs/analysis.md).
 
+Use `/freeagent-ai:recurring-revenue` to review recurring invoice profiles and
+prepare explicit billing/payment scenarios with generated-invoice overlap checks.
+See [recurring scenario assumptions](docs/recurring-revenue.md).
+
 ## Using it
 
 Ask your agent in plain language, for example:

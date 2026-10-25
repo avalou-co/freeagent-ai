@@ -72,3 +72,15 @@ attachment data; agents must not print signed URLs or content.
 Tax payment projection, permission and partial-balance limits are documented in
 [tax evidence rules](tax-overview.md). Date-addressed return details use period_ends_on;
 no filing or payment transitions are exposed.
+
+
+## Recurring invoice reads
+
+`list_recurring_invoices` and `get_recurring_invoice` are fixed read-only operations
+from the [provider contract](https://dev.freeagent.com/docs/recurring_invoices),
+checked 2026-10-25. View/contact filters use shared reference expansion and complete
+pagination. Safe projections preserve billing schedule, recurring status, identity,
+contact/project, currency, amounts, terms and line items. No profile mutations or
+undocumented generated-invoice relationship are introduced. Local scenario arithmetic
+and hosted workflow use [explicit calendar/payment/overlap review](recurring-revenue.md).
+The generated hosted tool audit derives both GET operations from the registry.

@@ -134,3 +134,13 @@ allocations, draft-linked/non-billable time, day budgets, denied reads, malforme
 projections, missing fields, running timers and currencies. These checks make no
 live account calls; sandbox evidence and independent calculation review remain
 separate gates.
+
+## Recurring billing scenarios
+
+`freeagent_ai.recurring.recurring_scenario` expands reviewed recurring profile
+snapshots separately from this module's outstanding-invoice arithmetic. See the
+[calendar, payment and generated-invoice overlap contract](recurring-revenue.md).
+Its billing events are not recorded revenue or guaranteed cash. Pass only reviewed
+additional commitments into forecast, keep currencies separate, and preserve the
+helper's missing_inputs. Existing generated invoices stay in normal invoice reads;
+never also count their profile occurrence as additional cash.
