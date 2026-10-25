@@ -72,3 +72,61 @@ costs_complete false when any revenue adjustments remain unresolved. Issued cred
 notes enter credit_notes with the provider's signed negative net_value; allocation
 to invoices does not make another revenue adjustment. Outstanding credit refunds
 need reviewed signed cash commitments; allocations are not cash receipts.
+
+## Hosted field coverage
+
+Checked against the linked provider attribute and response contracts on 2026-10-25.
+The same fields survive list and detail projections. For credit-note lines, request
+`nested_credit_note_items="true"` or fetch the individual credit note. Reads aggregate linked pages
+by default. For complete snapshots omit `page` and leave `paginate` true. Hosted
+resource filters take numeric IDs; the dispatcher expands these to account-bound
+provider URLs. Local `freeagent_get` remains available without projection changes.
+
+| Analysis input | Hosted operation | Preserved fields and review |
+| --- | --- | --- |
+| Selected cash accounts | `list_bank_accounts`, `get_bank_account` | `url`, `currency`, `current_balance`, `latest_activity_date`, `is_personal`, `status`; missing activity date remains unknown, not a claim of freshness |
+| Outstanding receivables | `list_invoices`, `get_invoice` | `url`, `project`, `contact`, `dated_on`, `due_on`, `status`, `currency`, `net_value`, `total_value`, `due_value`, `paid_value`; use residuals, not totals or settlement as period cash |
+| Outstanding payables | `list_bills`, `get_bill` | `url`, `dated_on`, `due_on`, `status`, `currency`, `due_value`, `net_value`, `total_value`, `sales_tax_value`; retain `project`, `rebill_to_project`, `rebill_type`, `rebill_factor` and `bill_items` for reviewed cost allocation |
+| Credit revenue/refunds | `list_credit_notes`, `get_credit_note` | `url`, `contact`, `project`, `reference`, `dated_on`, `due_on`, `status`, `currency`, signed `net_value`, `sales_tax_value`, `total_value`, `due_value`, `refunded_value`, `refunded_on`, `written_off_date`, `credit_note_items`; never take absolute revenue or infer a refund date |
+| Credit allocation context | `list_credit_note_reconciliations`, `get_credit_note_reconciliation` | `url`, `credit_note`, `invoice`, `dated_on`, `currency`, `gross_value`, `exchange_rate`; a reconciliation is an allocation, not another cash payment or revenue adjustment |
+| Project grouping/budget | `list_projects`, `get_project` | `url`, `contact`, `currency`, `budget`, `budget_units`, `hours_per_day`; day budgets need the provider's day length |
+| Task billability | `list_tasks`, `get_task` | `url`, `project`, `is_billable`, `currency`, `billing_rate`, `billing_period`, `status`; fetch all tasks including inactive ones |
+| Recorded/unbilled time | `list_timeslips`, `get_timeslip` | `url`, `project`, `task`, `user`, `dated_on`, `hours`, `billed_on_invoice`, `timer.running`, `timer.start_from`; `view=all` supported; a Draft invoice link still excludes time from unbilled WIP |
+| Expense cost evidence | `list_expenses`, `get_expense` | `url`, `project`, `dated_on`, `currency`, `gross_value`, `sales_tax_value`, native values, second tax fields, tax status, `rebill_to_project`, `rebill_type`, `rebill_factor`, `rebilled_on_invoice`; review signed net costs, currency/tax basis and allocation |
+| Bill item evidence | Bill reads above | `bill_items` preserve `url`, `bill`, `project`, `category`, `total_value`, `total_value_ex_tax`, tax amounts/rates/status; never count a whole bill and its allocated lines together |
+| Sales line evidence | Invoice/credit-note reads above | line `url`, `project`, `invoice_item`, quantity/price and tax fields support source review; credit-note item links are evidence, not inferred allocation cash |
+| Additional commitments/cost rates | User-reviewed input | No API projection can prove external commitments absent, establish account assignment or supply internal hourly rates. Confirm overlap and completeness explicitly |
+
+Credit-note collection filters are `view`, `updated_since`, `sort`, and
+`nested_credit_note_items` (string `"true"`/`"false"`); reconciliation
+filters are `from_date`, `to_date`, `updated_since`. Do not send invented contact,
+project or date-range filters to credit notes; select from the complete collection.
+The provider's reconciliation detail JSON example uses a plural root while its
+XML/create examples use singular; hosted detail reads accept either spelling and
+return the canonical singular root. Verify this shape in a dedicated sandbox before
+claiming live provider compatibility.
+
+`analysis.IncompleteData` explicitly rejects snapshots missing required calculation
+fields or linked tasks. Hosted read errors return `isError=true` with “Read
+incomplete”; do not turn permission errors, page failures or invalid projections
+into empty lists. Stop collection and report which operation failed. A failed
+required read cannot be repaired by passing `missing_inputs=[]`. Optional absent
+`billed_on_invoice` and `timer` follow the documented provider convention (no linked
+invoice/running timer); their projection is now retained when present. Resolve
+running timers before calculating. Missing optional budgets mean unknown budget,
+not zero. Normalise provider numeric zero budgets to decimal string `"0"` explicitly
+before arithmetic; do not generalise this into defaulting missing amounts.
+
+Forecast results carry `status="incomplete"` when reviewed `missing_inputs` remain.
+Profitability results carry `status="incomplete"` when costs are not confirmed
+complete or user rates are missing; known subtotals are still evidence, not complete
+margin. Required missing fields raise instead of producing totals. Sign/currency,
+allocation and external-data review remain agent responsibilities, not API mechanics.
+
+Synthetic integration tests collect both workflows through `Dispatcher.invoke` and
+`HostedClient`, including linked-page aggregation, then reconcile the existing
+arithmetic helpers. They cover credit revenue and refunds separately from
+allocations, draft-linked/non-billable time, day budgets, denied reads, malformed
+projections, missing fields, running timers and currencies. These checks make no
+live account calls; sandbox evidence and independent calculation review remain
+separate gates.
