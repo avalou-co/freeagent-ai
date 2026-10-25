@@ -5,12 +5,19 @@ import urllib.error
 from copy import deepcopy
 from email.message import Message
 from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
+from conftest import settings
+from starlette.testclient import TestClient
 
 from freeagent_ai.hosted_accounts import Principal
+from freeagent_ai.hosted_app import create_app
+from freeagent_ai.hosted_auth import ORIGIN
 from freeagent_ai.hosted_client import HostedClient
+from freeagent_ai.public_package import package_files
 from freeagent_ai.public_tools import REGISTRY, Dispatcher
 
 BASE = "https://api.freeagent.com/v2/"
@@ -84,7 +91,7 @@ def credit(accounts, hosted_context):
         with hosted_context(principal):
             return dispatcher.call_tool(name, args)
 
-    return invoke, state, calls
+    return invoke, state, calls, dispatcher
 
 
 def draft_args():
@@ -111,7 +118,7 @@ def allocation_args():
 
 
 def test_draft_signed_foreign_currency_and_provider_default(credit):
-    invoke, state, calls = credit
+    invoke, state, calls, _ = credit
     result = invoke("create_draft_credit_note", **draft_args())
     assert not result.is_error
     assert result.structured_content == {"credit_note": state["credit_note"]}
@@ -127,7 +134,7 @@ def test_draft_signed_foreign_currency_and_provider_default(credit):
 
 @pytest.mark.parametrize("amount", ["60", "120", "999"])
 def test_allocation_reads_all_affected_records_without_local_accounting_validation(credit, amount):
-    invoke, state, calls = credit
+    invoke, state, calls, _ = credit
     state["credit_note_reconciliation"]["gross_value"] = amount
     state["credit_note"]["status"] = "Open"
     result = invoke("create_credit_note_reconciliation", **{**allocation_args(), "gross_value": amount})
@@ -144,7 +151,7 @@ def test_allocation_reads_all_affected_records_without_local_accounting_validati
     "name,args", [("create_draft_credit_note", draft_args()), ("create_credit_note_reconciliation", allocation_args())]
 )
 def test_refused_writes_never_reach_provider(credit, name, args):
-    invoke, _, calls = credit
+    invoke, _, calls, _ = credit
     result = invoke(name, **{**args, "confirmed": False})
     assert result.is_error
     assert not calls
@@ -155,7 +162,7 @@ def test_refused_writes_never_reach_provider(credit, name, args):
     "name,args", [("create_draft_credit_note", draft_args()), ("create_credit_note_reconciliation", allocation_args())]
 )
 def test_provider_rejection_and_uncertain_outcomes_never_replay(credit, failure, name, args):
-    invoke, state, calls = credit
+    invoke, state, calls, _ = credit
     state["failure"] = failure
     result = invoke(name, **args)
     assert result.is_error
@@ -167,7 +174,7 @@ def test_provider_rejection_and_uncertain_outcomes_never_replay(credit, failure,
 
 
 def test_existing_draft_and_allocation_evidence_available_for_duplicate_review(credit):
-    invoke, state, calls = credit
+    invoke, state, calls, _ = credit
     note = invoke("list_credit_notes", contact="1", nested_credit_note_items="true")
     reconciliations = invoke("list_credit_note_reconciliations")
     assert note.structured_content["credit_notes"][0]["status"] == "Draft"
@@ -176,7 +183,7 @@ def test_existing_draft_and_allocation_evidence_available_for_duplicate_review(c
 
 
 def test_duplicate_lookup_failure_is_explicitly_incomplete(credit):
-    invoke, state, calls = credit
+    invoke, state, calls, _ = credit
     state["failure"] = "readback"
     result = invoke("list_credit_notes", contact="1")
     assert result.is_error
@@ -195,7 +202,7 @@ def test_allocation_is_destructive_non_idempotent_and_policy_gated():
 
 
 def test_existing_issued_allocation_partial_verification_never_repeats_or_edits(credit):
-    invoke, state, calls = credit
+    invoke, state, calls, _ = credit
     state["credit_note"]["status"] = "Open"
     state["failure"] = "invoice_readback"
     result = invoke("create_credit_note_reconciliation", **allocation_args())
@@ -212,3 +219,43 @@ def test_allocation_policy_does_not_expose_issuing_or_refund_operations():
     assert not any(
         "credit_note" in name and any(x in name for x in ("sent", "issue", "refund", "email")) for name in REGISTRY
     )
+
+
+def test_marketplace_package_and_remote_mcp_credit_path(credit, accounts):
+    _, state, calls, dispatcher = credit
+    root = Path(__file__).resolve().parents[1]
+    files = package_files(root)
+    skill = files["skills/credit-notes/SKILL.md"].decode()
+    assert "No client-local Python" in skill
+    assert "freeagent_get" not in skill
+    assert "docs/credit-notes.md" in files
+    principal = Principal("credit", frozenset({"freeagent:read", "freeagent:write"}), 101)
+    app = create_app(settings(), accounts, SimpleNamespace(principal=lambda _: principal), dispatcher)
+    with TestClient(app, base_url=ORIGIN) as client:
+        headers = {"Authorization": "Bearer synthetic", "Accept": "application/json, text/event-stream"}
+        discovery = client.post(
+            "/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+        )
+        descriptors = {t["name"]: t for t in discovery.json()["result"]["tools"]}
+        for name, args in [
+            ("create_draft_credit_note", draft_args()),
+            ("create_credit_note_reconciliation", allocation_args()),
+        ]:
+            assert name in descriptors
+            assert descriptors[name]["securitySchemes"] == [{"type": "oauth2", "scopes": ["freeagent:write"]}]
+            if name == "create_credit_note_reconciliation":
+                state["credit_note"]["status"] = "Open"
+            response = client.post(
+                "/mcp",
+                headers=headers,
+                json={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": name, "arguments": args}},
+            )
+            assert response.status_code == 200
+            result = response.json()["result"]
+            assert not result.get("isError", False)
+            data = result["structuredContent"]
+            assert "credit_note" in data
+            if name == "create_credit_note_reconciliation":
+                assert data["invoice"]["url"] == BASE + "invoices/7"
+                assert data["credit_note_reconciliation"]["gross_value"] == "60"
+        assert len([c for c in calls if c[0] == "POST"]) == 2

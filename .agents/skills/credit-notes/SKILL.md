@@ -45,5 +45,6 @@ exact signed line quantities/prices/tax. Never assume a full refund, tax rate or
 
 Hosted reads: `list_credit_notes`, `get_credit_note`, `list_credit_note_reconciliations`,
 `get_credit_note_reconciliation`, `list_invoices`, `get_invoice`, `list_contacts`.
-Local reads use freeagent_get with the documented resources. Issuing/sending is not
+Use these remote tools directly in ChatGPT web or iOS. No client-local Python,
+shell, filesystem, CLI or generic API executor is needed. Issuing/sending is not
 provided by this workflow. Live sandbox evidence remains a separate release gate.

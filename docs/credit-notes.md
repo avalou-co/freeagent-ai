@@ -73,3 +73,18 @@ Use the skill's source-evidence preview for duplicate proposals; no server ledge
 local duplicate-accounting validator is introduced. Independent financial-workflow
 review is required before PR readiness. Authorized provider sandbox acceptance and
 real account eligibility remain external release gates; no live writes are implied.
+
+## Marketplace runtime audit
+
+The installed ChatGPT web/iOS workflow uses conversational review and the remote
+named tools in its skill. Contact/invoice/credit/reconciliation reads and both
+create helpers are declared in the hosted registry and exposed through authenticated
+MCP discovery/invocation. The package includes this document, the skill and shared
+agent rules with source digests. It requires no client-local Python, shell, files,
+CLI or generic API executor. Python helpers described above execute inside the
+remote service; their presence alone is not evidence of client availability.
+Synthetic authenticated HTTP tests discover both named creates and invoke them
+through tools/call with the real dispatcher, including affected-record readback.
+This proves the packaged route and server mechanics, not publication, installed
+ChatGPT web/iOS execution or deployed provider availability; those require actual
+marketplace installation and authorized end-to-end verification.
