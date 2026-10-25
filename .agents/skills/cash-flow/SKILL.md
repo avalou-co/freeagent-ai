@@ -45,3 +45,7 @@ failed operation and stop the calculation until resolved. Preserve helper
 Read `list_credit_note_reconciliations` as allocation evidence alongside
 `list_credit_notes`. Review outstanding signed `due_value` refunds separately;
 confirm payment date, account, currency and overlap before adding a commitment.
+
+Tax commitments may come from the tax-overview workflow only after review of
+taxpayer scope, residual amounts, dates, currency and overlap with opening balances,
+bills and existing commitments. Filing deadlines are never payment dates.

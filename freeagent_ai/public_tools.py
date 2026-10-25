@@ -112,7 +112,17 @@ ITEM_FIELDS = [
     "second_sales_tax_status",
 ]
 ATTACHMENT_FIELDS = ["url", "file_name", "content_type", "file_size", "description"]
+TAX_PAYMENT_FIELDS = ["label", "due_on", "amount_due", "status"]
+TAX_RETURNS = {
+    "vat_returns": "vat_return",
+    "corporation_tax_returns": "corporation_tax_return",
+    "users/{user_id}/self_assessment_returns": "self_assessment_return",
+}
+TAX_FIELDS = "url period_starts_on period_ends_on filing_due_on filing_status filed_at filed_reference"
 FIELDS = {
+    "vat_return": TAX_FIELDS + " payments",
+    "corporation_tax_return": TAX_FIELDS + " amount_due payment_due_on payment_status",
+    "self_assessment_return": TAX_FIELDS + " payments",
     "contact": "url organisation_name first_name last_name status default_payment_terms_in_days account_balance country",
     "project": "url contact name status currency normal_billing_rate billing_period budget budget_units hours_per_day",
     "task": "url project name status billing_rate billing_period is_billable currency is_deletable",
@@ -191,7 +201,9 @@ def object_schema(properties, required=()):
 def record_schema(root):
     props = {}
     for field in FIELDS[root].split():
-        if field.endswith("_items"):
+        if field == "payments":
+            props[field] = {"type": "array", "items": object_schema({name: SCALAR for name in TAX_PAYMENT_FIELDS})}
+        elif field.endswith("_items"):
             props[field] = {"type": "array", "items": object_schema({name: SCALAR for name in ITEM_FIELDS})}
         elif field == "timer":
             props[field] = {
@@ -228,7 +240,9 @@ def project_record(record: Any, root):
         if field not in record:
             continue
         value = record[field]
-        if field.endswith("_items"):
+        if field == "payments":
+            value = [{key: item[key] for key in TAX_PAYMENT_FIELDS if key in item} for item in value]
+        elif field.endswith("_items"):
             value = [{key: item[key] for key in ITEM_FIELDS if key in item} for item in value]
         elif field == "timer" and value is not None:
             value = {key: value[key] for key in ("running", "start_from") if key in value}
@@ -363,6 +377,37 @@ def make_registry():
             "obtain approval before writes. Reads back the collection automatically; inspect uncertain outcomes before retry. "
             "Signed content URLs and bytes are not returned.",
             meta={"openai/fileParams": ["file"]} if action in {"add", "update"} else None,
+        )
+    # Tax returns use period end dates, not numeric record IDs; income tax is user-scoped.
+    period_schema = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
+    for endpoint, root in TAX_RETURNS.items():
+        collection = root + "s"
+        scope = {"user_id": id_schema} if "{user_id}" in endpoint else {}
+        add(
+            "list_" + collection,
+            "GET",
+            endpoint,
+            root,
+            object_schema(
+                {
+                    **scope,
+                    "per_page": {"type": "integer", "minimum": 1, "maximum": 100},
+                    "page": {"type": "integer", "minimum": 1},
+                    "paginate": {"type": "boolean"},
+                },
+                scope,
+            ),
+            object_schema({collection: {"type": "array", "items": record_schema(root)}}, [collection]),
+            "Read tax returns and provider payment/filing evidence. Tax, Accounting & Users access required; unavailable or denied data is not zero. Lists aggregate all linked pages.",
+        )
+        add(
+            "get_" + root,
+            "GET",
+            endpoint + "/{period_ends_on}",
+            root,
+            object_schema({**scope, "period_ends_on": period_schema}, [*scope, "period_ends_on"]),
+            object_schema({root: record_schema(root)}, [root]),
+            "Read a tax return by period end date. Filing dates are not payment deadlines; amounts/status do not prove an unpaid balance after partial payments.",
         )
     # Reports are recursive accounting values only; omit provider debug/identity keys.
     report_schema = {"type": "object", "additionalProperties": True}
@@ -529,6 +574,9 @@ class Dispatcher:
             result = getattr(local, op.helper)(**args)
             return {op.root: project_record(result[op.root], op.root)}
         path = op.endpoint.replace("{id}", args.pop("id", ""))
+        for parameter in ("user_id", "period_ends_on"):
+            if "{" + parameter + "}" in path:
+                path = path.replace("{" + parameter + "}", args.pop(parameter))
         paginate = args.pop("paginate", True)
         if op.name.startswith("list_"):
             args.setdefault("per_page", 100)
@@ -542,7 +590,8 @@ class Dispatcher:
         if op.method == "PUT":
             result = client.call("GET", path)
         if op.name.startswith("list_"):
-            return {op.endpoint: [project_record(item, op.root) for item in result[op.endpoint]]}
+            collection = op.root + "s" if op.endpoint in TAX_RETURNS else op.endpoint
+            return {collection: [project_record(item, op.root) for item in result[collection]]}
         if op.endpoint.startswith("accounting/"):
             # Reports contain accounting summaries, no user profile or credential data.
             return {op.root: report_project(result[op.root])}

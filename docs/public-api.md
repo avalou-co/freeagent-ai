@@ -22,6 +22,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Bank explanations | get/create/delete; safe legacy/plural attachment references | https://dev.freeagent.com/docs/bank_transaction_explanations |
 | Bank-explanation attachments | list/add one/update one/remove one; automatic collection readback after writes | https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01 |
 | Users/company/categories | list/get, current-user/company | https://dev.freeagent.com/docs/users and https://dev.freeagent.com/docs/company and https://dev.freeagent.com/docs/categories |
+| Tax returns | VAT, Corporation Tax and user-scoped self-assessment list/get only | https://dev.freeagent.com/docs/vat_returns and https://dev.freeagent.com/docs/corporation_tax_returns and https://dev.freeagent.com/docs/income_tax_returns |
 | Accounting reports | P&L summary, balance sheet, trial balance summary | https://dev.freeagent.com/docs/profit_and_loss and https://dev.freeagent.com/docs/balance_sheet and https://dev.freeagent.com/docs/trial_balance |
 
 Task DELETE is intentionally unavailable: the provider's task-deletion section
@@ -67,3 +68,7 @@ file contents. Safe collection projections return `url`, `file_name`, `content_t
 hosted results. An unavailable/malformed read is incomplete, never an empty list.
 Local generic calls remain direct API mechanics and can return raw provider
 attachment data; agents must not print signed URLs or content.
+
+Tax payment projection, permission and partial-balance limits are documented in
+[tax evidence rules](tax-overview.md). Date-addressed return details use period_ends_on;
+no filing or payment transitions are exposed.
