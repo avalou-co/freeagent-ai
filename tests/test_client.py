@@ -472,3 +472,33 @@ def test_rate_limit_budget_survives_token_refresh(responses, monkeypatch):
     assert len(requests) == 5
     assert len(refreshes) == 1
     assert sleeps == [1, 2, 4]
+
+
+def test_local_api_calls_pin_bank_attachment_version_on_every_page(responses):
+    queue, requests, _ = responses
+    queue.extend([({"attachments": []}, '<?page=2>; rel="next"'), ({"attachments": []}, "")])
+    assert client.call("GET", "bank_transaction_explanations/1/attachments") == {"attachments": []}
+    assert len(requests) == 2
+    assert all(request.get_header("X-Api-Version") == client.API_VERSION == "2026-09-01" for request in requests)
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+def test_local_attachment_write_pins_version_and_keeps_exact_body(servers, monkeypatch, method):
+    seen = []
+    body = {"attachments": [{"url": "https://api.freeagent.com/v2/attachments/7", "_destroy": "true"}]}
+
+    def handler(h):
+        seen.append(
+            (h.command, h.headers.get("X-Api-Version"), json.loads(h.rfile.read(int(h.headers["Content-Length"]))))
+        )
+        data = b'{"attachments": []}'
+        h.send_response(200)
+        h.send_header("Content-Length", str(len(data)))
+        h.end_headers()
+        h.wfile.write(data)
+
+    api = servers(handler)
+    api.httpd.RequestHandlerClass.do_PUT = api.httpd.RequestHandlerClass.do_POST
+    monkeypatch.setattr(client, "BASE", api.url + "v2/")
+    assert client.call(method, "bank_transaction_explanations/1/attachments", body) == {"attachments": []}
+    assert seen == [(method, "2026-09-01", body)]

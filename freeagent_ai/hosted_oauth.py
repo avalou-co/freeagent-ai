@@ -4,6 +4,7 @@ import base64
 import re
 import time
 
+from .client import API_VERSION
 from .hosted_accounts import AccessDenied
 
 
@@ -24,7 +25,7 @@ def exchange_identity(settings, code, redirect_uri, deadline, transport, *, envi
         form={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri},
         headers={"Authorization": "Basic " + basic},
     )
-    headers = {"Authorization": "Bearer " + tokens["access_token"]}
+    headers = {"Authorization": "Bearer " + tokens["access_token"], "X-Api-Version": API_VERSION}
     user, _ = transport("GET", base + "users/me", deadline, headers=headers)
     company, _ = transport("GET", base + "company", deadline, headers=headers)
     user_url = user.get("user", {}).get("url", "")

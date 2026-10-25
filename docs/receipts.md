@@ -78,3 +78,15 @@ They do not establish assistant extraction accuracy, resistance to document
 instructions, deployed account isolation or successful sandbox writes. The visual
 and behavioral cases in the evaluation guide and independent upload security
 review remain release gates.
+
+## Bank-explanation receipt evidence
+
+The bank attachment version migration does not change expense/bill attachment
+payloads. Bank explanations use a separate plural attachment collection; use the
+bank-reconcile workflow and [bank attachment migration](bank-attachments.md)
+rather than sending an expense/bill's singular attachment shape to an explanation.
+Hosted bank file writes reuse this same invocation-only download contract and its
+limitations. Read back the attachment collection and compare file name, type,
+size/description and ID; a reference alone does not verify content identity.
+Never display signed source URLs/content. Changes require exact approval and
+current-request ownership of the explanation and any attachment replaced/removed.

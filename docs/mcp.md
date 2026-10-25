@@ -142,3 +142,15 @@ this also appears in hosted schemas. No extraction or duplicate policy tool is
 added. Hosted expense projections retain `receipt_reference` and available original,
 native and manual tax fields for evidence comparison; they do not decide duplicates
 or tax treatment. See the [hosted upload contract](receipts.md) for attachment boundaries.
+
+## Bank attachment migration
+
+API calls explicitly use `X-Api-Version: 2026-09-01`. The local generic API tools
+already support the provider's separate attachment collection: GET metadata, POST
+encoded files, PUT replacement/description or `_destroy`, then GET readback.
+Their arbitrary approved bodies remain unchanged; no local attachment model/count
+validator is added. The hosted audit adds four fixed named attachment tools with
+numeric explanation/attachment IDs and bounded file references. POST and PUT
+read the collection back automatically. This does not confer ownership or approval:
+follow current-request rules for the explanation and existing attachment.
+See [migration inventory, rollout and fallback](bank-attachments.md).

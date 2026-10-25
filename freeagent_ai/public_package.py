@@ -152,7 +152,7 @@ def package_files(root, metadata=None):
     for source in sorted((root / ".agents/skills").glob("*/SKILL.md")):
         files[f"skills/{source.parent.name}/SKILL.md"] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
-    for name in ["agent-rules.md", "api-notes.md", "receipts.md"]:
+    for name in ["agent-rules.md", "api-notes.md", "receipts.md", "bank-attachments.md"]:
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text(), docs_prefix="").encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -173,7 +173,9 @@ def validate_files(files):
     """Check every package mode for unresolved or local-only tool instructions."""
     for path, data in files.items():
         if path.startswith("skills/"):
-            for name in re.findall(r"`((?:list_|get_|create_|update_|delete_|explain_)[a-z_]+)`", data.decode()):
+            for name in re.findall(
+                r"`((?:list_|get_|create_|update_|delete_|explain_|add_|remove_)[a-z_]+)`", data.decode()
+            ):
                 if name not in REGISTRY:
                     raise ValueError(f"Unresolved packaged tool reference: {name}")
         if re.search(rb"freeagent_(?:get|post|put|delete)\b", data):
