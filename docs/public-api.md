@@ -12,7 +12,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Tasks | list/get/create/update | https://dev.freeagent.com/docs/tasks |
 | Timeslips | list/get/create/update/delete | https://dev.freeagent.com/docs/timeslips |
 | Invoices | list/get/create draft/update/delete | https://dev.freeagent.com/docs/invoices |
-| Expenses | list/get/create/update/delete | https://dev.freeagent.com/docs/expenses |
+| Expenses | list/get/create/update/delete; reads retain receipt reference and original/native/manual tax evidence | https://dev.freeagent.com/docs/expenses |
 | Mileage expenses | get_mileage_settings/create_mileage_expense; list/get use expenses and retain mileage/engine/reclaim fields | https://dev.freeagent.com/docs/expenses |
 | Estimates | list/get/create draft/update/delete | https://dev.freeagent.com/docs/estimates |
 | Bills | list/get/create/update/delete | https://dev.freeagent.com/docs/bills |

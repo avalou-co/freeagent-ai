@@ -111,7 +111,7 @@ FIELDS = {
     "category": "url description nominal_code allowable_for_tax auto_sales_tax_rate",
     "timeslip": "url user project task dated_on hours comment billed_on invoice",
     "invoice": "url contact contact_name project reference dated_on due_on status currency net_value sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails invoice_items",
-    "expense": "url user category dated_on gross_value description sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project",
+    "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value native_gross_value native_sales_tax_value manual_sales_tax_amount sales_tax_status second_sales_tax_rate second_sales_tax_status currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project",
     "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value bill_items attachment",
     "estimate": "url contact project reference dated_on status currency net_value sales_tax_value total_value estimate_items",
     "bank_account": "url name type currency current_balance",
