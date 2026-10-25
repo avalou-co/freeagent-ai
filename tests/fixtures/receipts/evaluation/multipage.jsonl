@@ -1,0 +1,4 @@
+{"request": {"arguments": {"path": "contacts"}, "tool": "freeagent_get"}, "response": {"contacts": [{"organisation_name": "Example Supplies", "url": "https://api.freeagent.com/v2/contacts/1"}]}, "scenario": "clean"}
+{"request": {"arguments": {"path": "categories"}, "tool": "freeagent_get"}, "response": {"categories": [{"description": "Travel", "url": "https://api.freeagent.com/v2/categories/285"}]}, "scenario": "clean"}
+{"request": {"arguments": {"path": "expenses?from_date=2026-10-01&to_date=2026-10-01"}, "tool": "freeagent_get"}, "response": {"expenses": []}, "scenario": "clean"}
+{"request": {"arguments": {"path": "bills?from_date=2026-10-01&to_date=2026-10-01"}, "tool": "freeagent_get"}, "response": {"bills": []}, "scenario": "clean"}
