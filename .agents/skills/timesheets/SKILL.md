@@ -6,16 +6,24 @@ argument-hint: "[date range]"
 
 # Timesheets workflow
 
-Generic. The business supplies the project, task and default hours; ask for them or find them in the business's own instructions. If the user gives names, resolve them with `GET projects?contact=...&view=active` and `GET tasks?project=...&view=active`. If a project or task does not exist, show the plan and, once approved, create it with `create_project` / `create_task` (see `docs/api-notes.md`).
+The business supplies project, task and hours; ask for missing inputs. Use
+`list_contacts`, `list_projects`, `list_tasks`, `list_users` and `get_current_user`
+to resolve identities with declared filters; inspect `get_project` / `get_task`
+when necessary. For approved new setup use `create_project` / `create_task`.
+Use only named remote tools in ChatGPT web/iOS; no local runner is required.
 
-1. Resolve dates from today's date. "Last week" means Mon to Sun before the current week. Confirm if ambiguous.
-2. Working days are Mon to Fri minus days the user was out. Ask about bank holidays; do not assume.
-3. `GET timeslips` for the range and skip dates that already have one. Report skips.
-4. Show the plan (date, project, task, hours) and wait for approval, unless the user already gave the exact details and said to do it.
-5. `POST timeslips` once per date.
-6. `GET` the range again and report what FreeAgent holds.
-
-If the user omits project or hours, use the business's defaults and say so in the report.
+1. Resolve the user's intended dates and hours. Confirm ambiguous date ranges and
+   absences; never assume bank holidays or invent working hours.
+2. Call `list_timeslips` for the user/date/project scope with paginate=true. Inspect
+   details with `get_timeslip`; show existing records and resolve overlaps with the
+   user. A failed lookup is not an empty history.
+3. Show exact date, user, project, task, hours and comment for each proposed timeslip.
+   Obtain approval of this plan; refusal or unresolved details mean no creation.
+4. Call `create_timeslip` once for each approved entry. Compare its readback with
+   the approved inputs, then use `get_timeslip` or `list_timeslips` if verification
+   is incomplete. Report source records and provider values without invented totals.
+5. On uncertain creation or failed readback, inspect the original account before
+   any further creation. Never blindly replay a write or edit unrelated records.
 
 Follow `docs/agent-rules.md` throughout.
 

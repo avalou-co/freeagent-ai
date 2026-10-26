@@ -34,6 +34,8 @@ jobs:
         run: ruff format --check .
       - name: Pyright
         run: pyright
+      - name: Marketplace API-only capability gate
+        run: python -m freeagent_ai.package_contract
 
   test:
     runs-on: ubuntu-latest

@@ -10,14 +10,14 @@ For uploaded receipt images or PDFs, first follow the [receipts workflow](../rec
 
 Generic. The business supplies the supplier, categories, VAT treatment and how bills are attached. Ask for them or find them in the business's own instructions.
 
-Listing: `freeagent_get` `bills?view=open` (unpaid) or `bills?view=overdue`.
+Listing: call `list_bills` with view=open (unpaid) or view=overdue; use `get_bill` for details.
 
 Recording:
 
-1. Find the supplier contact (`contacts`) and the category for each line (`categories`). Ask if unclear.
-2. Check `bills?from_date=&to_date=` for the same reference to avoid duplicates.
+1. Find the supplier with `list_contacts` / `get_contact` and category with `list_categories` / `get_category`. Ask if unclear.
+2. Call `list_bills` across all pages for the relevant dates and compare references to avoid duplicates.
 3. Show the plan (reference, dates, lines, VAT, attachment) and get a clear yes.
-4. Call `create_bill`. Pass `attachment_path` for the supplier's PDF or image if the user has one, and pass the reviewed `currency`.
+4. Call `create_bill`. Pass the ChatGPT file reference in `attachment` for the supplier's PDF or image if the user has one, and pass the reviewed `currency`.
 5. Report what FreeAgent holds: reference, dates, lines, totals, VAT, attachment. Flag any mismatch with the supplier's bill.
 
 Never modify bills you did not create in this task. Follow `docs/agent-rules.md` throughout.

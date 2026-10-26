@@ -8,9 +8,13 @@ argument-hint: "[bank account]"
 
 Generic. The business supplies which bank account to use, its categories, and any matching rules. Ask for them or find them in the business's own instructions; never guess a category.
 
-1. `freeagent_get bank_accounts` and pick the account (ask if unclear).
-2. `freeagent_get 'bank_transactions?bank_account=<url>&view=unexplained&per_page=100'`.
-3. For each transaction, propose one explanation: an open invoice (`invoices?view=open`) or bill (`bills?view=open`) matching amount and contact, else a category from the business's instructions. Mark low-confidence matches as guesses.
+1. Call `list_bank_accounts` / `get_bank_account` and pick the account (ask if unclear).
+2. Call `list_bank_transactions` for that numeric bank account ID with view=unexplained and paginate=true; use `get_bank_transaction` for details.
+3. Call `list_invoices` and `list_bills` with view=open; use `get_invoice` /
+   `get_bill` for selected details. Propose one explanation per transaction by
+   comparing returned source values and contact. Otherwise use `list_categories`
+   / `get_category` and the business's instructions. Mark uncertain matches as
+   guesses; do not derive amounts or treat failed reads as duplicate clearance.
 4. Show the proposals as a table and get a clear yes per item. Never batch-approve unless the user says so.
 5. For each approved item, call `explain_bank_transaction`. Report what FreeAgent holds from the read-back, and any transaction left partly unexplained.
 
@@ -35,8 +39,7 @@ explaining the transaction. Hosted tools are
 `add_bank_transaction_explanation_attachment`,
 `update_bank_transaction_explanation_attachment`, and
 `remove_bank_transaction_explanation_attachment`; use bounded host file references,
-never local paths. Local generic writes use the documented collection payload in
-`docs/api-notes.md`. Never place singular `attachment` on an explanation write.
+never local paths. Use only those named remote tools; no local executor is required. Never place singular `attachment` on an explanation write.
 
 After every change, read the attachment collection and compare actual IDs,
 count, file names, types, sizes/descriptions with the approved plan; preserve

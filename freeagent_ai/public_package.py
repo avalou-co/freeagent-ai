@@ -12,16 +12,24 @@ import zipfile
 from pathlib import Path
 
 from .hosted_auth import ORIGIN
+from .package_contract import coverage, validate_contract, validate_workflow
 from .public_tools import REGISTRY, RESOURCES, audit
 
 VERSION = "0.3.0"
 
 
 def render_hosted(text, *, docs_prefix="../../docs/"):
+    if docs_prefix == "../../docs/" and re.search(r"freeagent_(?:get|post|put|delete)\b", text):
+        raise ValueError("Canonical workflow requires a local generic executor")
     # Preserve the canonical business/approval prose. Replace transport-specific instructions
     # deterministically; the appendix defines exact declared read/correction tool mappings.
     text = text.replace("../../../docs/", "../../docs/").replace(
         "../../../publication/receipt-review-cases.md", "../../docs/receipt-review-cases.md"
+    )
+    text = text.replace("../.agents/skills/", "../skills/")
+    text = text.replace(
+        "mcp.md#correcting-entries-created-in-a-task",
+        "agent-rules.md#correcting-entries-created-in-the-current-task",
     )
     text = text.replace("receipt_path", "receipt").replace("attachment_path", "attachment")
     for name in ["freeagent_get", "freeagent_post", "freeagent_put", "freeagent_delete"]:
@@ -163,31 +171,33 @@ def package_files(root, metadata=None):
         "credit-notes.md",
         "analysis.md",
         "recurring-revenue.md",
+        "marketplace-contract.md",
     ]:
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text(), docs_prefix="").encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
-    files["docs/receipt-review-cases.md"] = (root / "publication/receipt-review-cases.md").read_bytes()
+    case_source = root / "publication/receipt-review-cases.md"
+    files["docs/receipt-review-cases.md"] = case_source.read_bytes()
+    sources[str(case_source.relative_to(root))] = hashlib.sha256(case_source.read_bytes()).hexdigest()
     files["docs/source-digests.json"] = json.dumps(sources, sort_keys=True, indent=2).encode()
     for path in sorted((root / "publication/assets").glob("*.png")):
         if path.is_symlink() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
             raise ValueError("Invalid publication image")
         files["assets/" + path.name] = path.read_bytes()
-    validate_files(files)
+    validate_files(files, root=root)
+    files["docs/capabilities.json"] = json.dumps(coverage(files), indent=2, sort_keys=True).encode()
     return files
 
 
-def validate_files(files):
-    """Check every package mode for unresolved or local-only tool instructions."""
+def validate_files(files, *, root=None):
+    """Every archive mode shares the executable-workflow and reference gate."""
     for path, data in files.items():
-        if path.startswith("skills/"):
-            for name in re.findall(
-                r"`((?:list_|get_|create_|update_|delete_|explain_|add_|remove_)[a-z_]+)`", data.decode()
-            ):
-                if name not in REGISTRY:
-                    raise ValueError(f"Unresolved packaged tool reference: {name}")
+        if path.startswith("skills/") and path.endswith(".md"):
+            validate_workflow(path, data.decode())
         if re.search(rb"freeagent_(?:get|post|put|delete)\b", data):
             raise ValueError("Local generic executor leaked into hosted package")
+    if "plugin.json" in files:
+        validate_contract(files, root=root)
 
 
 def build(root, output, *, draft=False, metadata=None):
