@@ -48,7 +48,11 @@ LOCAL_COMMAND = re.compile(
     r"(?:python|code runner|calculator|shell|terminal|filesystem|local file|local path)\b",
     re.I,
 )
-NEGATIVE = re.compile(r"\b(?:no|not|never|without|prohibit\w*|doesn't|cannot)\b", re.I)
+ACTION_PROHIBITION = re.compile(
+    r"\b(?:do\s+not|don't|never|cannot|must\s+not|should\s+not|not|avoid)\s+"
+    r"(?:(?:ever|directly|automatically|manually)\s+)*$",
+    re.I,
+)
 API_COMMAND = re.compile(
     r"\b(?:GET|POST|PUT|DELETE)\s+(?:invoices|expenses|bills|contacts|timeslips|projects|tasks|categories|users|estimates|bank_[a-z_]+)(?:\b|/|\?)"
 )
@@ -160,6 +164,15 @@ def validate_operations():
                 raise ValueError(f"Non-provider operation in hosted inventory: {name}")
 
 
+def affirmative_match(pattern, clause):
+    """Negation exempts only the action it immediately modifies, not its sentence.
+
+    An unrelated qualification such as 'no rounding' after 'Run Python' must not
+    excuse the required execution. This remains a narrow prose regression check.
+    """
+    return any(not ACTION_PROHIBITION.search(clause[: match.start()]) for match in pattern.finditer(clause))
+
+
 def validate_workflow(path, text):
     body = workflow(text)
     for name in tool_names(body):
@@ -177,13 +190,11 @@ def validate_workflow(path, text):
     for clause in re.split(r"[.;]\s+|\n\s*\n", prose):
         if API_COMMAND.search(clause):
             raise ValueError(f"API executor instruction instead of named tool: {path}")
-        if NEGATIVE.search(clause):
-            continue
-        if LOCAL_COMMAND.search(clause):
+        if affirmative_match(LOCAL_COMMAND, clause):
             raise ValueError(f"Required client runtime in workflow: {path}")
-        if ACCOUNTING_INSTRUCTION.search(clause):
+        if affirmative_match(ACCOUNTING_INSTRUCTION, clause):
             raise ValueError(f"Custom accounting instruction in workflow: {path}")
-        if FILE_OUTPUT.search(clause) or LOCAL_PATH.search(clause):
+        if affirmative_match(FILE_OUTPUT, clause) or affirmative_match(LOCAL_PATH, clause):
             raise ValueError(f"Unsupported file-output or local-path promise: {path}")
     return tool_names(body)
 

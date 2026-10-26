@@ -223,6 +223,10 @@ def test_provider_error_missing_fields_and_uncertain_write_are_not_fabricated(re
         "Use preview.py to compute claims.",
         "Use an available calculator for mileage.",
         "Run a Python script locally.",
+        "Run Python locally with no rounding.",
+        "Use a local Python script, not a calculator.",
+        "Download the PDF file but do not expose signed URLs.",
+        "Never calculate tax, but use a local Python script.",
         "```python\nprint(1)\n```",
         "Call `find_contacts` before invoicing.",
         "Call `invented_handler` with this body.",
@@ -244,11 +248,19 @@ def test_audited_client_runtime_and_executor_leaks_fail(instruction):
         validate_workflow("skills/synthetic/SKILL.md", instruction)
 
 
-def test_prohibition_is_not_confused_with_a_runtime_requirement():
-    validate_workflow(
-        "skills/synthetic/SKILL.md",
+@pytest.mark.parametrize(
+    "instruction",
+    [
         "No Python, scripts or client calculator is required. Never run a local accounting engine.\nCall `get_company`.",
-    )
+        "Never use a local Python script. Call `get_company` instead.",
+        "Do not use a calculator for accounting values.",
+        "Do not download PDF files; no document output is supported.",
+        "Never return a local file or base64 blob to the user.",
+        "Do not compute mileage rates, pooled thresholds or monetary amounts.",
+    ],
+)
+def test_prohibition_is_not_confused_with_a_runtime_requirement(instruction):
+    validate_workflow("skills/synthetic/SKILL.md", instruction)
 
 
 @pytest.mark.parametrize(
