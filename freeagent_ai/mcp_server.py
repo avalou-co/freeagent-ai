@@ -227,6 +227,22 @@ def create_expense(
 
 
 @mcp.tool(annotations=WRITE)
+def create_expense_from_payload(expense: dict[str, Any], receipt_path: str = "") -> dict:
+    """Create one expense from the exact approved provider expense object and read back.
+    Forward documented fields unchanged, including original/native/manual tax amounts,
+    secondary-tax fields, explicit zero/empty values and provider resource URLs.
+    This does not calculate, choose or validate accounting/tax values. Inspect existing
+    expenses and bills, preview source evidence/currency and obtain approval first.
+    Optional receipt_path is a local attachment; hosted clients supply a receipt file
+    reference instead. Failed creation/readback requires inspection, never replay.
+    """
+    payload = dict(expense)
+    if receipt_path:
+        payload["attachment"] = _attachment(receipt_path)
+    return _create_and_readback("expenses", "expense", payload)
+
+
+@mcp.tool(annotations=WRITE)
 def create_mileage_expense(
     user: str,
     dated_on: str,

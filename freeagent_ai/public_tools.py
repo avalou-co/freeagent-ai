@@ -134,7 +134,7 @@ FIELDS = {
     "recurring_invoice": "url contact contact_name project reference dated_on frequency recurring_status next_recurs_on recurring_end_date currency exchange_rate net_value sales_tax_value total_value payment_terms_in_days invoice_items",
     "credit_note": "url contact project reference dated_on due_on status currency exchange_rate payment_terms_in_days net_value sales_tax_value total_value due_value second_sales_tax_value refunded_value refunded_on written_off_date credit_note_items",
     "credit_note_reconciliation": "url credit_note invoice dated_on currency gross_value exchange_rate",
-    "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status",
+    "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status ec_status property stock_item stock_item_description stock_altering_quantity recurring next_recurs_on recurring_end_date created_at updated_at",
     "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor",
     "estimate": "url contact project reference dated_on status currency net_value sales_tax_value total_value estimate_items",
     "bank_account": "url name type currency current_balance latest_activity_date is_personal status",
@@ -168,6 +168,7 @@ CREATES = {
     "create_draft_credit_note": "credit_note",
     "create_credit_note_reconciliation": "credit_note_reconciliation",
     "create_expense": "expense",
+    "create_expense_from_payload": "expense",
     "create_mileage_expense": "expense",
     "create_project": "project",
     "create_task": "task",
@@ -448,6 +449,12 @@ def make_registry():
     for helper, root in CREATES.items():
         schema = FunctionTool.from_function(getattr(local, helper)).parameters
         schema["additionalProperties"] = False
+        if helper == "create_expense_from_payload":
+            schema["properties"]["expense"]["description"] = (
+                "Exact approved expense object; provider fields and full resource URLs are forwarded unchanged. "
+                "Original currency differs from company-native manual tax amounts. FreeAgent validates accounting. "
+                "For a new receipt use the separate receipt file reference, not embedded attachment bytes."
+            )
         if helper == "create_project":
             schema["properties"]["budget"]["description"] = "Decimal budget; omit or use zero for no budget."
             schema["properties"]["budget_units"]["description"] = (
@@ -488,7 +495,15 @@ def make_registry():
                 },
                 [root, "credit_note", "invoice"] if helper == "create_credit_note_reconciliation" else [root],
             ),
-            f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. Resource reference inputs are numeric IDs. FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create."
+            f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. "
+            + ("" if helper == "create_expense_from_payload" else "Resource reference inputs are numeric IDs. ")
+            + "FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create."
+            + (
+                " Nested expense fields use the full provider resource URLs returned by reads, not numeric IDs. "
+                "Preserve approved exact tax fields unchanged; no calculation or tax eligibility decision is made."
+                if helper == "create_expense_from_payload"
+                else ""
+            )
             + (
                 " Narrow ownership exception: allocate only a selected existing issued credit to a selected invoice after complete related-credit/balance reads, exact amount/date/currency preview with provider-returned balances or explicitly user-supplied expectations (never calculated balances), and separate approval. No issuing, invoice edits, cash refunds or unrelated changes. Draft approval is not allocation approval."
                 if helper == "create_credit_note_reconciliation"
@@ -586,6 +601,8 @@ class Dispatcher:
         if op.root == "attachments":
             return self._attachments(op, args, client)
         if op.helper:
+            if op.helper == "create_expense_from_payload" and "attachment" in args["expense"]:
+                raise ValueError("Use the separate receipt file reference instead of embedded attachment data")
             file = args.pop("receipt", args.pop("attachment", None))
             if file is not None:
                 attachment = download(file, self.file_hosts, client.deadline)

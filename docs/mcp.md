@@ -39,7 +39,7 @@ readback must be investigated before another create.
 
 ## Tool audit
 
-All 17 registered tools were reviewed against the design contract. Named create
+All 18 registered tools were reviewed against the design contract. Named create
 helpers share the same POST/readback implementation; local and hosted errors use
 the same bounded provider-error formatter. This introduces no accounting validation. None performs
 local accounting or model eligibility validation. This audit and the mocked tests
@@ -58,6 +58,7 @@ verify wrapper behavior; they do not independently test FreeAgent's accounting r
 | `create_credit_note_reconciliation` | POST separately approved allocation fields, then read reconciliation, credit note and invoice; destructive, non-idempotent, and subject to the narrow allocation ownership exception. |
 | `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
 | `create_expense` | POST expense fields and optional encoded local attachment, then read back; no amount, tax or file-type validation. |
+| `create_expense_from_payload` | POST one exact approved expense object unchanged, optionally encode a receipt, then read back; no tax arithmetic or provider field/model validation. Hosted new receipts use the bounded file-reference path. |
 | `create_mileage_expense` | POST `category: Mileage`, supplied miles, vehicle and explicit reclaim flag, optional engine/VAT-receipt/project fields, then read back. No local rates, tax validation, amount calculation or duplicate enforcement. |
 | `create_project` | POST project fields with Active status, day billing and Days budget units by default, then read back. |
 | `create_task` | POST task fields with Active status and day billing by default; encode the project query parameter, then read back. |

@@ -32,6 +32,8 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Categories: `GET categories`; admin expenses categories are the ones valid for expense claims.
 - Check both expenses and bills, across all pages, before recording a receipt. Hosted expense reads retain `receipt_reference` for reference matching. They also preserve documented native/manual tax fields separately from original-currency amounts; do not compare a native-currency manual tax amount directly with foreign-currency printed tax. Missing fields are unavailable, never zero. See the [receipts workflow](../.agents/skills/receipts/SKILL.md).
 
+- Exact-tax expense creates use `create_expense_from_payload(expense=...)` with the approved provider object unchanged; hosted receipt files use `receipt`, not embedded attachment bytes or a local path. Nested resource values are full provider URLs. Manual/native tax amounts are company-native currency; foreign-currency `sales_tax_rate` is ignored by FreeAgent. Preserve exact supplied values and inspect readback, without tax/FX calculations. See [receipt currency contract](receipts.md).
+
 ## Mileage expenses
 
 - Provider contract checked 2026-10-20: [expenses and mileage settings](https://dev.freeagent.com/docs/expenses).

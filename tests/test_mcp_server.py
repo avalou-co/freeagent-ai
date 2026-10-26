@@ -224,6 +224,7 @@ def test_tools_registered_with_hints():
         "create_draft_credit_note",
         "create_credit_note_reconciliation",
         "create_expense",
+        "create_expense_from_payload",
         "create_mileage_expense",
         "create_draft_estimate",
         "create_project",
