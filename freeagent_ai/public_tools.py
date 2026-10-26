@@ -441,6 +441,11 @@ def make_registry():
     for helper, root in CREATES.items():
         schema = FunctionTool.from_function(getattr(local, helper)).parameters
         schema["additionalProperties"] = False
+        if helper == "create_project":
+            schema["properties"]["budget"]["description"] = "Decimal budget; omit or use zero for no budget."
+            schema["properties"]["budget_units"]["description"] = (
+                "FreeAgent budget units: Hours, Days or Monetary. Required upstream even with no budget; defaults to Days."
+            )
         schema["properties"]["confirmed"] = {
             "type": "boolean",
             "description": "Agent assertion that the user approved the exact write plan.",
@@ -478,7 +483,7 @@ def make_registry():
             ),
             f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. Resource reference inputs are numeric IDs. FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create."
             + (
-                " Narrow ownership exception: allocate only a selected existing issued credit to a selected invoice after complete related-credit/balance reads, exact amount/date/currency/balance preview and separate approval. No issuing, invoice edits, cash refunds or unrelated changes. Draft approval is not allocation approval."
+                " Narrow ownership exception: allocate only a selected existing issued credit to a selected invoice after complete related-credit/balance reads, exact amount/date/currency preview with provider-returned balances or explicitly user-supplied expectations (never calculated balances), and separate approval. No issuing, invoice edits, cash refunds or unrelated changes. Draft approval is not allocation approval."
                 if helper == "create_credit_note_reconciliation"
                 else ""
             ),

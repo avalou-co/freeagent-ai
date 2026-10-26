@@ -33,9 +33,14 @@ changes or mutation of old reconciliations. All other ownership restrictions rem
 Before allocation, read the original linked company, selected credit and invoice,
 all related credits/reconciliations and current currency/balance evidence. Resolve
 duplicates and unavailable evidence before action. Preview both identities, exact
-amount/date/currency/exchange-rate basis, current balances and expected resulting
-balances. Obtain separate approval of that allocation, submit once and read back
-reconciliation, credit and invoice. Report actual remaining/unapplied values and
+amount/date/currency/exchange-rate basis, provider-returned current balances and
+provider-returned or explicitly user-supplied expected resulting balances, each
+labelled with its source. Never calculate expected balances, totals, tax or currency
+conversions. An unavailable provider expectation remains unavailable; user-supplied
+expectations are not provider-verified accounting results. Obtain separate approval
+of that allocation, submit once and read back
+reconciliation, credit and invoice. Report provider-returned remaining/unapplied
+values and
 partial failures; inspect an uncertain result before any retry, never replay blindly.
 FreeAgent decides accounting eligibility, signs and over-allocation. Missing fields
 are unknown; do not invent balances or exchange rates.
@@ -52,7 +57,7 @@ The approved exception is shared in [agent rules](agent-rules.md#approved-credit
 These are policy review examples, not claims of observed assistant execution:
 
 - Selected existing issued credit + existing invoice, complete duplicate/balance
-  reads and separate exact approval: allocate once and compare all three readbacks.
+  reads and separate exact approval: allocate once and compare all three provider readbacks with the sourced preview.
 - Draft credit, even created and approved in the same request: leave Draft, explain
   issuance is unavailable, do not call a transition or allocate it to bypass issuance.
 - User refuses allocation or only approves draft creation: no allocation write.

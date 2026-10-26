@@ -26,11 +26,14 @@ A narrow exception permits a credit-note reconciliation affecting a specifically
 selected existing issued credit note and existing invoice. Read both records and
 all related credits/reconciliations completely first. Show the original company,
 both record identities, exact allocation amount/date/currency/exchange-rate basis,
-current balances and expected resulting balances; resolve duplicates or unavailable
-evidence before writing. Obtain separate approval for this exact allocation, even
+provider-returned current balances and provider-returned or explicitly user-supplied
+expected resulting balances, labelled by source. Never calculate balances, totals,
+tax or exchange conversions; unavailable provider expectations stay unavailable.
+Resolve duplicates or unavailable prerequisite evidence before writing. Obtain
+separate approval for this exact allocation, even
 when draft creation was approved. Submit once, then read the reconciliation, credit
-note and invoice and report the actual remaining/unapplied balances and any partial
-failure. Inspect uncertain outcomes before retrying; never blindly replay a write.
+note and invoice and report provider-returned remaining/unapplied balances and any
+partial failure. Inspect uncertain outcomes before retrying; never blindly replay a write.
 
 This exception authorizes only the selected credit/invoice allocation's balance
 effect. It does not authorize invoice edits, credit-note issuing/status changes,

@@ -1,5 +1,7 @@
 """Synthetic authenticated credit mechanics; no live writes or assistant behavior claims."""
 
+import hashlib
+import json
 import time
 import urllib.error
 from copy import deepcopy
@@ -259,3 +261,15 @@ def test_marketplace_package_and_remote_mcp_credit_path(credit, accounts):
                 assert data["invoice"]["url"] == BASE + "invoices/7"
                 assert data["credit_note_reconciliation"]["gross_value"] == "60"
         assert len([c for c in calls if c[0] == "POST"]) == 2
+
+
+def test_credit_package_preserves_provider_remediation_docs_and_source_digests():
+    root = Path(__file__).resolve().parents[1]
+    files = package_files(root)
+    digests = json.loads(files["docs/source-digests.json"])
+    for name in ("analysis.md", "credit-notes.md", "agent-rules.md"):
+        source = root / "docs" / name
+        assert "docs/" + name in files
+        assert digests["docs/" + name] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert not (root / "freeagent_ai/analysis.py").exists()
+    assert "provider-returned or explicitly user-supplied expected" in files["docs/credit-notes.md"].decode()

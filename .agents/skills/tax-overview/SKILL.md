@@ -1,6 +1,6 @@
 ---
 name: tax-overview
-description: Read-only tax liabilities, payment dates and filing status, with reviewed cash-flow handoff.
+description: Read-only tax liabilities, payment dates and filing status, with provider payment and filing evidence.
 argument-hint: "[period] [company or user]"
 ---
 
@@ -14,8 +14,7 @@ Read only: never file, mark paid/filed, initiate payments or change a return.
    explicitly. Do not assume a director's personal Income Tax belongs in company cash.
 2. Select applicable returns using company type, VAT registration and user scope.
    Use `list_vat_returns`, `list_corporation_tax_returns`, and
-   `list_self_assessment_returns(user_id=...)`; local generic reads use the paths
-   in the tax evidence rules. Tax, Accounting & Users permission is required.
+   `list_self_assessment_returns(user_id=...)`; use only their declared arguments. Tax, Accounting & Users permission is required.
    Omit page and retain paginate=true. Report denied/unavailable/unsupported
    collections separately from a successful empty collection; never call them zero.
 3. Select periods that overlap the requested period, including boundaries, plus
@@ -34,14 +33,11 @@ Read only: never file, mark paid/filed, initiate payments or change a return.
    and date when necessary. Missing status for a positive amount, unknown currency,
    incomplete reads or uncertain payment evidence make that liability incomplete.
    Display successful evidence alongside the failures without claiming full coverage.
-6. Offer a cash-flow scenario only after the user reviews taxpayer/account scope,
-   exact remaining amount, currency, payment date and overlaps with bank balances,
-   bills, prior commitments and other returns. Do not automatically add every tax
-   amount or subtract payments already reflected in balances a second time.
-   An approved scenario is local arithmetic, not authorization to pay tax.
-   Build one unique evidence URL per payment occurrence (return URL plus payment
-   index), date, preserved currency, signed decimal amount (liability negative),
-   and additional:true. Refund timing requires explicit confirmation. Reconcile
-   overdue liabilities to a reviewed future date, never move the filing deadline.
-   Hand these reviewed commitments and unresolved missing_inputs to cash-flow;
-   do not produce a complete forecast until overlap/currency/balance gaps resolve.
+6. Report provider payment evidence and uncertainty directly. Do not calculate a
+   remaining liability, net refunds against payments, assign a business account,
+   invent a future payment date or build forecast commitments. If FreeAgent does
+   not expose a requested residual or metric, say it is unavailable. The cash-flow
+   skill can display bank/outstanding-record evidence, not calculate a forecast.
+
+Use named remote tools on ChatGPT web/iOS. No local Python, shell, filesystem,
+script or client calculator is required. No custom tax/accounting engine is used.

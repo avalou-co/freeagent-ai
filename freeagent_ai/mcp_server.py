@@ -275,7 +275,7 @@ def create_project(
 ) -> dict:
     """Create an Active project for a contact and return it as FreeAgent holds it. `contact` is a
     resource URL; `normal_billing_rate` a decimal string; `billing_period` 'hour' or 'day';
-    `budget_units` 'Hours', 'Days' or 'Monetary' (only used with `budget`). To find the
+    `budget_units` 'Hours', 'Days' or 'Monetary'; omit `budget` for no budget (sent as zero). To find the
     contact's existing projects first, use freeagent_get 'projects?contact=<url>&view=active'."""
     project = {
         "contact": contact,
@@ -284,9 +284,9 @@ def create_project(
         "currency": currency,
         "normal_billing_rate": normal_billing_rate,
         "billing_period": billing_period,
+        "budget": budget or "0",
+        "budget_units": budget_units,
     }
-    if budget:
-        project.update(budget=budget, budget_units=budget_units)
     return _create_and_readback("projects", "project", project)
 
 

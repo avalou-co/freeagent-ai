@@ -1,22 +1,29 @@
 ---
 name: reports
-description: Read-only FreeAgent reports - profit and loss, balance sheet, trial balance, cash, and overdue invoices and bills. Use when the user asks how the business is doing, for a P&L, balance sheet, or what is overdue.
+description: Read-only FreeAgent profit and loss, balance sheet, trial balance, bank balances and overdue records.
 argument-hint: "[report] [from] [to]"
 ---
 
-# Reports workflow
+# FreeAgent reports
 
-Read-only: use `freeagent_get` only, never write. The business supplies the date range and accounting period (e.g. financial year start); ask if missing. Endpoints: see `docs/api-notes.md`.
+Follow [agent rules](../../../docs/agent-rules.md) and
+[provider evidence coverage](../../../docs/analysis.md). Read only.
+Ask for the company, date range and accounting period; never guess financial-year dates.
 
-1. Profit and loss: `accounting/profit_and_loss/summary?from_date=&to_date=`.
-2. Balance sheet: `accounting/balance_sheet?as_at_date=`.
-3. Trial balance: `accounting/trial_balance/summary?from_date=&to_date=`.
-4. Cash: `GET bank_accounts`, report each account's balance.
-5. Overdue: `invoices?view=overdue` and `bills?view=overdue`. Use `freeagent_get` once per endpoint with `per_page=100`; it aggregates linked pages automatically. Total the amounts per currency. For manual paging, set `paginate=False` on every call; do not follow pages after an automatic call.
-6. Report figures with their date range, state which endpoints returned them, and flag any call that failed or returned an unexpected shape instead of guessing.
+1. Profit and loss: call `get_profit_and_loss` with the requested from_date/to_date.
+2. Balance sheet: call `get_balance_sheet` with as_at_date.
+3. Trial balance: call `get_trial_balance` with the requested from_date/to_date.
+4. Bank balances: call `list_bank_accounts` and show each provider current_balance,
+   currency, latest_activity_date and source URL. These are current snapshots.
+5. Overdue records: call `list_invoices` and `list_bills` with view=overdue.
+   Omit page and retain paginate=true. Present returned due_value, dates, currency
+   and source links; use provider summary totals only when actually returned.
+6. Explain the provider's report values with their report dates and collection
+   timestamp. Preserve signs, labels and currencies. A failed/denied endpoint or
+   missing amount is unavailable evidence, not zero or a successful empty report.
 
-Follow `docs/agent-rules.md` throughout.
-
-For 13-week projections use `cash-flow`; for project/contact budgets, profitability
-and unbilled work use `profitability`. Both use reviewed snapshots and deterministic
-Decimal calculations; see docs/analysis.md.
+Use cash-flow for bank/outstanding-record evidence and profitability for project
+records. Those compatibility skill names do not provide custom forecasts or margin
+calculations. Do not derive new accounting metrics, cash commitments or budget
+calculations. These skills need only named remote tools on ChatGPT web/iOS, never
+client Python, a terminal or a local file.

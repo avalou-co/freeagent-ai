@@ -276,3 +276,19 @@ def test_receipt_currency_is_forwarded_and_read_back(monkeypatch, resource, curr
     assert payload.get("currency") == (currency or None)
     assert calls[1] == ("GET", resource + "s/91", None)
     assert result == {resource: record}
+
+
+def test_project_without_budget_includes_required_provider_fields(monkeypatch):
+    calls = []
+
+    def fake(method, path, body=None):
+        calls.append((method, path, body))
+        return {"project": {"url": BASE + "projects/5"}} if method == "POST" else {}
+
+    monkeypatch.setattr(mcp_server, "call", fake)
+    mcp_server.create_project(BASE + "contacts/1", "Review project", "GBP", "50", billing_period="hour")
+    project = calls[0][2]["project"]
+    assert project["budget"] == "0"
+    assert project["budget_units"] == "Days"
+    assert project["billing_period"] == "hour"
+    assert calls[1][:2] == ("GET", "projects/5")
