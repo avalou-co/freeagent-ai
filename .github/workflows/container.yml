@@ -1,12 +1,15 @@
 name: Build hosted image
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 permissions:
   contents: read
   id-token: write
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -15,7 +18,10 @@ jobs:
       DOCKER_BUILD_SUMMARY: "false"
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
       - name: Check deployment identity configuration
         env:
           DELIVERY_PROVIDER: ${{ secrets.DELIVERY_IDENTITY_PROVIDER }}
@@ -41,8 +47,25 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.HOSTED_IMAGE_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ secrets.HOSTED_IMAGE_REPOSITORY }}:${{ github.event.workflow_run.head_sha }}
       - name: Record Terraform handoff
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: echo "Built image digest is $IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save immutable build handoff
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          python3 - <<'PYHANDOFF'
+          import json, os, re
+          digest = os.environ["IMAGE_DIGEST"]
+          assert re.fullmatch(r"sha256:[a-f0-9]{64}", digest)
+          with open("backend-image.json", "w") as stream:
+              json.dump({"source_sha": os.environ["SOURCE_SHA"], "digest": digest}, stream)
+          PYHANDOFF
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-image
+          path: backend-image.json
+          retention-days: 30
