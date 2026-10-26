@@ -90,6 +90,10 @@ and billing evidence. These compatibility skill names do not calculate forecasts
 margins or other custom accounting metrics. Use the reports workflow for FreeAgent's
 own report results. See [provider evidence coverage](docs/analysis.md).
 
+Use `/freeagent-ai:recurring-revenue` to read FreeAgent recurring invoice profiles,
+returned next/end dates, status and values. It does not expand future occurrences
+or predict cash receipts. See [recurring profile coverage](docs/recurring-revenue.md).
+
 ## Using it
 
 Ask your agent in plain language, for example:

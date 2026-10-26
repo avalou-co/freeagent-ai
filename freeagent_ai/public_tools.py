@@ -9,6 +9,7 @@ import re
 import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
 
@@ -130,6 +131,7 @@ FIELDS = {
     "category": "url description nominal_code allowable_for_tax auto_sales_tax_rate",
     "timeslip": "url user project task dated_on hours comment billed_on_invoice timer",
     "invoice": "url contact contact_name project reference dated_on due_on status currency net_value sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails invoice_items",
+    "recurring_invoice": "url contact contact_name project reference dated_on frequency recurring_status next_recurs_on recurring_end_date currency exchange_rate net_value sales_tax_value total_value payment_terms_in_days invoice_items",
     "credit_note": "url contact project reference dated_on due_on status currency net_value sales_tax_value total_value due_value second_sales_tax_value refunded_value refunded_on written_off_date credit_note_items",
     "credit_note_reconciliation": "url credit_note invoice dated_on currency gross_value exchange_rate",
     "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status",
@@ -151,6 +153,7 @@ RESOURCES = {
     "credit_notes": ("credit_note", "view contact project updated_since sort nested_credit_note_items"),
     "credit_note_reconciliations": ("credit_note_reconciliation", "from_date to_date updated_since"),
     "invoices": ("invoice", "view contact project updated_since"),
+    "recurring_invoices": ("recurring_invoice", "view contact"),
     "expenses": ("expense", "from_date to_date user project view"),
     "bills": ("bill", "view contact from_date to_date"),
     "estimates": ("estimate", "view contact project"),
@@ -302,6 +305,7 @@ def make_registry():
 
     id_schema = {"type": "string", "pattern": "^[0-9]+$"}
     for endpoint, (root, query) in RESOURCES.items():
+        read_metadata = {"collected_at": {"type": "string"}} if root == "recurring_invoice" else {}
         params: dict = {name: {"type": "string"} for name in query.split()}
         params.update(
             per_page={"type": "integer", "minimum": 1, "maximum": 100},
@@ -314,7 +318,10 @@ def make_registry():
             endpoint,
             root,
             object_schema(params),
-            object_schema({endpoint: {"type": "array", "items": record_schema(root)}}, [endpoint]),
+            object_schema(
+                {endpoint: {"type": "array", "items": record_schema(root)}, **read_metadata},
+                [endpoint, *read_metadata],
+            ),
             f"List {endpoint.replace('_', ' ')} from the linked company. Use focused filters. Lists aggregate linked pages unless paginate is false; an incomplete read raises.",
         )
         add(
@@ -323,7 +330,7 @@ def make_registry():
             endpoint + "/{id}",
             root,
             object_schema({"id": id_schema}, ["id"]),
-            object_schema({root: record_schema(root)}, [root]),
+            object_schema({root: record_schema(root), **read_metadata}, [root, *read_metadata]),
             f"Read one {root.replace('_', ' ')} by its numeric ID.",
         )
     for name, endpoint, root in [
@@ -596,7 +603,10 @@ class Dispatcher:
             result = client.call("GET", path)
         if op.name.startswith("list_"):
             collection = op.root + "s" if op.endpoint in TAX_RETURNS else op.endpoint
-            return {collection: [project_record(item, op.root) for item in result[collection]]}
+            records: dict[str, Any] = {collection: [project_record(item, op.root) for item in result[collection]]}
+            if op.root == "recurring_invoice":
+                records["collected_at"] = datetime.now(timezone.utc).isoformat()
+            return records
         if op.endpoint.startswith("accounting/"):
             # Reports contain accounting summaries, no user profile or credential data.
             return {op.root: report_project(result[op.root])}
@@ -611,7 +621,10 @@ class Dispatcher:
         if op.root == "credit_note_reconciliation" and op.root not in result:
             # Provider detail JSON documents a plural root, unlike XML/create.
             result = {op.root: result["credit_note_reconciliations"]}
-        return {op.root: project_record(result[op.root], op.root)}
+        record: dict[str, Any] = {op.root: project_record(result[op.root], op.root)}
+        if op.root == "recurring_invoice":
+            record["collected_at"] = datetime.now(timezone.utc).isoformat()
+        return record
 
     def _attachments(self, op, args, client):
         path = op.endpoint.replace("{id}", args.pop("id"))
