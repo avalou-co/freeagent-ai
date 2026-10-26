@@ -150,7 +150,7 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 [expenses](https://dev.freeagent.com/docs/expenses),
 [bills](https://dev.freeagent.com/docs/bills).
 
-## Hosted analysis reads
+## Hosted financial evidence reads
 
 - Fixed credit-note and credit-note-reconciliation list/get tools retain signed
   revenue, outstanding refund and allocation evidence. Allocations are not cash
@@ -159,12 +159,12 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 - Hosted task reads retain `is_billable`; timeslips retain the actual provider
   `billed_on_invoice` field and nested `timer` (`running`, `start_from`). A linked
   Draft invoice is billed time for unbilled-work selection. Resolve running timers.
-- Project day budgets require `hours_per_day`. Expense/bill reads retain project,
-  rebilling and net/tax allocation evidence; never count bill headers and lines
-  together. See [field coverage and incomplete reads](analysis.md#hosted-field-coverage).
+- Project reads retain `hours_per_day` and provider budget fields without deriving
+  budget usage. Expense/bill reads retain project, rebilling and net/tax evidence. See [field coverage and incomplete reads](analysis.md#hosted-field-coverage).
 
 ## Tax returns (read-only)
 
 See [tax evidence rules](tax-overview.md) for verified paths, date identifiers,
 user-scoped self-assessment, distinct payment/filing dates, partial-payment limits
-and reviewed cash-flow handoff. No tax filing or payment action is added.
+and unavailable residuals. No custom tax/forecast calculations, filing or payment
+action is added.
