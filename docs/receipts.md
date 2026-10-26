@@ -10,9 +10,25 @@ FreeAgent documents a 5 MB attachment limit and PNG/JPEG/GIF/PDF support for
 [bills](https://dev.freeagent.com/docs/bills). PDF is documented as
 `application/x-pdf`. The tools pass provider accounting validation through.
 Both creation helpers accept optional `currency`; omitting it retains provider
-defaults. Receipts must use explicit reviewed currency. Tax amounts, multiple
-rates or other fields outside convenience parameters require an approved direct
-API payload; do not approximate the document to fit a helper.
+defaults. Receipts must use explicit reviewed currency. For exact/manual/native tax amounts, secondary-tax fields, receipt references or
+other documented expense fields, call `create_expense_from_payload` with the exact
+approved `expense` object and optional hosted `receipt` file reference. It posts
+to the fixed expense endpoint and reads back; it neither computes tax nor narrows
+the provider payload to convenience fields. Nested resource references use full
+FreeAgent URLs returned by reads. Do not approximate a receipt or create an
+inaccurate intermediate record to fit a helper.
+
+Provider expense contracts checked 2026-10-26. `gross_value`/`sales_tax_value` use
+the original expense currency; `native_gross_value`, `native_sales_tax_value` and
+`manual_sales_tax_amount` use company-native currency. `second_sales_tax_rate` and
+`second_sales_tax_status` are documented for Universal accounts. Foreign-currency
+`sales_tax_rate` is ignored by FreeAgent; a reclaimable tax amount requires the
+reviewed native-currency `manual_sales_tax_amount`. Ask for the business treatment
+and exact native amount; do not derive or choose them. FreeAgent validates all
+accepted combinations. Missing/changed readback fields remain unknown/discrepant.
+Hosted calls reject embedded `attachment` payloads: new bytes must pass through
+the separate bounded `receipt` reference. Existing provider `file` references are
+forwarded unchanged; their validity is checked by FreeAgent.
 
 ## Hosted upload contract
 

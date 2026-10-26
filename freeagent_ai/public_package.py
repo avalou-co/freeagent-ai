@@ -42,7 +42,9 @@ def render_hosted(text, *, docs_prefix="../../docs/"):
 Use the host's Connect action when sign-in is required. Never ask the user to configure
 an MCP URL, tokens, environment variables, a CLI, or an Avalou account.
 Use only the named tools in the mapping below, never an API path or local file.
-Supply numeric resource IDs from returned resource URLs. Query examples above describe
+Supply numeric IDs for top-level resource-reference parameters. Nested provider payloads
+(such as create_expense_from_payload.expense) keep full resource URLs returned by
+provider reads, as their tool descriptions specify. Query examples above describe
 provider filters; use only the parameters declared by the named tool. When the provider
 does not support a filter, filter retrieved results and say so. Do not infer completeness
 after a read error or silently drop accounting fields needed by the user's request.
