@@ -185,3 +185,8 @@ Draft credit notes. A [narrow allocation exception](docs/credit-notes.md) permit
 separately approved allocation of a selected existing issued credit to a selected
 invoice after complete reads and an exact preview. Issuing, invoice edits and cash
 refunds remain excluded. Allocation mechanics return all affected provider records.
+
+Draft invoices support exact approved manual lines/currency and documented provider
+source-inclusion modes through `create_draft_invoice_from_payload`. FreeAgent owns
+totals, eligibility and duplicate billing; the tool keeps Draft/emails off and reads
+back. See [invoice workflow](docs/invoicing.md) for inclusion limits and evidence gates.
