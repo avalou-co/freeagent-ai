@@ -3,16 +3,12 @@
 import time
 import urllib.error
 from copy import deepcopy
-from datetime import date
-from decimal import Decimal
 from email.message import Message
-from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import jsonschema
 import pytest
 
-from freeagent_ai.analysis import forecast
 from freeagent_ai.hosted_accounts import Principal
 from freeagent_ai.hosted_client import HostedClient
 from freeagent_ai.public_tools import REGISTRY, TAX_RETURNS, Dispatcher, audit
@@ -131,41 +127,6 @@ def test_successful_absence_and_malformed_date_or_user(tax):
         with pytest.raises(jsonschema.ValidationError):
             invoke(name, **args)
     assert len(calls) == count
-
-
-def test_reviewed_partial_residual_forecast_handoff(tax):
-    invoke, _, _, _ = tax
-    result = invoke("list_vat_returns")["vat_returns"][0]
-    payment = result["payments"][0]
-    # Synthetic user review confirms GBP, business account, 40 already paid and
-    # reflected in opening balance, 80 remaining, and no bill/commitment overlap.
-    commitment = dict(
-        url=result["url"] + "#payment-0", date=payment["due_on"], currency="GBP", amount="-80", additional=True
-    )
-    data: dict[str, Any] = dict(
-        start=date(2026, 5, 1),
-        timestamp="2026-05-01T00:00:00Z",
-        currency="GBP",
-        accounts=[
-            dict(
-                url=BASE + "bank_accounts/1", current_balance="1000", currency="GBP", latest_activity_date="2026-05-01"
-            )
-        ],
-        invoices=[],
-        bills=[],
-        commitments=[commitment],
-        missing_inputs=[],
-    )
-    forecast_result = forecast(**data)
-    assert forecast_result["weeks"][0]["payments"] == Decimal("80")
-    assert forecast_result["weeks"][0]["closing"] == Decimal("920")
-    # Unresolved currency/overlap never becomes a complete forecast.
-    data["missing_inputs"] = ["Tax currency and overlap review outstanding"]
-    assert forecast(**data)["status"] == "incomplete"
-    data["missing_inputs"] = []
-    data["commitments"] = [commitment, commitment]
-    with pytest.raises(ValueError, match="unique"):
-        forecast(**data)
 
 
 def test_tax_audit_is_read_only():

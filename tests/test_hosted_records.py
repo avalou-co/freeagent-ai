@@ -1,19 +1,22 @@
-"""Synthetic skill snapshots collected through the authenticated hosted dispatcher."""
+"""Provider record evidence collected through the authenticated hosted dispatcher."""
 
+import importlib.util
 import time
 import urllib.error
 from copy import deepcopy
-from datetime import date
-from decimal import Decimal
 from email.message import Message
 from io import BytesIO
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from conftest import settings
 from mcp.types import TextContent
+from starlette.testclient import TestClient
 
-from freeagent_ai.analysis import IncompleteData, forecast, profitability
 from freeagent_ai.hosted_accounts import Principal
+from freeagent_ai.hosted_app import create_app
+from freeagent_ai.hosted_auth import ORIGIN
 from freeagent_ai.hosted_client import HostedClient
 from freeagent_ai.public_tools import REGISTRY, Dispatcher, audit
 
@@ -189,108 +192,75 @@ def collect(accounts, hosted_context):
     return read, data, dispatcher, principal, calls
 
 
-def calculate(read):
-    projects, tasks, slips, invoices, credits, expenses, bills = [
-        read(name) for name in ("projects", "tasks", "timeslips", "invoices", "credit_notes", "expenses", "bills")
-    ]
-    # Reviewed GBP allocations: never count bill header and lines together.
-    costs = [
-        dict(
-            url=e["url"],
-            project=e["project"],
-            dated_on=e["dated_on"],
-            currency=e["currency"],
-            amount=str(-(Decimal(e["gross_value"]) - Decimal(e["sales_tax_value"]))),
-        )
-        for e in expenses
-    ]
-    costs += [
-        dict(url=b["url"], project=b["project"], dated_on=b["dated_on"], currency=b["currency"], amount=b["net_value"])
-        for b in bills
-    ]
-    return profitability(
-        start=date(2026, 1, 1),
-        end=date(2026, 1, 31),
-        timestamp=STAMP,
-        projects=projects,
-        tasks=tasks,
-        timeslips=slips,
-        invoices=invoices,
-        credit_notes=credits,
-        costs=costs,
-        cost_rates={BASE + "users/1": "10"},
-        costs_complete=True,
-    )
-
-
-def test_hosted_profitability_reconciles_draft_time_credit_and_costs(collect):
+def test_hosted_records_preserve_provider_values_and_relationships(collect):
     read, _, _, _, calls = collect
-    result = calculate(read)
-    row = result["projects"][0]
-    assert result["status"] == "complete"
-    assert (row["hours"], row["billable_hours"], row["unbilled_hours"]) == (6, 4, 2)
-    assert row["unbilled_sources"] == [BASE + "timeslips/2"]
-    assert (row["invoiced_net_revenue"], row["direct_cost"], row["margin"]) == (400, 70, 270)
-    assert row["period_budget_usage"] == Decimal("0.75")
+    assert read("projects")[0] == dict(
+        url=BASE + "projects/1",
+        contact=BASE + "contacts/1",
+        currency="GBP",
+        budget="5",
+        budget_units="Days",
+        hours_per_day="8",
+    )
+    tasks = read("tasks")
+    assert [task["is_billable"] for task in tasks] == [True, False]
+    slips = read("timeslips")
+    assert slips[0]["billed_on_invoice"] == BASE + "invoices/2"
+    assert "billed_on_invoice" not in slips[1]
+    assert [row["status"] for row in read("invoices")] == ["Open", "Draft"]
+    assert [row["status"] for row in read("credit_notes")] == ["Open", "Draft"]
+    assert read("expenses")[0]["gross_value"] == "-24"
+    assert read("bills")[0]["bill_items"][0]["total_value_ex_tax"] == "50"
     assert any("credit_notes?page=2" in call for call in calls)
 
 
-def test_hosted_forecast_reviewed_refund_is_not_allocation(collect):
+def test_credit_and_reconciliation_evidence_are_not_reinterpreted(collect):
     read, _, _, _, _ = collect
     credit = read("credit_notes")[0]
+    assert credit["net_value"] == "-100"
+    assert credit["total_value"] == "-120"
+    assert credit["due_value"] == "-60"
+    assert credit["refunded_value"] == "0"
     reconciliation = read("credit_note_reconciliations")[0]
     assert reconciliation["gross_value"] == "60"
-    # User confirms remaining refund, date, account assignment and no overlap.
-    commitment = dict(
-        url=credit["url"],
-        currency=credit["currency"],
-        date=credit["due_on"],
-        amount=credit["due_value"],
-        additional=True,
-    )
-    result = forecast(
-        start=date(2026, 1, 1),
-        timestamp=STAMP,
-        currency="GBP",
-        accounts=read("bank_accounts"),
-        invoices=read("invoices"),
-        bills=read("bills"),
-        commitments=[commitment],
-        missing_inputs=[],
-    )
-    assert result["status"] == "complete"
-    assert (result["weeks"][0]["receipts"], result["weeks"][0]["payments"], result["weeks"][0]["closing"]) == (
-        400,
-        120,
-        1280,
-    )
-    assert result["excluded"] == [BASE + "invoices/2"]
+    assert reconciliation["credit_note"] == credit["url"]
+    assert reconciliation["invoice"] == BASE + "invoices/1"
 
 
 @pytest.mark.parametrize(
     "endpoint,field",
-    [("tasks", "is_billable"), ("timeslips", "hours"), ("credit_notes", "net_value"), ("projects", "hours_per_day")],
+    [
+        ("tasks", "is_billable"),
+        ("timeslips", "hours"),
+        ("credit_notes", "net_value"),
+        ("projects", "hours_per_day"),
+        ("bank_accounts", "current_balance"),
+    ],
 )
-def test_missing_provider_fields_fail_explicitly(collect, endpoint, field):
+def test_missing_provider_values_remain_absent(collect, endpoint, field):
     read, data, _, _, _ = collect
     data[endpoint][0].pop(field)
-    with pytest.raises(IncompleteData, match="Incomplete"):
-        calculate(read)
+    assert field not in read(endpoint)[0]
 
 
-def test_running_timer_is_retained_and_prevents_calculation(collect):
+def test_running_timer_evidence_is_retained_without_deriving_hours(collect):
     read, data, _, _, _ = collect
     data["timeslips"][0]["timer"] = dict(running=True, start_from=STAMP, secret="omit")
-    assert read("timeslips")[0]["timer"] == dict(running=True, start_from=STAMP)
-    with pytest.raises(ValueError, match="running timers"):
-        calculate(read)
+    slip = read("timeslips")[0]
+    assert slip["timer"] == dict(running=True, start_from=STAMP)
+    assert slip["hours"] == "2"
 
 
-def test_mixed_currency_does_not_produce_margin(collect):
+def test_provider_currency_is_preserved_without_conversion(collect):
     read, data, _, _, _ = collect
     data["credit_notes"][0]["currency"] = "USD"
-    with pytest.raises(ValueError, match="currency"):
-        calculate(read)
+    assert read("credit_notes")[0]["currency"] == "USD"
+    assert read("invoices")[0]["currency"] == "GBP"
+
+
+def test_custom_analysis_runtime_and_tools_are_absent():
+    assert importlib.util.find_spec("freeagent_ai.analysis") is None
+    assert not {"calculate_cash_flow", "calculate_profitability", "forecast", "profitability"} & REGISTRY.keys()
 
 
 def test_fixed_credit_reads_and_audit(collect, hosted_context):
@@ -340,38 +310,6 @@ def test_failed_hosted_reads_explicitly_report_incomplete(accounts, hosted_conte
     assert "Read incomplete" in result.content[0].text
 
 
-def test_provisional_inputs_remain_explicit(collect):
-    read, _, _, _, _ = collect
-    result = forecast(
-        start=date(2026, 1, 1),
-        timestamp=STAMP,
-        currency="GBP",
-        accounts=read("bank_accounts"),
-        invoices=[],
-        bills=[],
-        commitments=[],
-        missing_inputs=["Payroll not confirmed"],
-    )
-    assert result["status"] == "incomplete"
-    assert result["missing_inputs"] == ["Payroll not confirmed"]
-
-
-def test_missing_cash_balance_is_not_zero(collect):
-    read, data, _, _, _ = collect
-    data["bank_accounts"][0].pop("current_balance")
-    with pytest.raises(IncompleteData, match="current_balance"):
-        forecast(
-            start=date(2026, 1, 1),
-            timestamp=STAMP,
-            currency="GBP",
-            accounts=read("bank_accounts"),
-            invoices=[],
-            bills=[],
-            commitments=[],
-            missing_inputs=[],
-        )
-
-
 def test_credit_note_filters_expand_fixed_resource_ids(collect):
     read, _, _, _, calls = collect
     assert read("credit_notes", contact="1", project="1")
@@ -397,3 +335,31 @@ def test_hosted_expense_preserves_native_and_manual_tax_evidence(collect):
     assert expense["native_gross_value"] == "-24"
     assert expense["native_sales_tax_value"] == "-4"
     assert expense["manual_sales_tax_amount"] == "-3.50"
+
+
+def test_retained_provider_reads_are_discovered_and_invoked_over_http(collect, accounts):
+    _, data, dispatcher, principal, calls = collect
+    verifier = SimpleNamespace(principal=lambda _: principal)
+    with TestClient(create_app(settings(), accounts, verifier, dispatcher), base_url=ORIGIN) as client:
+        headers = {"Authorization": "Bearer synthetic", "Accept": "application/json, text/event-stream"}
+        tools = client.post(
+            "/mcp",
+            headers=headers,
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+        ).json()["result"]["tools"]
+        names = {tool["name"] for tool in tools}
+        assert "list_credit_notes" in names
+        assert not {"forecast", "profitability", "calculate_cash_flow", "calculate_profitability"} & names
+        result = client.post(
+            "/mcp",
+            headers=headers,
+            json={
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "list_credit_notes", "arguments": {}},
+            },
+        )
+        assert result.status_code == 200
+        assert result.json()["result"]["structuredContent"]["credit_notes"] == data["credit_notes"]
+        assert any("credit_notes?page=2" in call for call in calls)
