@@ -150,7 +150,7 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 [expenses](https://dev.freeagent.com/docs/expenses),
 [bills](https://dev.freeagent.com/docs/bills).
 
-## Hosted analysis reads
+## Hosted financial evidence reads
 
 - Fixed credit-note and credit-note-reconciliation list/get tools retain signed
   revenue, outstanding refund and allocation evidence. Allocations are not cash
@@ -159,26 +159,24 @@ API contracts: [HTTP verbs](https://dev.freeagent.com/docs/introduction),
 - Hosted task reads retain `is_billable`; timeslips retain the actual provider
   `billed_on_invoice` field and nested `timer` (`running`, `start_from`). A linked
   Draft invoice is billed time for unbilled-work selection. Resolve running timers.
-- Project day budgets require `hours_per_day`. Expense/bill reads retain project,
-  rebilling and net/tax allocation evidence; never count bill headers and lines
-  together. See [field coverage and incomplete reads](analysis.md#hosted-field-coverage).
+- Project reads retain `hours_per_day` and provider budget fields without deriving
+  budget usage. Expense/bill reads retain project, rebilling and net/tax evidence. See [field coverage and incomplete reads](analysis.md#hosted-field-coverage).
 
 ## Tax returns (read-only)
 
 See [tax evidence rules](tax-overview.md) for verified paths, date identifiers,
 user-scoped self-assessment, distinct payment/filing dates, partial-payment limits
-and reviewed cash-flow handoff. No tax filing or payment action is added.
+and unavailable residuals. No custom tax/forecast calculations, filing or payment
+action is added.
 
 
-## Recurring invoices
+## Recurring invoices (read-only)
 
 - The [documented recurring invoice API](https://dev.freeagent.com/docs/recurring_invoices)
-  offers GET collection/detail and contact/view filters, not profile creation.
-- Preserve view membership separately from recurring_status: inactive is a list view;
-  documented status values are Active/Draft. Read all linked pages once.
-- Frequency, next_recurs_on and recurring_end_date describe billing, not cash.
-  Calendar clamping, end inclusivity and expected payment dates require reviewed
-  scenario assumptions; no guaranteed collection or FX conversion.
-- No generated invoice/profile relationship field is documented. Require reviewed
-  occurrence evidence before additional forecast cash; unresolved overlaps stay
-  incomplete. See [recurring scenarios](recurring-revenue.md).
+  offers collection/detail GETs and view/contact filters, not profile creation.
+- Inactive is a collection view; documented recurring_status values are Active and
+  Draft. Preserve view evidence separately from provider status fields.
+- next_recurs_on and recurring_end_date are provider billing information, not cash
+  receipt predictions. Missing dates or values stay unavailable, never generated.
+- No generated-invoice/profile link is documented. Do not match records or compute
+  overlap. Use [named profile reads](recurring-revenue.md) without custom calculations.

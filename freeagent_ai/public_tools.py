@@ -9,6 +9,7 @@ import re
 import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
 
@@ -304,6 +305,7 @@ def make_registry():
 
     id_schema = {"type": "string", "pattern": "^[0-9]+$"}
     for endpoint, (root, query) in RESOURCES.items():
+        read_metadata = {"collected_at": {"type": "string"}} if root == "recurring_invoice" else {}
         params: dict = {name: {"type": "string"} for name in query.split()}
         params.update(
             per_page={"type": "integer", "minimum": 1, "maximum": 100},
@@ -316,7 +318,10 @@ def make_registry():
             endpoint,
             root,
             object_schema(params),
-            object_schema({endpoint: {"type": "array", "items": record_schema(root)}}, [endpoint]),
+            object_schema(
+                {endpoint: {"type": "array", "items": record_schema(root)}, **read_metadata},
+                [endpoint, *read_metadata],
+            ),
             f"List {endpoint.replace('_', ' ')} from the linked company. Use focused filters. Lists aggregate linked pages unless paginate is false; an incomplete read raises.",
         )
         add(
@@ -325,7 +330,7 @@ def make_registry():
             endpoint + "/{id}",
             root,
             object_schema({"id": id_schema}, ["id"]),
-            object_schema({root: record_schema(root)}, [root]),
+            object_schema({root: record_schema(root), **read_metadata}, [root, *read_metadata]),
             f"Read one {root.replace('_', ' ')} by its numeric ID.",
         )
     for name, endpoint, root in [
@@ -438,6 +443,11 @@ def make_registry():
     for helper, root in CREATES.items():
         schema = FunctionTool.from_function(getattr(local, helper)).parameters
         schema["additionalProperties"] = False
+        if helper == "create_project":
+            schema["properties"]["budget"]["description"] = "Decimal budget; omit or use zero for no budget."
+            schema["properties"]["budget_units"]["description"] = (
+                "FreeAgent budget units: Hours, Days or Monetary. Required upstream even with no budget; defaults to Days."
+            )
         schema["properties"]["confirmed"] = {
             "type": "boolean",
             "description": "Agent assertion that the user approved the exact write plan.",
@@ -593,7 +603,10 @@ class Dispatcher:
             result = client.call("GET", path)
         if op.name.startswith("list_"):
             collection = op.root + "s" if op.endpoint in TAX_RETURNS else op.endpoint
-            return {collection: [project_record(item, op.root) for item in result[collection]]}
+            records: dict[str, Any] = {collection: [project_record(item, op.root) for item in result[collection]]}
+            if op.root == "recurring_invoice":
+                records["collected_at"] = datetime.now(timezone.utc).isoformat()
+            return records
         if op.endpoint.startswith("accounting/"):
             # Reports contain accounting summaries, no user profile or credential data.
             return {op.root: report_project(result[op.root])}
@@ -608,7 +621,10 @@ class Dispatcher:
         if op.root == "credit_note_reconciliation" and op.root not in result:
             # Provider detail JSON documents a plural root, unlike XML/create.
             result = {op.root: result["credit_note_reconciliations"]}
-        return {op.root: project_record(result[op.root], op.root)}
+        record: dict[str, Any] = {op.root: project_record(result[op.root], op.root)}
+        if op.root == "recurring_invoice":
+            record["collected_at"] = datetime.now(timezone.utc).isoformat()
+        return record
 
     def _attachments(self, op, args, client):
         path = op.endpoint.replace("{id}", args.pop("id"))

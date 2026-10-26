@@ -1,78 +1,58 @@
-# Recurring invoice visibility and scenarios
+# Provider recurring invoice profiles
 
-Provider contract checked 2026-10-25 against the official
-[recurring invoice API](https://dev.freeagent.com/docs/recurring_invoices).
-Local generic GET remains available; hosted fixed `list_recurring_invoices` and
-`get_recurring_invoice` reads preserve profile identity, contact/project references,
-frequency, recurring status, next/end dates, currency, exchange rate, net/tax/gross
-values, payment terms and line items. List filters are `view` and `contact`; hosted
-contact IDs expand to provider URLs. Pagination uses the shared complete-read path.
-The documented API has no profile create/update/delete operations; none are added.
+The [official recurring invoice API](https://dev.freeagent.com/docs/recurring_invoices)
+was checked 2026-10-26. Its read operations are available as fixed named hosted tools:
 
-Views are active/inactive/draft. Documented recurring_status values are Active and
-Draft; do not fabricate an Inactive status field. Keep membership evidence from
-separate views. A duplicate URL across groups is an inconsistent snapshot requiring
-reconciliation. Inactive and Draft profiles never become expected cash receipts.
+| Tool | Provider request | Mechanics |
+| --- | --- | --- |
+| list_recurring_invoices | GET recurring_invoices | Optional view/contact filters, shared automatic pagination and explicit page controls |
+| get_recurring_invoice | GET recurring_invoices/:id | Numeric profile ID, fixed endpoint |
 
-## Reviewed scenario calculation
+Contact inputs are numeric IDs expanded into URLs for the bound FreeAgent account's
+API origin. The provider minimum access level is Estimates and Invoices; FreeAgent
+retains permission enforcement. Hosted calls also require the read scope and current
+account binding. Local generic GET remains unchanged, but the packaged workflow uses
+named remote reads and needs no client Python, filesystem or shell.
 
-`freeagent_ai.recurring.recurring_scenario` is local arithmetic, with no API calls.
-Its keyword inputs are start/end (`date`, inclusive horizon up to ten years),
-timezone-aware timestamp, currency, profiles_by_view (exactly active/inactive/draft
-lists scoped to one currency), complete invoice snapshots, reads_complete, and
-assumptions keyed by profile URL. Each assumption contains:
+Safe record projections preserve provider-returned identity, contact/project,
+reference, frequency, recurring_status, next_recurs_on, recurring_end_date, currency,
+exchange_rate, net/tax/total values, payment terms and invoice items. Missing fields
+remain absent; no date, amount, status or relationship is filled in. Provider frequency
+and values are displayed, never used to expand a schedule or calculate future totals.
+The result envelope adds collected_at: the server's UTC read-completion timestamp,
+not a provider update date or evidence of an atomic multi-page snapshot.
 
-- `anchor`: reviewed cadence anchor ISO date, on/before next_recurs_on. For monthly
-  cadences it preserves the chosen day independently in each month, clamping only
-  where needed. It must actually generate the provider's next date.
-- `end_inclusive: true`: explicit agreement to the scenario end-date convention.
-- `payment_delay_days`: reviewed integer >=0 after billing; missing means no cash
-  commitment. Provider terms can be evidence for discussion, never assumed receipt.
-- `additional_dates`: ISO billing dates explicitly reviewed as additional to all
-  generated invoices, balances and existing commitments.
-- `generated`: map from billing date to an existing invoice URL, reviewed as the
-  occurrence's actual invoice. The snapshot must contain that invoice, same currency
-  and billing date. An edited/differently dated invoice needs manual reconciliation;
-  do not bypass the incomplete result with a guessed relationship.
+## View and explanation rules
 
-These are user/agent review inputs, not undocumented provider fields or independent
-proof of overlap clearance. The API does not document a profile-link field on generated
-invoices. Matching date/contact/amount alone cannot establish the relationship.
-Every occurrence must be explicitly covered by generated or additional_dates;
-unknown or conflicting evidence remains incomplete. An already-generated invoice is
-excluded from recurring commitments regardless of status; the cash workflow reads
-its actual due_value and status separately. Never add it again as recurring revenue.
+Read active/inactive/draft views separately and retain each query label. Documented
+recurring_status values are Active and Draft; inactive is a view, not a synthesized
+status. A profile changing during pagination or between reads may appear across
+views; explain the inconsistent coverage and re-read rather than assuming an atomic
+snapshot. A successful empty collection differs from denied, failed or malformed
+coverage. Do not present an incomplete overview as a complete one.
 
-The scenario holds the selected profile snapshot gross amount constant across occurrences.
-Future price, tax, exchange-rate or profile changes are not predicted; refresh and
-review changed profiles before relying on a later scenario.
+Show returned source links, dates and currencies with collection time. A blank
+recurring_end_date is documented as recurring indefinitely; a missing next/end date
+is unavailable. next_recurs_on is provider billing information and does not establish
+when an invoice will be paid. No calendar/date expansion, payment-delay assumptions,
+expected-cash dates, commitments, forecast totals or custom calculators are supplied.
 
-Supported cadence names are Weekly, Two Weekly, Four Weekly, Monthly, Two Monthly,
-Quarterly, Biannually, Annually and 2-Yearly. Weekly intervals use fixed seven-day
-weeks. Monthly/yearly intervals use the reviewed anchor; Feb 29 annual scenarios
-return to Feb 29 in leap years, and Jan 31 monthly scenarios return to Mar 31 after
-February. The provider docs enumerate frequencies but do not promise this calendar
-algorithm or end inclusivity. Confirm these assumptions; do not claim a future
-provider invoice will necessarily follow them. Finite end dates cap the expansion.
-A stale next date, unsupported frequency or missing required fields remains incomplete.
+The provider docs do not expose a generated invoice/profile relationship. The
+connector therefore cannot identify generated invoices or compute overlap from
+these reads. Explain that limitation instead of inferring relationships from
+contact/date/value matches. The documented recurring API offers no profile
+creation/update/deletion; no such mutations are added.
 
-Output contains status, timestamp, currency, groups of source URLs, billing events,
-additional cash commitments and missing_inputs. Events distinguish billing_date from
-expected_receipt_date; generated events retain the existing invoice link. Scenario
-commitments have unique per-occurrence URLs, parent profile links, signed decimal-string
-amounts, currency, expected receipt date and additional=True. Pass reviewed commitments
-to `analysis.forecast`; propagate missing_inputs. Negative amounts remain signed and
-require review as refunds, not ordinary receipts. No FX conversion is performed.
-Provisional complete-snapshot occurrences may be shown alongside missing inputs,
-but an incomplete result must never be advertised as a complete forecast. A failed
-collection suppresses all commitments; it is not zero recurring revenue.
+## Verification and limits
 
-## Verification limits
+Synthetic tests cover packaged skill -> tools/list -> authenticated hosted HTTP
+tools/call -> provider request/response -> usable profile results. Cases include
+pagination, view/contact filters, status/date/value preservation, multiple currencies,
+missing fields, empty collections, permission failures and malformed/provider errors.
+They assert absence of recurring calculators and recurring mutation tools.
 
-Synthetic tests exercise actual authenticated hosted dispatch/pagination and local
-calendar/overlap/payment arithmetic, including leap years, month ends, finite bounds,
-view exclusions, currency scope, denied reads and generated invoice suppression.
-They do not establish live provider scheduling rules, deployed client availability,
-real cash collection or observed assistant behavior. Authorized dedicated sandbox
-read verification remains a release gate. No live financial writes are needed or
-performed; the workflow and added tools are read-only.
+These checks verify API mechanics and source-evidence presentation, not actual
+marketplace installation or observed assistant behavior. Authorized deployed
+ChatGPT web/iOS and two-account verification remains separate under #36. No live
+financial writes are performed. Custom recurrence/scenario code and its tests from
+the earlier PR scope are removed rather than exposed through another runtime.

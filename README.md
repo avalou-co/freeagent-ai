@@ -84,14 +84,15 @@ The commands below are for the local CLI.
 
 Full steps, including the credentials file and re-login, are in `docs/auth.md`.
 
-Use `/freeagent-ai:cash-flow` for a read-only 13-week forecast with receipt-delay
-scenarios, and `/freeagent-ai:profitability` for project/client revenue, time, budgets
-and unbilled work. Both show missing inputs and preserve currencies. See
-[analysis assumptions and calculation contracts](docs/analysis.md).
+Use `/freeagent-ai:cash-flow` to review FreeAgent bank balances and outstanding
+records, and `/freeagent-ai:profitability` to review recorded project, budget, time
+and billing evidence. These compatibility skill names do not calculate forecasts,
+margins or other custom accounting metrics. Use the reports workflow for FreeAgent's
+own report results. See [provider evidence coverage](docs/analysis.md).
 
-Use `/freeagent-ai:recurring-revenue` to review recurring invoice profiles and
-prepare explicit billing/payment scenarios with generated-invoice overlap checks.
-See [recurring scenario assumptions](docs/recurring-revenue.md).
+Use `/freeagent-ai:recurring-revenue` to read FreeAgent recurring invoice profiles,
+returned next/end dates, status and values. It does not expand future occurrences
+or predict cash receipts. See [recurring profile coverage](docs/recurring-revenue.md).
 
 ## Using it
 
@@ -175,4 +176,5 @@ until approved policy/support links are configured. ChatGPT and Claude remain
 disabled until each verified listing or connection URL is supplied.
 
 Use `/freeagent-ai:tax-overview` for read-only VAT, Corporation Tax and user-scoped
-Income Tax evidence, with separate filing/payment dates and reviewed forecast commitments.
+Income Tax evidence, with separate provider filing/payment dates and statuses.
+Unavailable remaining debt is reported explicitly; no forecast commitments are calculated.

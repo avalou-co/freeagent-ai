@@ -78,9 +78,15 @@ no filing or payment transitions are exposed.
 
 `list_recurring_invoices` and `get_recurring_invoice` are fixed read-only operations
 from the [provider contract](https://dev.freeagent.com/docs/recurring_invoices),
-checked 2026-10-25. View/contact filters use shared reference expansion and complete
-pagination. Safe projections preserve billing schedule, recurring status, identity,
-contact/project, currency, amounts, terms and line items. No profile mutations or
-undocumented generated-invoice relationship are introduced. Local scenario arithmetic
-and hosted workflow use [explicit calendar/payment/overlap review](recurring-revenue.md).
-The generated hosted tool audit derives both GET operations from the registry.
+checked 2026-10-26. Collection filters are view and contact; pagination and numeric
+contact expansion use shared API mechanics. Safe projections preserve returned
+profile identity, contact/project, frequency, recurring_status, next/end dates,
+currency, values, payment terms and line items; absent fields remain absent.
+Both result envelopes add collected_at (UTC read-completion time, not a provider
+record-change date or an atomic multi-page snapshot).
+
+The [recurring profile workflow](recurring-revenue.md) uses the active/inactive/draft
+views and explains only provider results. No profile mutation, future-date expansion,
+payment/cash forecast, custom calculation tool, local runtime or undocumented
+invoice/profile relationship is introduced. The generated audit derives both GET
+operations from the registry. Unsupported provider capabilities remain unavailable.

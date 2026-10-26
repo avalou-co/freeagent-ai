@@ -158,6 +158,7 @@ See [migration inventory, rollout and fallback](bank-attachments.md).
 Hosted recurring profile reads use the fixed `list_recurring_invoices` and
 `get_recurring_invoice` operations from the generated registry audit. Both are
 read-only and preserve shared scope, account isolation and pagination mechanics.
-Local clients use the unchanged generic GET. No profile mutation or API scheduling
-validation is added; [recurring arithmetic](recurring-revenue.md) uses explicitly
-reviewed calendar/payment/overlap assumptions outside the transport layer.
+The envelope adds collection-completion time; provider fields remain unchanged or
+absent. Local clients can use the unchanged generic GET. The packaged workflow uses
+only named remote reads and [provider-returned evidence](recurring-revenue.md); no
+recurrence expansion, calculator or payment scenario is added.

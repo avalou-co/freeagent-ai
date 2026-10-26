@@ -1,45 +1,45 @@
 ---
 name: recurring-revenue
-description: Read-only recurring invoice profiles and reviewed billing/cash scenarios.
-argument-hint: "[horizon] [contact] [currency]"
+description: Read-only FreeAgent recurring invoice profiles, returned dates, statuses and values.
+argument-hint: "[contact] [view]"
 ---
 
-# Recurring revenue review
+# Recurring invoice profiles
 
-Follow `docs/agent-rules.md` and [recurring scenario assumptions](../../../docs/recurring-revenue.md).
-GET tools only; do not create or change profiles or issue invoices.
+Follow [agent rules](../../../docs/agent-rules.md) and
+[provider coverage](../../../docs/recurring-revenue.md). Read only.
+This workflow explains FreeAgent records; it does not calculate future billing or cash.
 
-1. Confirm company, contact scope, currency and inclusive horizon. Record a UTC
-   collection timestamp. Read company and all pages of recurring invoices separately
-   with `view=active`, `view=inactive` and `view=draft`; optionally filter contact.
-   Locally use `freeagent_get("recurring_invoices?view=active&per_page=100")` and the
-   other views; hosted use `list_recurring_invoices` and `get_recurring_invoice`.
-   A failed/denied read is incomplete, never an empty collection. Reconcile profiles
-   appearing in multiple views after a status change; never count them twice.
-2. Show groups separately, with profile links, provider frequency, recurring status,
-   next/end dates, currency and net/tax/gross values. Inactive is a documented view,
-   not an invented `recurring_status` value. Fetch selected details to review lines.
-   Blank end means unbounded; absent fields remain unavailable. Leave other currencies
-   in separate scenarios with visible exclusions; no automatic conversion.
-3. Read complete invoices for the selected scope. Provider documentation does not
-   specify a generated-invoice/profile relationship field. Do not match by contact,
-   amount or date alone and call it proven. Review each billing occurrence against
-   generated invoices (including Draft/Paid), existing forecast commitments and
-   payments already in opening balances. Record exact date-to-invoice links or an
-   explicit reviewed no-overlap decision. Unresolved overlap stops its cash inclusion.
-4. Confirm the calendar scenario convention with the user: anchor date/day, independent
-   month-end clamping (Jan 31 -> Feb 28 -> Mar 31), and inclusive end. These are
-   scenario assumptions, not verified provider scheduling rules. Resolve a stale
-   `next_recurs_on` before expansion. Ask for expected payment delay after billing;
-   invoice payment terms do not establish actual collection behavior. Keep unsupported
-   cadence and unavailable assumptions incomplete.
-5. Run `freeagent_ai.recurring.recurring_scenario` with reviewed snapshots as described
-   in the canonical doc. Active profiles alone produce future billing events.
-   Inactive/Draft profiles are shown without forecast receipts. Preserve incomplete
-   status and missing evidence; never silently treat missing data as zero.
-6. Label billing events separately from expected cash receipt dates. Hand off only
-   reviewed additional commitments to the cash-flow workflow. Existing generated
-   invoices continue through normal outstanding `due_value` handling, never a second
-   recurring commitment. Carry missing_inputs into the forecast and display assumption
-   links, collection time, exclusions and events beyond the cash horizon. This is a
-   scenario, not booked revenue or guaranteed cash.
+1. Confirm company, optional contact scope and requested views. Use `get_company`
+   and `list_contacts` or `get_contact` when needed to resolve the intended contact;
+   use the returned numeric resource ID, never guess it.
+2. Call `list_recurring_invoices` separately with view active, inactive and draft
+   when a full overview is requested. Optionally pass contact. Omit page and leave
+   paginate=true to aggregate all linked pages once; do not manually fetch them again.
+   Keep each query's view label and its collected_at UTC read-completion time with
+   its records. A failed, denied or malformed read is unavailable coverage, not an
+   empty list or zero. If any view fails, state that the overview is incomplete.
+3. Fetch selected details with `get_recurring_invoice` using returned profile IDs.
+   Show the source URL, contact/project references, recurring_status, frequency,
+   next_recurs_on, recurring_end_date, currency, net/tax/total values, payment terms
+   and invoice items exactly where returned. Absent fields remain unavailable;
+   a blank end date is documented as recurring indefinitely. Do not invent a missing
+   next date, currency, amount, status or contact/project relationship.
+4. Present active/inactive/draft view groups separately. Inactive is a provider view,
+   not an invented recurring_status value. If the same profile appears across views
+   or later detail differs, explain possible changes during collection and re-read;
+   the paginated overview is not an atomic snapshot. Preserve separate currencies
+   and the provider's signed values; do not convert or sum them into forecasts.
+5. Explain that next_recurs_on is FreeAgent's next billing date, not an expected or
+   guaranteed cash receipt. Display only dates and values returned by the API. Do
+   not expand recurrence, clamp calendar dates, infer payment delays, create cash
+   commitments or calculate future totals. Future billing/cash scenarios are
+   unsupported by these provider reads.
+6. The documented API does not expose a generated invoice/profile relationship.
+   State that identifying generated invoices or overlap is unavailable; do not infer
+   a link from matching contact/date/amount. Do not add custom matching or accounting
+   logic. Profile creation/update/deletion are not documented by this read-only API.
+
+Use only the named remote tools above in ChatGPT web/iOS. No Python helper,
+calculator, script, local file, terminal or assumed client interpreter is required.
+Any separate invoice workflow retains its own read/approval/readback rules.

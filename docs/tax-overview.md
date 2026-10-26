@@ -1,4 +1,4 @@
-# Tax return evidence and cash-flow handoff
+# Tax return evidence
 
 Read-only workflow; FreeAgent remains the accounting authority. No tax rates,
 liabilities, filing transitions or payment execution are calculated or submitted.
@@ -11,8 +11,7 @@ Official contracts checked 2026-10-25:
 | Corporation Tax | `corporation_tax_returns` | `corporation_tax_returns/:period_ends_on` | https://dev.freeagent.com/docs/corporation_tax_returns |
 | Income Tax | `users/:user_id/self_assessment_returns` | same collection plus `/:period_ends_on` | https://dev.freeagent.com/docs/income_tax_returns |
 
-Local `freeagent_get` accepts these paths; hosted tools are the six named
-list/get operations in the tax-overview skill. Dates are ISO period-end dates,
+The six named remote list/get operations are described in the tax-overview skill. Dates are ISO period-end dates,
 not numeric IDs. Income Tax requires an explicit numeric user ID. No arbitrary
 path or unsupported filing/payment operation is added to the hosted inventory.
 All reads require the provider's Tax, Accounting & Users access; company type,
@@ -34,22 +33,20 @@ The projections retain source URLs, periods, filing evidence and payment fields;
 VAT breakdown boxes are outside this workflow. Tax amounts do not carry a currency
 in these contracts: confirm the applicable tax denomination with the taxpayer;
 company currency alone is not proof of personal tax currency. Preserve that explicit
-currency through the forecast; no exchange-rate assumptions or cross-currency sum.
-For personal tax, also confirm that the selected business account should fund it.
+currency as a label on the evidence; do not assume exchange rates or sum unlike
+currencies. Personal tax is not automatically a company liability.
 
-The skill owns review and overlap decisions. One return may contain several
-payments on different dates. Distinguish each occurrence by return URL + payment
-index and keep the parent source visible. The same obligation in a bank balance,
-bill or prior commitment must not be counted twice. Payment-on-account/balancing
-credit interactions need review, not blind netting. Exact partial residuals and
-refund dates need evidence/user confirmation. Past-due amounts need reconciliation
-with opening balances and a reviewed future payment date. Filing dates never
-substitute for payment dates. Unresolved inputs flow into forecast missing_inputs.
+Show each provider payment occurrence and its parent source separately. Do not
+net balancing credits, derive partial-payment residuals, assign accounts or create
+cash-flow commitments. Missing remaining-debt fields and uncertain payment status
+must be reported as unavailable. Payment deadlines never become filing dates or
+invented future receipt/payment dates.
 
-Verification uses synthetic dispatcher/HostedClient fixtures and reviewed forecast
-commitments. No live sandbox, tax authority filing state or real payment acceptance
-has been verified. Before claiming live availability, check a dedicated authorized
-sample account for applicable company/user types and provider field behavior.
+Verification uses synthetic provider-response fixtures and authenticated remote
+reads. It does not calculate forecasts. No live sandbox, tax-authority filing
+state, actual marketplace session or real payment acceptance has been verified.
+Before claiming live availability, verify authorized company/user types and
+provider field behavior in a dedicated sample account.
 
 ## Review examples (synthetic, not live execution evidence)
 
@@ -62,8 +59,6 @@ sample account for applicable company/user types and provider field behavior.
 - A company with unavailable tax functionality: report the failed/unsupported
   coverage explicitly, even if another tax endpoint succeeds. Do not predict
   obligations from country/type or grant access on that basis.
-- An unpaid 120 payment with 40 already reflected in the bank balance: hand off
-  only a reviewed remaining 80 payment, not the full 120 or an invented status.
-  The synthetic dispatcher-to-forecast test verifies this 80 maps to an outgoing
-  payment without counting the 40 twice. That test supplies the review decisions;
-  it does not establish autonomous judgment or provider partial-payment tracking.
+- A return with a positive amount_due and partial-payment evidence: show the
+  provider fields and explain that the API does not establish remaining debt.
+  Do not subtract amounts or invent a revised payment date/status.

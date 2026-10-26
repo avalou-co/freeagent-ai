@@ -23,10 +23,10 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `estimates` | Creating draft estimates/quotes with line items |
 | `bills` | Recording supplier bills, listing unpaid or overdue ones |
 | `bank-reconcile` | Listing unexplained bank transactions and proposing explanations |
-| `cash-flow` | Read-only 13-week cash forecast and payment-delay scenarios |
-| `profitability` | Read-only project/contact time, revenue, budgets and cost review |
-| `recurring-revenue` | Read-only recurring invoice profiles and reviewed billing/cash scenarios |
-| `tax-overview` | Read-only tax liabilities, filing/payment deadlines and reviewed cash-flow handoff |
+| `cash-flow` | Read-only provider bank balances and outstanding records |
+| `profitability` | Read-only provider project, budget, time and billing records |
+| `recurring-revenue` | Read-only FreeAgent recurring invoice profiles and provider-reported dates/statuses |
+| `tax-overview` | Read-only provider tax amounts, filing/payment deadlines and status |
 | `reports` | Read-only P&L, balance sheet, trial balance, cash, overdue invoices and bills |
 | `invoice-status` | Read-only: list invoices by status/contact/date, show payment status, draft overdue chasers |
 
