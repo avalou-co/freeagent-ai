@@ -7,8 +7,9 @@ The compatibility skill names `cash-flow` and `profitability` now mean bank and
 outstanding-record review, and project/billing-record review respectively.
 The remediated cash-flow, profitability, reports and tax-overview workflows require
 only named remote API tools, without client Python, a shell, local files or custom
-calculators. This does not establish readiness of other skills: mileage (#88),
-recurring invoices (#70) and package-wide enforcement (#90) have separate remediation.
+calculators. This does not establish readiness of other skills: mileage (#88)
+and package-wide enforcement (#90) have separate remediation. Recurring profiles
+use [provider reads only](recurring-revenue.md).
 Runtime engine removal is tracked separately in #94.
 
 ## Reports and scope
@@ -39,6 +40,7 @@ omits needed evidence. Never turn a failed read into an empty collection.
 | Tasks | `list_tasks`, `get_task` | project, is_billable, currency, billing_rate, billing_period, status; view=all includes inactive records |
 | Recorded time | `list_timeslips`, `get_timeslip` | project/task/user, dated_on, hours, billed_on_invoice, timer.running/start_from; linked Draft invoices are still links and running time is not final |
 | Expenses | `list_expenses`, `get_expense` | project, dated_on, currency and native/transaction net/tax values; preserve currency basis rather than deriving costs |
+| Recurring profiles | `list_recurring_invoices`, `get_recurring_invoice` | Provider frequency, recurring_status, next/end billing dates, currency and values; no recurrence expansion or cash prediction |
 | Tax | Named return list/get tools in [tax-overview](tax-overview.md) | Provider periods, payment/filing dates, signed amount_due and status; unavailable residuals remain unavailable |
 
 Credit-note filters include view, contact, project, updated_since, sort and

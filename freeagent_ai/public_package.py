@@ -160,6 +160,7 @@ def package_files(root, metadata=None):
         "tax-overview.md",
         "credit-notes.md",
         "analysis.md",
+        "recurring-revenue.md",
     ]:
         source = root / "docs" / name
         files["docs/" + name] = render_hosted(source.read_text(), docs_prefix="").encode()

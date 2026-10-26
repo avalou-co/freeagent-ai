@@ -181,3 +181,15 @@ allocation affecting only the selected existing issued credit and invoice, after
 complete reads, exact preview and separate approval. It excludes invoice edits,
 issuing, cash refunds and unrelated records. Preserve provider
 errors and inspect uncertain writes before any retry.
+
+
+## Recurring invoices (read-only)
+
+- The [documented recurring invoice API](https://dev.freeagent.com/docs/recurring_invoices)
+  offers collection/detail GETs and view/contact filters, not profile creation.
+- Inactive is a collection view; documented recurring_status values are Active and
+  Draft. Preserve view evidence separately from provider status fields.
+- next_recurs_on and recurring_end_date are provider billing information, not cash
+  receipt predictions. Missing dates or values stay unavailable, never generated.
+- No generated-invoice/profile link is documented. Do not match records or compute
+  overlap. Use [named profile reads](recurring-revenue.md) without custom calculations.
