@@ -19,6 +19,8 @@ VERSION = "0.3.0"
 
 
 def render_hosted(text, *, docs_prefix="../../docs/"):
+    if "## Hosted transport" in text:
+        raise ValueError("Hosted transport heading is reserved for the generated inventory")
     if docs_prefix == "../../docs/" and re.search(r"freeagent_(?:get|post|put|delete)\b", text):
         raise ValueError("Canonical workflow requires a local generic executor")
     # Preserve the canonical business/approval prose. Replace transport-specific instructions

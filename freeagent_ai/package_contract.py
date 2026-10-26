@@ -34,10 +34,10 @@ SKILLS = {
     "tax-overview": ("list_vat_returns", "list_corporation_tax_returns", "list_self_assessment_returns"),
     "timesheets": ("list_timeslips", "create_timeslip"),
 }
-ARTIFACT_INPUTS = {"receipts", "expenses", "bills", "bank-reconcile"}
 TOOL_TOKEN = re.compile(
     r"\b((?:list|get|create|update|delete|explain|add|remove|find|calculate|execute|run)_[a-z][a-z0-9_]*)\b"
 )
+CALL_REFERENCE = re.compile(r"\b(?:call|invoke|tool|helper|function)\s+`([a-z][a-z0-9_]*)(?:\(|`)", re.I)
 LINK = re.compile(r"\[[^\]]*\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
 LOCAL_IMPORT = re.compile(r"\b(?:freeagent_ai\.(?:analysis|recurring)|runpy|preview\.py)\b")
 GENERIC = re.compile(r"\bfreeagent_(?:get|post|put|delete)\b")
@@ -68,7 +68,7 @@ def workflow(text):
 
 
 def tool_names(text):
-    return set(TOOL_TOKEN.findall(text))
+    return set(TOOL_TOKEN.findall(text)) | set(CALL_REFERENCE.findall(text))
 
 
 def _headings(text):
@@ -145,6 +145,13 @@ def validate_operations():
             or (create and op.root != CREATES[op.helper])
         ):
             raise ValueError(f"Non-provider operation in hosted inventory: {name}")
+        if op.method != "GET":
+            schema = op.descriptor.input_schema
+            if (
+                "confirmed" not in schema.get("required", [])
+                or schema.get("properties", {}).get("confirmed", {}).get("type") != "boolean"
+            ):
+                raise ValueError(f"Write operation lacks explicit approval input: {name}")
         if create:
             expected = next(
                 endpoint for endpoint, (root, *_) in {**CORRECTIONS, **RESOURCES}.items() if root == op.root
@@ -193,9 +200,19 @@ def coverage(files):
         absent = set(required) - names
         if absent:
             raise ValueError(f"Missing required workflow operations: {skill}: {sorted(absent)}")
-        operations = []
+        operations, artifacts = [], []
         for name in sorted(names):
             op = REGISTRY[name]
+            metadata = op.descriptor.model_dump(by_alias=True).get("_meta") or {}
+            for parameter in metadata.get("openai/fileParams", []):
+                artifacts.append(
+                    {
+                        "tool": name,
+                        "parameter": parameter,
+                        "input_schema": op.descriptor.input_schema["properties"][parameter],
+                        "transport": "ChatGPT file reference; bounded hosted download",
+                    }
+                )
             operations.append(
                 {
                     "name": name,
@@ -212,7 +229,7 @@ def coverage(files):
             "required_operations": list(required),
             "operations": operations,
             "linked_evidence": sorted(LINK.findall(workflow(text))),
-            "input_artifacts": ["ChatGPT file reference (bounded hosted download)"] if skill in ARTIFACT_INPUTS else [],
+            "input_artifacts": artifacts,
             "output_artifacts": ["provider JSON / assistant explanation"],
             "verification_limits": "Static contract and synthetic HTTP fixtures do not prove assistant decisions or live web/iOS installation.",
         }

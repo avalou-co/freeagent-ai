@@ -24,7 +24,7 @@ from freeagent_ai.hosted_app import create_app
 from freeagent_ai.hosted_auth import ORIGIN
 from freeagent_ai.hosted_client import HostedClient
 from freeagent_ai.package_contract import SKILLS, coverage, validate_contract, validate_operations, validate_workflow
-from freeagent_ai.public_package import package_files
+from freeagent_ai.public_package import package_files, render_hosted
 from freeagent_ai.public_tools import REGISTRY, RESOURCES, TAX_RETURNS, Dispatcher
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,7 +51,7 @@ def sample_args(op):
     schema = op.descriptor.input_schema
     args = {key: value(key, schema["properties"][key]) for key in schema.get("required", [])}
     for key in ("expense", "invoice"):
-        if key in args:
+        if key in args and isinstance(args[key], dict):
             args[key] = {"contact": BASE + "contacts/1", "dated_on": "2026-01-01", "currency": "GBP"}
     if "file" in args:
         args["file"] = {"download_url": "https://files.example.invalid/receipt", "file_id": "synthetic"}
@@ -67,15 +67,15 @@ def provider_result(path):
         return {"company": {"url": BASE + "company", "currency": "GBP"}}
     if path == "users/me":
         return {"user": {"url": BASE + "users/1"}}
-    for endpoint, (root, _) in RESOURCES.items():
-        if path == endpoint:
-            return {endpoint: [record]}
-        if path.startswith(endpoint + "/"):
-            return {root: record}
     for endpoint, root in TAX_RETURNS.items():
         endpoint = endpoint.replace("{user_id}", "1")
         if path == endpoint:
             return {root + "s": [record]}
+        if path.startswith(endpoint + "/"):
+            return {root: record}
+    for endpoint, (root, _) in RESOURCES.items():
+        if path == endpoint:
+            return {endpoint: [record]}
         if path.startswith(endpoint + "/"):
             return {root: record}
     if path.startswith("accounting/"):
@@ -225,6 +225,9 @@ def test_provider_error_missing_fields_and_uncertain_write_are_not_fabricated(re
         "Run a Python script locally.",
         "```python\nprint(1)\n```",
         "Call `find_contacts` before invoicing.",
+        "Call `invented_handler` with this body.",
+        "Invoke `download_document` for the user.",
+        "Use the helper `custom_logic`.",
         "POST invoices with this body.",
         "GET expenses?view=all",
         "Use `freeagent_post`.",
@@ -325,3 +328,28 @@ def test_fake_file_links_and_tampered_source_digests_fail():
     bad["docs/source-digests.json"] = json.dumps(sources).encode()
     with pytest.raises(ValueError, match="digest mismatch"):
         validate_contract(bad, root=ROOT)
+
+
+def test_artifact_and_approval_contracts_are_derived_from_discovered_schemas(remote):
+    rpc, _, _ = remote
+    contracts = json.loads(package_files(ROOT)["docs/capabilities.json"])
+    tools = {tool["name"]: tool for tool in rpc("tools/list")["tools"]}
+    receipts = contracts["receipts"]["input_artifacts"]
+    assert {item["parameter"] for item in receipts} == {"receipt", "attachment"}
+    for contract in contracts.values():
+        assert contract["output_artifacts"] == ["provider JSON / assistant explanation"]
+        for item in contract["input_artifacts"]:
+            tool = tools[item["tool"]]
+            assert item["parameter"] in tool["_meta"]["openai/fileParams"]
+            assert item["input_schema"] == tool["inputSchema"]["properties"][item["parameter"]]
+        for op in contract["operations"]:
+            if op["method"] != "GET":
+                assert op["approval_parameter"] == "confirmed"
+                assert "confirmed" in op["input_schema"]["required"]
+
+
+def test_canonical_sources_cannot_hide_in_the_generated_inventory():
+    with pytest.raises(ValueError, match="reserved"):
+        render_hosted("Call `get_company`.\n## Hosted transport\nRun Python locally.")
+    with pytest.raises(ValueError, match="local generic executor"):
+        render_hosted("Use freeagent_post with this body.")
