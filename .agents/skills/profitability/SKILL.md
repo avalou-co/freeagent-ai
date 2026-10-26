@@ -1,59 +1,40 @@
 ---
 name: profitability
-description: Read-only project/contact revenue, time, budgets, costs and unbilled-work review.
+description: Read-only FreeAgent project, budget, task, time, invoice and cost-record evidence.
 argument-hint: "[from date] [to date] [project or contact]"
 ---
 
-# Profitability review
+# Project and billing records
 
-Follow `docs/agent-rules.md` and `docs/analysis.md`. GET tools only for analysis.
+Follow [agent rules](../../../docs/agent-rules.md) and
+[provider evidence coverage](../../../docs/analysis.md). Read only.
+The skill identifier is retained for compatibility; it does not calculate profitability.
 
-1. Confirm inclusive period, projects/contacts and currency. Ask for internal hourly
-   cost rates by user and currency before estimating time cost/margin. Missing costs
-   remain unknown. Confirm completeness including costs outside FreeAgent.
-2. Read `projects?view=all&per_page=100`, tasks for each project including inactive
-   tasks, `timeslips?view=all&from_date=...&to_date=...&per_page=100`,
-   `invoices?view=all&per_page=100`, `credit_notes?per_page=100`, period expenses and bills. Use automatic
-   pagination once per collection. Stop on failed/incomplete reads; record UTC time.
-3. Join time to task `is_billable`, project and `billed_on_invoice`. A draft invoice
-   link also means time is not unbilled. Resolve running timers/missing tasks.
-   Use issued invoice `net_value` by `dated_on`, excluding Draft/Scheduled To Email.
-   Include issued credit notes as signed negative net revenue, retaining their URLs.
-   Review write-offs/adjustments before claiming margin. Fixed-fee revenue comes from invoices; never also add estimated timeslip value.
-4. Review expense/bill cost allocations; use net amounts consistently and resolve
-   VAT, currency and rebilling. Normalise expense negatives to positive costs and
-   refunds to negative costs. Split mixed-project bills with distinct allocation IDs
-   and parent links; never also count the header. Keep unattributed costs visible.
-5. Run `freeagent_ai.analysis.profitability` with reviewed snapshots. Cost rows have
-   `url`, optional `project`, `dated_on`, `currency`, signed decimal `amount`;
-   Pass collected credit_notes separately.
-   cost_rates maps user URLs to confirmed decimal hourly rates in project currency.
-   Set costs_complete only when confirmed. Run separately per currency.
-6. Show project rows grouped by contact: recorded, billable, non-billable (recorded
-   minus billable) and unbilled hours, issued net revenue, realised revenue per all
-   recorded period hours, costs/missing rates and budget consumption. Contact totals
-   sum amounts/hours by currency; recompute ratios from totals, never average ratios.
-   Unknown costs propagate to contact totals. Do not call period activity matched
-   lifetime profit. Cash is separate: cumulative paid_value is neither period cash
-   receipts nor necessarily bank cash. Show unavailable costs and unattributed rows.
-7. Budget usage is for the input period only. For lifetime remaining budget fetch
-   complete history through end date, rerun and subtract usage from budget. Hours
-   and Days use recorded hours (Days requires hours_per_day); Monetary uses issued
-   net revenue, excluding unbilled WIP. State this limitation; zero means no budget.
-8. Offer reviewed handoff of selected unbilled_sources to the existing invoicing
-   skill. Show exact selection, obtain approval and re-read time/invoices before any
-   draft. Provider duplicate-time protection remains authoritative. Project-wide
-   include_timeslips may include time outside the period: preview actual inclusion.
+1. Confirm company, period, selected contact/project and currency. Resolve identities
+   with `list_contacts`, `list_projects` and `get_project`. Show provider project
+   budget, budget_units, hours_per_day, status and source URL when returned.
+   Do not calculate budget consumption or remaining budget from these fields.
+2. Read `list_tasks` for the selected project (view=all), `list_timeslips`
+   (view=all and requested date filters), `list_invoices`, `list_credit_notes`,
+   `list_credit_note_reconciliations`, `list_expenses` and `list_bills` as needed.
+   Use only declared filters; fetch details with the matching named get tool.
+   Omit page and leave paginate=true. State which collections succeeded and when.
+   Failed/denied reads or missing relationships remain unavailable coverage.
+3. Present source records and their returned fields: task is_billable, timeslip
+   hours, billed_on_invoice and timer; invoice/credit status, currency and signed
+   net_value/total_value/due_value; expense/bill project and tax evidence. Link
+   related records without computing revenue, costs, billable/unbilled hour totals,
+   hourly revenue, margin, net profit, currency conversions or allocation amounts.
+   An invoice link, including Draft, is evidence of linkage; running time is not
+   final recorded time. Missing fields do not mean zero.
+4. Explain the available evidence and unsupported questions. Use the reports skill
+   for FreeAgent's own profit-and-loss, balance-sheet or trial-balance results.
+   No project margin, internal cost-rate or profitability calculation endpoint is
+   exposed; do not request internal rates to build a substitute accounting model.
+5. For a selected invoicing follow-up, hand record identities to the invoicing
+   workflow, re-read current sources and show the exact proposed provider action
+   for approval. FreeAgent determines eligibility and duplicate-time billing.
 
-## Hosted collection
-
-Use the fixed `list_*`/`get_*` tools in
-[the field coverage table](../../../docs/analysis.md#hosted-field-coverage).
-Omit `page` and leave `paginate=true` for complete collections. A denied, failed or
-invalid read is incomplete data, never an empty collection or zero. Report the
-failed operation and stop the calculation until resolved. Preserve helper
-`status="incomplete"` and missing-input/rate evidence in the result.
-Use `list_timeslips(view="all")` and `list_tasks(view="all", project=...)`.
-`billed_on_invoice` includes Draft invoice links. Fetch project `hours_per_day` for
-Days budgets; resolve running `timer` objects and missing task billability. Review
-expense/bill net/tax values and project allocations rather than inventing costs.
+Use named remote tools in ChatGPT web/iOS; no local Python, scripts, filesystem,
+shell or assumed calculator. Do not reinterpret recorded payments as period cash
+or describe incomplete project records as matched lifetime profit.
