@@ -178,3 +178,9 @@ disabled until each verified listing or connection URL is supplied.
 Use `/freeagent-ai:tax-overview` for read-only VAT, Corporation Tax and user-scoped
 Income Tax evidence, with separate provider filing/payment dates and statuses.
 Unavailable remaining debt is reported explicitly; no forecast commitments are calculated.
+
+Use `/freeagent-ai:credit-notes` to review duplicate credits and create approved
+Draft credit notes. A [narrow allocation exception](docs/credit-notes.md) permits
+separately approved allocation of a selected existing issued credit to a selected
+invoice after complete reads and an exact preview. Issuing, invoice edits and cash
+refunds remain excluded. Allocation mechanics return all affected provider records.

@@ -169,6 +169,19 @@ user-scoped self-assessment, distinct payment/filing dates, partial-payment limi
 and unavailable residuals. No custom tax/forecast calculations, filing or payment
 action is added.
 
+## Credit notes and invoice allocations
+
+Use the [credit workflow and allocation policy](credit-notes.md). Provider creates credit
+notes as Draft. Named helper forwards signed credit_note_items and reads back;
+issuing/email are separate and not exposed by this workflow. Reconciliations use
+POST credit_note_reconciliations with credit_note/invoice/gross_value; helper reads
+reconciliation, credit note and invoice. Detail JSON may use a plural root.
+Allocation is not a cash refund. The approved narrow ownership exception permits
+allocation affecting only the selected existing issued credit and invoice, after
+complete reads, exact preview and separate approval. It excludes invoice edits,
+issuing, cash refunds and unrelated records. Preserve provider
+errors and inspect uncertain writes before any retry.
+
 
 ## Recurring invoices (read-only)
 

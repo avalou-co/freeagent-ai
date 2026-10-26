@@ -22,7 +22,7 @@ from .mcp_auth import BearerAuth, load_token
 
 INSTRUCTIONS = """Generic FreeAgent API tools. Business IDs, rates and rules come from the user's own instructions; ask if missing, never guess.
 Rules: reads are free. Before any write call, show the plan and get a clear yes, unless the user gave exact details and said to proceed.
-Never touch entries you did not create in this task. After every write, read back with freeagent_get and report what FreeAgent holds, not what you sent. FreeAgent validates accounting rules and resource relationships.
+Never touch entries you did not create in this task except the separately approved credit-allocation exception in docs/agent-rules.md (selected existing issued credit/invoice only; no issuing, invoice edits or cash refunds). After every write, read back with freeagent_get and report what FreeAgent holds, not what you sent. FreeAgent validates accounting rules and resource relationships.
 Pass resources as full URLs (e.g. https://api.freeagent.com/v2/projects/123) as returned by freeagent_get."""
 
 mcp = MCPServer("freeagent-ai", instructions=INSTRUCTIONS)
@@ -134,6 +134,63 @@ def create_draft_invoice(
     if include_timeslips:
         inv["include_timeslips"] = "billed_grouped_by_timeslip"
     return _create_and_readback("invoices", "invoice", inv)
+
+
+@mcp.tool(annotations=WRITE)
+def create_draft_credit_note(
+    contact: str,
+    dated_on: str,
+    payment_terms_in_days: int,
+    items: list[dict],
+    currency: str = "",
+    project: str = "",
+    reference: str = "",
+) -> dict:
+    """Create one provider-default Draft credit note and read it back. Preview exact
+    signed lines, tax and currency, inspect existing credits and obtain approval first.
+    Items are documented credit_note_items fields, forwarded unchanged. This neither
+    issues nor emails nor allocates the credit; those are separate policy-gated actions."""
+    note: dict = {
+        "contact": contact,
+        "dated_on": dated_on,
+        "payment_terms_in_days": payment_terms_in_days,
+        "credit_note_items": items,
+    }
+    for key, value in (("currency", currency), ("project", project), ("reference", reference)):
+        if value:
+            note[key] = value
+    return _create_and_readback("credit_notes", "credit_note", note)
+
+
+@mcp.tool(annotations=API_WRITE)
+def create_credit_note_reconciliation(
+    credit_note: str,
+    invoice: str,
+    gross_value: str,
+    dated_on: str = "",
+    currency: str = "",
+    exchange_rate: str = "",
+) -> dict:
+    """Create a separately approved allocation of a selected existing issued credit
+    to a selected invoice under the narrow ownership exception, not a cash refund.
+    Preview both records and exact amount/currency first. FreeAgent validates eligibility
+    and over-allocation. No issuing, invoice edits or unrelated changes are authorized.
+    Read back reconciliation AND affected credit note/invoice; any
+    failure requires inspection before retry. No issuance or email is performed."""
+    fields = {"credit_note": credit_note, "invoice": invoice, "gross_value": gross_value}
+    for key, value in (("dated_on", dated_on), ("currency", currency), ("exchange_rate", exchange_rate)):
+        if value:
+            fields[key] = value
+    created = _api_call("POST", "credit_note_reconciliations", {"credit_note_reconciliation": fields})
+    record = created["credit_note_reconciliation"]
+    result = _api_call("GET", record["url"])
+    # The provider detail example uses a plural root, unlike create/XML.
+    reconciliation = result.get("credit_note_reconciliation", result.get("credit_note_reconciliations"))
+    return {
+        "credit_note_reconciliation": reconciliation,
+        "credit_note": _api_call("GET", credit_note)["credit_note"],
+        "invoice": _api_call("GET", invoice)["invoice"],
+    }
 
 
 @mcp.tool(annotations=WRITE)

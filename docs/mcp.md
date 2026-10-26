@@ -39,7 +39,7 @@ readback must be investigated before another create.
 
 ## Tool audit
 
-All 15 registered tools were reviewed against the design contract. Named create
+All 17 registered tools were reviewed against the design contract. Named create
 helpers share the same POST/readback implementation; local and hosted errors use
 the same bounded provider-error formatter. This introduces no accounting validation. None performs
 local accounting or model eligibility validation. This audit and the mocked tests
@@ -54,6 +54,8 @@ verify wrapper behavior; they do not independently test FreeAgent's accounting r
 | `find_contacts` | GET all contacts and filter names and email locally, case-insensitively; no duplicate enforcement. |
 | `create_contact` | POST supplied contact fields and read back; omitted payment terms use provider defaults, explicit zero is preserved. |
 | `create_timeslip` | POST supplied timeslip fields and read back; no date, hours, relationship or duplicate checks. |
+| `create_draft_credit_note` | POST supplied signed credit items using FreeAgent default Draft status, then read back; no issuance/email/allocation. |
+| `create_credit_note_reconciliation` | POST separately approved allocation fields, then read reconciliation, credit note and invoice; destructive, non-idempotent, and subject to the narrow allocation ownership exception. |
 | `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
 | `create_expense` | POST expense fields and optional encoded local attachment, then read back; no amount, tax or file-type validation. |
 | `create_mileage_expense` | POST `category: Mileage`, supplied miles, vehicle and explicit reclaim flag, optional engine/VAT-receipt/project fields, then read back. No local rates, tax validation, amount calculation or duplicate enforcement. |
@@ -142,6 +144,19 @@ this also appears in hosted schemas. No extraction or duplicate policy tool is
 added. Hosted expense projections retain `receipt_reference` and available original,
 native and manual tax fields for evidence comparison; they do not decide duplicates
 or tax treatment. See the [hosted upload contract](receipts.md) for attachment boundaries.
+
+## Credit-note helpers
+
+`create_draft_credit_note` posts documented signed items with provider-default Draft
+status and reads back; no issuance, email or allocation. `create_credit_note_reconciliation`
+posts supplied allocation fields and reads reconciliation, credit note and invoice;
+provider accounting validation is authoritative. Both are writes. The hosted
+versions require confirmed=true; local helpers follow the shared approval rules.
+See [allocation policy](credit-notes.md): the approved narrow exception permits
+only allocation affecting a selected existing issued credit and invoice after
+complete reads, exact preview and separate approval. It does not authorize issuing,
+invoice edits, cash refunds or unrelated changes. No task ledger or local
+eligibility validator is added.
 
 ## Bank attachment migration
 
