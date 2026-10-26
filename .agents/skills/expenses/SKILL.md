@@ -35,8 +35,10 @@ files, shell commands or a generic API executor.
    before any retry. Never create an inaccurate interim expense and correct it later.
 
 For business journey distances, use the `mileage` skill and `create_mileage_expense`
-instead of treating mileage as a receipt amount. It reads provider settings and uses provider-calculated claim outcomes;
-no custom tax or mileage calculations belong in expense tooling.
+instead of treating mileage as a receipt amount. Read dated provider settings and
+review duplicates, then preview the exact approved API inputs and journey evidence.
+Report the amount FreeAgent returns after creation; do not calculate rates, pooled
+mileage, thresholds or a monetary preview. See the provider-calculated mileage workflow.
 
 Follow `docs/agent-rules.md` throughout.
 
