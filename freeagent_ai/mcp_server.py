@@ -241,10 +241,12 @@ def create_mileage_expense(
 ) -> dict:
     """Create one reviewed mileage claim and read it back. Mileage is a decimal string
     in miles, not kilometres. Read expenses/mileage_settings for date-specific rates and
-    engine options; preview the amount and check duplicates before approval. Explicit
+    engine options; preview exact API inputs and check duplicates before approval. There is
+    no documented monetary preview endpoint; do not calculate a reimbursement estimate. Explicit
     reclaim_mileage: 1 claims at provider AMAP rates, 0 is rebill-only. FreeAgent computes
     the claim; no gross_value or tax rate is guessed. Engine and VAT-receipt details
-    come from the user. Custom reimbursement arrangements use the generic expense API.
+    come from the user. Ask for miles if the source uses another unit; do not convert or
+    silently relabel it. Report unsupported reimbursement arrangements instead of guessing.
     Never retry an uncertain create or failed readback without inspecting expenses."""
     expense: dict = {
         "user": user,

@@ -427,7 +427,7 @@ def test_package_reproducible_and_release_gate(tmp_path):
     assert json.loads(files["mcp.json"])["mcpServers"]["freeagent"]["url"] == ORIGIN + "/mcp"
     expected_skills = {f"skills/{path.parent.name}/SKILL.md" for path in (root / ".agents/skills").glob("*/SKILL.md")}
     assert {key for key in files if key.endswith("SKILL.md")} == expected_skills
-    assert "skills/mileage/scripts/preview.py" in files
+    assert "skills/mileage/scripts/preview.py" not in files
     assert "get_mileage_settings" in files["docs/api-notes.md"].decode()
     assert "list_expenses/mileage_settings" not in files["docs/api-notes.md"].decode()
     with pytest.raises(ValueError):

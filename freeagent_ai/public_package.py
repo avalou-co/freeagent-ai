@@ -166,9 +166,6 @@ def package_files(root, metadata=None):
         files["docs/" + name] = render_hosted(source.read_text(), docs_prefix="").encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
     files["docs/receipt-review-cases.md"] = (root / "publication/receipt-review-cases.md").read_bytes()
-    preview = root / ".agents/skills/mileage/scripts/preview.py"
-    files["skills/mileage/scripts/preview.py"] = preview.read_bytes()
-    sources[str(preview.relative_to(root))] = hashlib.sha256(preview.read_bytes()).hexdigest()
     files["docs/source-digests.json"] = json.dumps(sources, sort_keys=True, indent=2).encode()
     for path in sorted((root / "publication/assets").glob("*.png")):
         if path.is_symlink() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):

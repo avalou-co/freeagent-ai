@@ -34,7 +34,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Mileage expenses
 
-- Provider contract checked 2026-10-20: [expenses and mileage settings](https://dev.freeagent.com/docs/expenses).
+- Provider contract checked 2026-10-26: [expenses and mileage settings](https://dev.freeagent.com/docs/expenses).
 - `GET expenses/mileage_settings` returns date intervals for `mileage_rates` and
   `engine_type_and_size_options`. Fetch for the linked account; documentation
   examples are not current rate guidance. Each rate interval has `value` containing
@@ -46,13 +46,16 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Resolve `engine_type`/`engine_size` against the journey's date and explicitly
   establish `have_vat_receipt`/VAT treatment. Provider engine defaults are not facts
   about the user's vehicle. `project` is optional; confirm rebilling separately.
-- FreeAgent calculates the amount; compare readback mileage, claimant, currency,
-  engine and reclaim fields and `gross_value` with the approved estimate. A custom
-  business rate is not automatically applied by the AMAP helper. Agree the proper
-  ordinary-expense treatment first if the provider mileage basis does not apply.
-- Threshold previews need a confirmed allowance period, pooling basis and prior
-  eligible mileage including claims outside FreeAgent. Backdated claims can affect
-  subsequent entries. Never reset an allowance merely because a second car is used.
+- FreeAgent calculates the amount. Preview exact API inputs before approval, then
+  verify returned mileage, claimant, currency, engine, reclaim and project fields.
+  Report provider-returned amount/rate values with their signs; absent values remain
+  unavailable. Do not derive reimbursement, rate bands or expected balances locally.
+- The documented API accepts miles only and offers no mileage quote/preview endpoint.
+  Ask for miles if the source uses kilometres or other units; do not convert or
+  relabel the distance. There is no custom preview engine or client runtime.
+- Settings are provider evidence, not a determination of eligibility. Unsupported
+  reimbursement arrangements or missing vehicle/tax facts require a user decision,
+  not an invented rate or alternate accounting treatment.
 - Use one create per approved journey. On partial failure, stop and inspect before
   resuming. Do not retry an uncertain write or silently change existing claims.
 
