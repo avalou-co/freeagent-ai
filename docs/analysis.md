@@ -5,7 +5,11 @@ connector retrieves and explains those results; it does not calculate forecasts,
 profitability, margins, cost rates, budget usage or future payment scenarios.
 The compatibility skill names `cash-flow` and `profitability` now mean bank and
 outstanding-record review, and project/billing-record review respectively.
-No skill requires client Python, a shell, a local file or a calculator tool.
+The remediated cash-flow, profitability, reports and tax-overview workflows require
+only named remote API tools, without client Python, a shell, local files or custom
+calculators. This does not establish readiness of other skills: mileage (#88),
+recurring invoices (#70) and package-wide enforcement (#90) have separate remediation.
+Runtime engine removal is tracked separately in #94.
 
 ## Reports and scope
 
