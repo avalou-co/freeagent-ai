@@ -103,6 +103,9 @@ ITEM_FIELDS = [
     "sales_tax_rate",
     "category",
     "project",
+    "stock_item",
+    "unit",
+    "manual_sales_tax_amount",
     "invoice_item",
     "bill",
     "net_value",
@@ -130,16 +133,16 @@ FIELDS = {
     "user": "url first_name last_name role permission_level",
     "category": "url description nominal_code allowable_for_tax auto_sales_tax_rate",
     "timeslip": "url user project task dated_on hours comment billed_on_invoice timer",
-    "invoice": "url contact contact_name project reference dated_on due_on status currency net_value sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails invoice_items",
+    "invoice": "url contact contact_name project reference dated_on due_on status currency exchange_rate net_value sales_tax_value second_sales_tax_value total_value due_value paid_value payment_terms_in_days send_new_invoice_emails send_reminder_emails send_thank_you_emails include_timeslips include_estimates include_expenses invoice_items",
     "recurring_invoice": "url contact contact_name project reference dated_on frequency recurring_status next_recurs_on recurring_end_date currency exchange_rate net_value sales_tax_value total_value payment_terms_in_days invoice_items",
     "credit_note": "url contact project reference dated_on due_on status currency exchange_rate payment_terms_in_days net_value sales_tax_value total_value due_value second_sales_tax_value refunded_value refunded_on written_off_date credit_note_items",
     "credit_note_reconciliation": "url credit_note invoice dated_on currency gross_value exchange_rate",
     "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status ec_status property stock_item stock_item_description stock_altering_quantity recurring next_recurs_on recurring_end_date created_at updated_at",
-    "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor",
-    "estimate": "url contact project reference dated_on status currency net_value sales_tax_value total_value estimate_items",
+    "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor rebilled_on_invoice_item exchange_rate",
+    "estimate": "url contact project reference dated_on status currency net_value sales_tax_value second_sales_tax_value total_value estimate_items",
     "bank_account": "url name type currency current_balance latest_activity_date is_personal status",
     "bank_transaction": "url bank_account dated_on amount description unexplained_amount attachment attachments bank_transaction_explanations",
-    "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable attachment attachments",
+    "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable attachment attachments project rebill_type rebill_factor sales_tax_status sales_tax_rate sales_tax_value",
     "company": "url name currency type sales_tax_registration_status",
 }
 RESOURCES = {
@@ -165,6 +168,7 @@ CREATES = {
     "create_contact": "contact",
     "create_timeslip": "timeslip",
     "create_draft_invoice": "invoice",
+    "create_draft_invoice_from_payload": "invoice",
     "create_draft_credit_note": "credit_note",
     "create_credit_note_reconciliation": "credit_note_reconciliation",
     "create_expense": "expense",
@@ -455,6 +459,12 @@ def make_registry():
                 "Original currency differs from company-native manual tax amounts. FreeAgent validates accounting. "
                 "For a new receipt use the separate receipt file reference, not embedded attachment bytes."
             )
+        if helper == "create_draft_invoice_from_payload":
+            schema["properties"]["invoice"]["description"] = (
+                "Exact approved invoice object, including manual invoice_items, currency and provider inclusion modes. "
+                "Nested references are full provider URLs. Draft and automatic emails off are fixed defaults. "
+                "FreeAgent validates eligibility and computes totals; inclusion modes can include all eligible project sources."
+            )
         if helper == "create_project":
             schema["properties"]["budget"]["description"] = "Decimal budget; omit or use zero for no budget."
             schema["properties"]["budget_units"]["description"] = (
@@ -496,12 +506,23 @@ def make_registry():
                 [root, "credit_note", "invoice"] if helper == "create_credit_note_reconciliation" else [root],
             ),
             f"{helper.replace('_', ' ').capitalize()} after showing the exact plan and obtaining approval. "
-            + ("" if helper == "create_expense_from_payload" else "Resource reference inputs are numeric IDs. ")
+            + (
+                ""
+                if helper in {"create_expense_from_payload", "create_draft_invoice_from_payload"}
+                else "Resource reference inputs are numeric IDs. "
+            )
             + "FreeAgent validates accounting. Reads back automatically; investigate failed readback before another create."
             + (
                 " Nested expense fields use the full provider resource URLs returned by reads, not numeric IDs. "
                 "Preserve approved exact tax fields unchanged; no calculation or tax eligibility decision is made."
                 if helper == "create_expense_from_payload"
+                else ""
+            )
+            + (
+                " Nested invoice fields use full provider resource URLs. Draft status and all automatic emails are forced off; "
+                "include_estimates accepts open/approved estimates and include_expenses includes expenses, bills and bank entries. "
+                "Review the complete inclusion scope before approval; provider source selection is not individual IDs."
+                if helper == "create_draft_invoice_from_payload"
                 else ""
             )
             + (
@@ -616,7 +637,9 @@ class Dispatcher:
                     return original(method, path, body, **kwargs)
 
                 client.call = attach
-            self._expand_references(args, client.base)
+            if op.helper != "create_draft_invoice_from_payload":
+                self._expand_references(args, client.base)
+            # Exact nested invoice references already use provider URLs; do not treat its object as an invoice ID.
             # No filesystem parameter exists in the public schema.
             result = getattr(local, op.helper)(**args)
             roots = (

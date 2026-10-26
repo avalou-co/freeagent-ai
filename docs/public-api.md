@@ -108,3 +108,17 @@ metadata; missing fields remain unknown. See [receipt semantics](receipts.md).
 Synthetic tests verify generated skills, remote discovery, authenticated HTTP
 provider requests and readbacks. These do not prove provider tax acceptance,
 assistant decisions, deployed account isolation or installed web/iOS behavior.
+
+## Manual and source-included draft invoices
+
+`create_draft_invoice_from_payload` accepts the exact approved nested invoice object,
+including manual invoice_items, currency and documented grouping modes. Fixed POST
+invoices/readback only; Draft and all automatic emails are off. Nested references
+use full provider URLs. FreeAgent validates accepted fields/source eligibility and
+calculates totals. `include_expenses` can include bank entries as well as bills and
+expenses; `include_estimates` includes open/approved estimates. Modes do not select
+individual IDs: inspect complete provider evidence and stop on unknown scope.
+Packaged [invoicing guidance](invoicing.md) uses named remote reads and creation,
+without a client runtime or generic executor. Provider amounts/line evidence are
+preserved; no pre-write total is invented. Actual provider inclusion and deployed
+marketplace-client behavior remain unverified by synthetic tests.

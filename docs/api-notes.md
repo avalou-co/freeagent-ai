@@ -16,13 +16,24 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Invoices
 
+- Contract checked 2026-10-26: [provider invoice creation](https://dev.freeagent.com/docs/invoices).
+  Named remote `create_draft_invoice_from_payload` accepts manual `invoice_items`,
+  explicit `currency` and documented `include_timeslips`, `include_estimates` and
+  `include_expenses` modes. It fixes Draft and automatic emails off and reads back;
+  other fields pass unchanged. Nested references are full provider URLs.
+- `include_estimates` includes open/approved estimates; `include_expenses` includes
+  expenses, bills and bank account entries. Grouping modes do not select individual
+  IDs: review the whole project scope before approval, stop on unavailable evidence,
+  and reread actual invoice lines and source states afterwards. No custom tax/totals
+  or eligibility calculation is provided. See [invoice contract](invoicing.md).
+
 - `POST invoices` with `project`, `contact`, `include_timeslips: "billed_grouped_by_timeslip"` pulls the project's unbilled timeslips in as lines.
   **Do not also send a placeholder `invoice_items` entry**: it is added on top as an extra line and inflates the total.
 - A created invoice is `Draft`. Set all three `send_new_invoice_emails`, `send_reminder_emails`, `send_thank_you_emails` to `false`.
 - Removing a line: `DELETE invoice_items/<id>` works. `PUT` with `_destroy` (`1` or `true`) did not remove it.
 - Listing: `GET invoices?view=` `open_or_overdue`, `open`, `overdue`, `draft`, `paid`; filters `contact=<url>`, `from_date`, `to_date`. Payment fields `status`, `due_on`, `total_value`, `due_value`, `currency`. The client follows linked pages automatically; use `paginate=False` with `per_page=100&page=N` for manual paging.
 - Reading past invoices (`GET invoices?project=...`, then `GET invoices/<id>`) is the best source for reference format, terms, description style and VAT.
-- Verify after creating: status, line count, net = quantity x rate, VAT, emails off.
+- Verify after creating: provider-returned status, item identities/count, tax and totals, currency and emails off. Do not compute invoice totals or taxes locally.
 
 ## Expenses
 
@@ -72,7 +83,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - `POST estimates` body: `{"estimate": {"contact", "dated_on", "currency", "estimate_items": [{"description", "item_type", "quantity", "price"}]}}`; `project` is optional. Amounts are strings.
 - Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
 - List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
-- Not yet supported: converting an approved estimate to an invoice.
+- Draft invoice creation can request provider `include_estimates` modes for open/approved project estimates; this is not an individual estimate-ID conversion or permission to issue/send. See [invoice contract](invoicing.md).
 - Verify after creating: status, line count, net = quantity x price.
 
 ## Bills

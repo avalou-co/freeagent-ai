@@ -221,6 +221,7 @@ def test_tools_registered_with_hints():
         "create_contact",
         "create_timeslip",
         "create_draft_invoice",
+        "create_draft_invoice_from_payload",
         "create_draft_credit_note",
         "create_credit_note_reconciliation",
         "create_expense",

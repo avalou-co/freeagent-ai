@@ -137,6 +137,25 @@ def create_draft_invoice(
 
 
 @mcp.tool(annotations=WRITE)
+def create_draft_invoice_from_payload(invoice: dict) -> dict:
+    """Create a Draft invoice from exact approved provider fields and read it back.
+    Nested invoice_items, currency and include_timeslips/include_estimates/include_expenses
+    are forwarded unchanged. This convenience operation always sets Draft and all
+    automatic email flags off; it never issues, sends or calculates invoice values.
+    FreeAgent validates source eligibility and duplicate billing. Review the whole
+    provider inclusion scope before approving; inclusion modes are not individual IDs.
+    """
+    fields = {
+        **invoice,
+        "status": "Draft",
+        "send_new_invoice_emails": False,
+        "send_reminder_emails": False,
+        "send_thank_you_emails": False,
+    }
+    return _create_and_readback("invoices", "invoice", fields)
+
+
+@mcp.tool(annotations=WRITE)
 def create_draft_credit_note(
     contact: str,
     dated_on: str,
