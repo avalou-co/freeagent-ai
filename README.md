@@ -106,9 +106,10 @@ Ask your agent in plain language, for example:
 - "List my unexplained bank transactions and suggest explanations."
 
 Use `/freeagent-ai:mileage` to prepare mileage claims from journey logs. The agent
-resolves the claimant and dated rate settings, asks for cumulative mileage and
-vehicle details, checks possible duplicates, and previews each claim before filing.
-FreeAgent calculates the recorded claim; preview amounts are estimates.
+resolves the claimant and dated provider settings, asks for mileage in the provider-required
+miles and vehicle details, checks possible duplicates, and previews exact API fields
+before approval. FreeAgent calculates the recorded amount; a monetary pre-write
+preview is not provided. No custom mileage calculator or local script is used.
 
 The agent shows you what it plans to create and waits for a clear yes before writing anything to FreeAgent.
 

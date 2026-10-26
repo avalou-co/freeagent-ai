@@ -529,7 +529,7 @@ def make_registry():
             },
             ["mileage_settings"],
         ),
-        "Read date-specific provider mileage rates, thresholds and engine options. Select the journey's date; never assume a universal rate or cumulative mileage.",
+        "Read date-specific provider mileage rates, thresholds and engine options. Use returned settings as context; FreeAgent calculates claims. Do not compute rates, thresholds or allowance pools.",
     )
     for endpoint, (root, update, delete) in CORRECTIONS.items():
         for verb, method, enabled in [("update", "PUT", update), ("delete", "DELETE", delete)]:
