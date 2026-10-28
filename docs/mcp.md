@@ -198,6 +198,17 @@ timeslips and expenses now include collected_at UTC after a successful read.
 This is server collection metadata, not provider financial data or an atomic
 snapshot. Existing fields, filters, pagination, authorization and errors remain
 unchanged. See [month-end evidence limits](month-end.md).
+
 ## Document PDF resources
 
 Named `get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` reads return standard embedded MCP PDF resources plus metadata. The account-bound dispatcher verifies identity and authorization, validates bounded file envelopes and checks the binding again before releasing bytes. No arbitrary destination, local path, public download route or persistent file cache is exposed. Resource URIs have random invocation namespaces; they are labels for embedded bytes, not retrievable URLs. [Transport and client support limits](documents.md).
+
+## Hosted payroll audit
+
+`list_payroll_periods` and `get_payroll_period` perform only the two documented
+fixed GET reads in the [payroll API](https://dev.freeagent.com/docs/payroll).
+Annual reads preserve both period/payment collections; period reads discard
+employee payslips before returning metadata. Both provide source and collection
+time, use linked-company read authorization, and fail incomplete collection
+shapes. No employee, filing, execution or payment/status mutation is exposed.
+See [payroll evidence](payroll.md) for provider permissions and evidence limits.

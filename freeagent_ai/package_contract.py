@@ -37,6 +37,8 @@ SKILLS = {
         "list_timeslips",
         "list_expenses",
     ),
+
+    "payroll": ("list_payroll_periods", "get_payroll_period"),
     "profitability": ("list_projects", "list_timeslips", "list_invoices"),
     "receipts": ("list_expenses", "list_bills", "create_expense_from_payload", "create_bill"),
     "recurring-revenue": ("list_recurring_invoices", "get_recurring_invoice"),
@@ -134,6 +136,8 @@ def validate_operations():
     routes.update(
         ("GET", endpoint)
         for endpoint in [
+            "payroll/{year}",
+            "payroll/{year}/{period}",
             "company",
             "users/me",
             "expenses/mileage_settings",

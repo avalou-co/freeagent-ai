@@ -170,6 +170,7 @@ def package_files(root, metadata=None):
         "receipts.md",
         "bank-attachments.md",
         "tax-overview.md",
+        "payroll.md",
         "credit-notes.md",
         "analysis.md",
         "invoicing.md",

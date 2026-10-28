@@ -197,3 +197,7 @@ totals, eligibility and duplicate billing; the tool keeps Draft/emails off and r
 back. See [invoice workflow](docs/invoicing.md) for inclusion limits and evidence gates.
 
 Accounting PDFs: `/freeagent-ai:documents` uses authenticated invoice, estimate and credit-note PDF tools with embedded MCP resources. Client viewing support and verification limits are described in [document transport](docs/documents.md).
+
+UK payroll filing/payment evidence is available through `/freeagent-ai:payroll`
+skill; employee payslips, payroll execution and filing are excluded. See
+[payroll evidence](docs/payroll.md) for access and company limits.

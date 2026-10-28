@@ -213,3 +213,12 @@ errors and inspect uncertain writes before any retry.
 ## Document PDFs
 
 Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Named PDF reads verify record identity and emit bounded embedded MCP resources, keeping bytes out of text/structured metadata and errors. See [document transport](documents.md) for limits and client verification gates.
+
+## Payroll reads
+
+The [payroll API](https://dev.freeagent.com/docs/payroll) requires UK payroll
+support and Tax and Limited Accounting access. Year is the tax-year end, and
+period identifiers come from the provider. Annual periods and payments are
+separate collections; period details omit payslips for privacy. See
+[payroll evidence](payroll.md) for missing-state, currency and filing/payment
+limitations. No mark-paid/unpaid or other payroll transition is exposed.

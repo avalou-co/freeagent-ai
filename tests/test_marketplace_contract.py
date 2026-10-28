@@ -34,6 +34,8 @@ BASE = "https://api.freeagent.com/v2/"
 
 def sample_args(op):
     def value(key, schema):
+        if key == "year":
+            return "2026"
         if key in {"dated_on", "due_on", "from_date", "to_date", "as_at_date", "period_ends_on"}:
             return "2026-01-01"
         kind = schema.get("type")
@@ -73,6 +75,8 @@ def provider_result(path):
                 ("admin_expenses_categories", "cost_of_sales_categories", "income_categories", "general_categories"), 1
             )
         }
+    if path.startswith("payroll/"):
+        return {"period": record} if len(path.split("/")) == 3 else {"periods": [record], "payments": []}
     if path == "company":
         return {"company": {"url": BASE + "company", "currency": "GBP"}}
     if path == "users/me":
@@ -173,7 +177,11 @@ def test_each_packaged_skill_has_a_real_provider_http_path(remote, skill, name):
     assert not result.get("isError"), result
     assert calls and calls[0][0] == operation.method
     expected = (
-        operation.endpoint.replace("{user_id}", "1").replace("{id}", "1").replace("{period_ends_on}", "2026-01-01")
+        operation.endpoint.replace("{user_id}", "1")
+        .replace("{id}", "1")
+        .replace("{period_ends_on}", "2026-01-01")
+        .replace("{year}", "2026")
+        .replace("{period}", "1")
     )
     expected_first = expected.removesuffix("/pdf")
     assert urlsplit(calls[0][1]).path == "/v2/" + expected_first
