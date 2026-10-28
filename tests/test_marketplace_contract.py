@@ -63,6 +63,13 @@ def provider_result(path):
     record = {"url": BASE + path, "currency": "GBP", "total_value": "-123.45", "description": "Synthetic"}
     if path == "expenses/mileage_settings":
         return {"mileage_settings": {"engine_type_and_size_options": [], "mileage_rates": []}}
+    if path == "categories":
+        return {
+            group: [{"url": BASE + f"categories/{index}", "description": group, "nominal_code": str(index)}]
+            for index, group in enumerate(
+                ("admin_expenses_categories", "cost_of_sales_categories", "income_categories", "general_categories"), 1
+            )
+        }
     if path == "company":
         return {"company": {"url": BASE + "company", "currency": "GBP"}}
     if path == "users/me":
@@ -365,3 +372,33 @@ def test_canonical_sources_cannot_hide_in_the_generated_inventory():
         render_hosted("Call `get_company`.\n## Hosted transport\nRun Python locally.")
     with pytest.raises(ValueError, match="local generic executor"):
         render_hosted("Use freeagent_post with this body.")
+
+
+def test_grouped_categories_are_read_through_mcp(remote):
+    rpc, calls, mode = remote
+    result = rpc("tools/call", {"name": "list_categories", "arguments": {}})
+    assert not result.get("isError"), result
+    categories = result["structuredContent"]["categories"]
+    assert [item["nominal_code"] for item in categories] == ["1", "2", "3", "4"]
+    assert all(item["url"].startswith(BASE + "categories/") for item in categories)
+    assert all(method == "GET" for method, _, _ in calls)
+    mode.append("missing")
+    empty = rpc("tools/call", {"name": "list_categories", "arguments": {}})
+    assert not empty.get("isError"), empty
+    assert empty["structuredContent"] == {"categories": []}
+
+
+@pytest.mark.parametrize("invalid", [None, {}, ["invalid"]])
+def test_malformed_category_group_fails_instead_of_reporting_empty(remote, monkeypatch, invalid):
+    original = provider_result
+
+    def malformed(path):
+        result = original(path)
+        result["general_categories"] = invalid
+        return result
+
+    monkeypatch.setattr(__name__ + ".provider_result", malformed)
+    rpc, _, _ = remote
+    result = rpc("tools/call", {"name": "list_categories", "arguments": {}})
+    assert result["isError"]
+    assert "categories" not in result.get("structuredContent", {})

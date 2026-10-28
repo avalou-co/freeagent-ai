@@ -666,6 +666,19 @@ class Dispatcher:
             return {"status": result if isinstance(result, int) else 200, "resource": client.base + path}
         if op.method == "PUT":
             result = client.call("GET", path)
+        if op.name == "list_categories":
+            categories = []
+            for group in (
+                "admin_expenses_categories",
+                "cost_of_sales_categories",
+                "income_categories",
+                "general_categories",
+            ):
+                items = result[group]
+                if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+                    raise ValueError("Invalid provider category group")
+                categories.extend(project_record(item, op.root) for item in items)
+            return {"categories": categories}
         if op.name.startswith("list_"):
             collection = op.root + "s" if op.endpoint in TAX_RETURNS else op.endpoint
             records: dict[str, Any] = {collection: [project_record(item, op.root) for item in result[collection]]}

@@ -39,6 +39,11 @@ readback must be investigated before another create.
 
 ## Tool audit
 
+The hosted `list_categories` adapter combines FreeAgent's four documented category
+groups into its existing `categories` output. It preserves provider category fields
+and fails incomplete reads when a group is missing or malformed; it does not select
+categories or infer tax treatment.
+
 All 19 registered tools were reviewed against the design contract. Named create
 helpers share the same POST/readback implementation; local and hosted errors use
 the same bounded provider-error formatter. This introduces no accounting validation. None performs
