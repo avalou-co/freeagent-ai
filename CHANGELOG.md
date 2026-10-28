@@ -3,6 +3,48 @@
 Changes are grouped by release. A version heading describes the release contents;
 publication is confirmed by its Git tag and GitHub Release, not by this file.
 
+## [0.4.0]
+
+API-only remediation release. This entry describes the proposed contents; the
+annotated tag and GitHub Release confirm source publication. Deployment, provider
+sandbox verification and marketplace web/iOS installation or listing remain
+separate evidence gates.
+
+### Added
+
+- Provider-backed recurring invoice profiles, tax-return/payment evidence and
+  credit-note/reconciliation reads through named hosted operations.
+- Exact expense and draft-invoice payload forwarding, including provider-supported
+  invoice source inclusion, manual lines, currencies and tax fields. FreeAgent
+  validates accounting inputs and calculates the returned outcomes.
+- Reviewed draft credit-note creation and a narrow, separately approved allocation
+  workflow for selected existing issued credits and invoices, with affected-record
+  readbacks. Issuing, invoice edits and cash refunds remain excluded.
+- Versioned bank-explanation attachment operations with bounded hosted file inputs
+  and collection readback.
+- Package-derived API-only capability checks and authenticated synthetic HTTP
+  coverage for all 16 packaged skills and 77 named provider-backed operations.
+
+### Changed
+
+- Cash, project, report and tax workflows explain provider-returned records rather
+  than promise locally derived forecasts, margins or residual commitments.
+- Recurring workflows show provider-reported profiles and dates without predicting
+  future billing or cash receipts. Mileage workflows approve exact provider inputs
+  and report FreeAgent-calculated claims; no monetary quote is promised without a
+  provider preview endpoint.
+- Packaged workflows use named remote tools without requiring user-local Python,
+  a shell, filesystem access or an assumed interpreter. Provider errors and missing
+  evidence remain explicit; uncertain writes are not blindly replayed.
+- Python, local plugin manifests, generated packages, hosted server metadata and
+  HTTP User-Agent are aligned at 0.4.0.
+
+### Removed
+
+- Custom forecast/profitability and recurring-scenario engines, mileage preview
+  arithmetic, executable client helpers and the corresponding calculation tests
+  and skill promises. No server-side calculator replaces them.
+
 ## [0.3.0]
 
 First planned tagged release, following the initial 0.1.0 development version.

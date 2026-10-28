@@ -179,7 +179,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
 
     server = Server(
         "freeagent-ai",
-        version="0.3.0",
+        version="0.4.0",
         on_list_tools=tools,
         on_call_tool=invoke,
         get_tool_input_schema=lambda name: REGISTRY[name].descriptor.input_schema if name in REGISTRY else None,

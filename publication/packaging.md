@@ -13,8 +13,8 @@ python scripts/package_hosted_plugin.py /private/output/freeagent-ai.zip
 
 Provide `FREEAGENT_PLUGIN_CLIENT_ID` through protected deployment configuration.
 The package includes the public HTTPS endpoint, a pre-registered OAuth client,
-both scopes, all canonical skills and their shared safety/API references, including
-the read-only decimal mileage preview script. The operator command and
+both scopes, all canonical skills and their shared safety/API references. No
+client-executable scripts or custom accounting calculators are bundled. The operator command and
 `python -m freeagent_ai.public_package` share manifest construction, named-tool
 workflow rendering, tool-reference checks and deterministic ZIP writing. The candidate includes the public tool audit and source digests.
 It excludes application source, local launch commands, credentials, deployment
