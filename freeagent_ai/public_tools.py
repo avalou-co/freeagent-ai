@@ -145,6 +145,9 @@ FIELDS = {
     "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable attachment attachments project rebill_type rebill_factor sales_tax_status sales_tax_rate sales_tax_value",
     "company": "url name currency type sales_tax_registration_status",
 }
+COLLECTED_RESOURCES = frozenset(
+    {"recurring_invoice", "bank_account", "bank_transaction", "invoice", "bill", "timeslip", "expense"}
+)
 RESOURCES = {
     # endpoint, singular, supported collection query parameters
     "contacts": ("contact", "view"),
@@ -315,7 +318,7 @@ def make_registry():
 
     id_schema = {"type": "string", "pattern": "^[0-9]+$"}
     for endpoint, (root, query) in RESOURCES.items():
-        read_metadata = {"collected_at": {"type": "string"}} if root == "recurring_invoice" else {}
+        read_metadata = {"collected_at": {"type": "string"}} if root in COLLECTED_RESOURCES else {}
         params: dict = {name: {"type": "string"} for name in query.split()}
         params.update(
             per_page={"type": "integer", "minimum": 1, "maximum": 100},
@@ -693,7 +696,7 @@ class Dispatcher:
         if op.name.startswith("list_"):
             collection = op.root + "s" if op.endpoint in TAX_RETURNS else op.endpoint
             records: dict[str, Any] = {collection: [project_record(item, op.root) for item in result[collection]]}
-            if op.root == "recurring_invoice":
+            if op.root in COLLECTED_RESOURCES:
                 records["collected_at"] = datetime.now(timezone.utc).isoformat()
             return records
         if op.endpoint.startswith("accounting/"):
@@ -711,7 +714,7 @@ class Dispatcher:
             # Provider detail JSON documents a plural root, unlike XML/create.
             result = {op.root: result["credit_note_reconciliations"]}
         record: dict[str, Any] = {op.root: project_record(result[op.root], op.root)}
-        if op.root == "recurring_invoice":
+        if op.root in COLLECTED_RESOURCES:
             record["collected_at"] = datetime.now(timezone.utc).isoformat()
         return record
 

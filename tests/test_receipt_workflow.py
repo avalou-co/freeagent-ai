@@ -52,6 +52,7 @@ def test_receipt_reference_and_tax_evidence_survive_hosted_reads(
 
     with hosted_context(receipt_account):
         result = dispatcher(accounts, transport).invoke(operation, args)
+    assert result.pop("collected_at")
     assert result == ({"expenses": [record]} if operation == "list_expenses" else {"expense": record})
 
 

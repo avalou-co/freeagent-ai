@@ -213,7 +213,8 @@ def test_provider_error_missing_fields_and_uncertain_write_are_not_fabricated(re
     assert denied["isError"] and "Read incomplete" in denied["content"][0]["text"]
     mode[:] = ["missing"]
     missing = rpc("tools/call", {"name": "get_invoice", "arguments": {"id": "1"}})
-    assert missing["structuredContent"] == {"invoice": {}}
+    assert missing["structuredContent"]["invoice"] == {}
+    assert missing["structuredContent"]["collected_at"]
     mode[:] = ["readback"]
     calls.clear()
     result = rpc("tools/call", {"name": "create_contact", "arguments": sample_args(REGISTRY["create_contact"])})

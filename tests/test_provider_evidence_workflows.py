@@ -102,7 +102,10 @@ def test_packaged_workflow_discovery_and_provider_http_read(accounts, skill, too
         assert "Read incomplete" in result["content"][0]["text"]
     else:
         assert not result.get("isError", False)
-        assert json.loads(result["content"][0]["text"]) == {root: evidence}
+        output = json.loads(result["content"][0]["text"])
+        if "collected_at" in descriptor["outputSchema"]["properties"]:
+            assert output.pop("collected_at")
+        assert output == {root: evidence}
     assert len(calls) == 1
     expected_path = {
         "list_bank_accounts": "bank_accounts",
