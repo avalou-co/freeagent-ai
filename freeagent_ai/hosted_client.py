@@ -34,7 +34,7 @@ def request_json(method, url, deadline, *, body=None, form=None, headers=None) -
     data = json.dumps(body).encode() if body is not None else (urlencode(form).encode() if form is not None else None)
     if data and len(data) > 8 * 1024 * 1024:
         raise ValueError("API request exceeds transport size limit")
-    request_headers = {"Accept": "application/json", "User-Agent": "FreeAgent-AI/0.3.0", **(headers or {})}
+    request_headers = {"Accept": "application/json", "User-Agent": "FreeAgent-AI/0.4.0", **(headers or {})}
     if data is not None:
         request_headers["Content-Type"] = (
             "application/x-www-form-urlencoded" if form is not None else "application/json"

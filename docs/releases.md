@@ -16,11 +16,9 @@ using deployment credentials. Any mismatch fails the existing pytest CI job.
    a version. Never reuse a published version or replace a release tag.
 2. Update those version fields, the hosted server version in
    `freeagent_ai/hosted_app.py`, the User-Agent in `freeagent_ai/hosted_client.py`
-   and `CHANGELOG.md` in a PR. Version 0.3.0 is
-   the first planned tagged release; its notes include the initial hosted work.
-   Preserve the 0.3.0 version introduced by the hosted marketplace packaging
-   work; it supersedes the older 0.2.0 release target in issue #33. Rebuild
-   submission ZIPs from the exact release commit.
+   and `CHANGELOG.md` in a PR. Version 0.4.0 follows the published 0.3.0
+   source release and contains the API-only remediation. Rebuild packaging
+   candidates from the exact release commit; publication approval remains separate.
 3. Install development dependencies and run the same checks as CI:
 
    ```bash
@@ -30,6 +28,7 @@ using deployment credentials. Any mismatch fails the existing pytest CI job.
    pyright
    pytest
    node --test auth0/primary-auth-time.test.js
+   python -m freeagent_ai.package_contract
    ```
 
 4. Review the diff and release notes, then have the owner review and merge the
@@ -40,7 +39,7 @@ using deployment credentials. Any mismatch fails the existing pytest CI job.
 
 The publishing owner performs these steps from a clean checkout of merged
 `main`. Check the configured remote is `avalou-co/freeagent-ai` and that no
-`v0.3.0` tag or Release exists locally or remotely. Stop if it already exists.
+`v0.4.0` tag or Release exists locally or remotely. Stop if it already exists.
 
 ```bash
 git fetch origin main --tags
@@ -49,26 +48,26 @@ git pull --ff-only origin main
 git status --short
 git rev-parse HEAD origin/main
 gh run list --commit "$(git rev-parse HEAD)"
-git tag --list v0.3.0
-git ls-remote --tags origin refs/tags/v0.3.0
+git tag --list v0.4.0
+git ls-remote --tags origin refs/tags/v0.4.0
 gh release list --repo avalou-co/freeagent-ai
 ```
 
 Continue only when the checkout is clean, both commit IDs match, the relevant
-CI checks succeeded and the version is unused. Copy only the 0.3.0 entry from
+CI checks succeeded and the version is unused. Copy only the 0.4.0 entry from
 `CHANGELOG.md` into a release-notes file outside the checkout, then create and
 verify the annotated tag:
 
 ```bash
-git tag -a v0.3.0 -m "chore: release v0.3.0"
-git push origin refs/tags/v0.3.0
-gh release create v0.3.0 --repo avalou-co/freeagent-ai --verify-tag \
-  --title "v0.3.0" --notes-file /tmp/freeagent-ai-v0.3.0-notes.md
-git ls-remote --tags origin 'refs/tags/v0.3.0*'
-gh release view v0.3.0 --repo avalou-co/freeagent-ai
+git tag -a v0.4.0 -m "chore: release v0.4.0"
+git push origin refs/tags/v0.4.0
+gh release create v0.4.0 --repo avalou-co/freeagent-ai --verify-tag \
+  --title "v0.4.0" --notes-file /tmp/freeagent-ai-v0.4.0-notes.md
+git ls-remote --tags origin 'refs/tags/v0.4.0*'
+gh release view v0.4.0 --repo avalou-co/freeagent-ai
 ```
 
-Compare the remote peeled tag commit (`refs/tags/v0.3.0^{}`) with the verified
+Compare the remote peeled tag commit (`refs/tags/v0.4.0^{}`) with the verified
 merged commit. If publication fails after pushing, inspect the tag and Release
 before retrying; retain the existing tag and finish only the missing step.
 

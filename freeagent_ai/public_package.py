@@ -15,7 +15,7 @@ from .hosted_auth import ORIGIN
 from .package_contract import coverage, validate_contract, validate_workflow
 from .public_tools import REGISTRY, RESOURCES, audit
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 def render_hosted(text, *, docs_prefix="../../docs/"):
