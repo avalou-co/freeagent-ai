@@ -155,7 +155,8 @@ def test_convenience_tools_surface_provider_validation(monkeypatch, name, args):
     assert len(calls) == 1
 
 
-def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
+@pytest.mark.parametrize("estimate_type", [None, "Estimate", "Quote", "Proposal"])
+def test_draft_estimate_is_draft_and_reads_back(monkeypatch, estimate_type):
     calls = []
 
     def fake(method, path, body=None):
@@ -164,12 +165,14 @@ def test_draft_estimate_is_draft_and_reads_back(monkeypatch):
 
     monkeypatch.setattr(mcp_server, "call", fake)
     items = [{"description": "Design", "item_type": "Days", "quantity": "2", "price": "400"}]
-    out = mcp_server.create_draft_estimate(BASE + "contacts/1", "2026-10-07", items, reference="EST-1")
+    options = {} if estimate_type is None else {"estimate_type": estimate_type}
+    out = mcp_server.create_draft_estimate(BASE + "contacts/1", "2026-10-07", items, reference="EST-1", **options)
     est = calls[0][2]["estimate"]
     assert calls[0][:2] == ("POST", "estimates")
     assert est["status"] == "Draft"
     assert est["estimate_items"] == items
     assert est["reference"] == "EST-1"
+    assert est["estimate_type"] == (estimate_type or "Estimate")
     assert "project" not in est
     assert "currency" not in est
     assert calls[1][:2] == ("GET", "estimates/4")
@@ -294,3 +297,12 @@ def test_project_without_budget_includes_required_provider_fields(monkeypatch):
     assert project["budget_units"] == "Days"
     assert project["billing_period"] == "hour"
     assert calls[1][:2] == ("GET", "projects/5")
+
+
+def test_hosted_estimate_type_is_discoverable_and_survives_readback():
+    from freeagent_ai.public_tools import REGISTRY, project_record
+
+    schema = REGISTRY["create_draft_estimate"].descriptor.input_schema
+    assert schema["properties"]["estimate_type"]["default"] == "Estimate"
+    record = {"url": BASE + "estimates/4", "estimate_type": "Quote", "status": "Draft"}
+    assert project_record(record, "estimate") == record

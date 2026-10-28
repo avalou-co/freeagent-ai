@@ -139,7 +139,7 @@ FIELDS = {
     "credit_note_reconciliation": "url credit_note invoice dated_on currency gross_value exchange_rate",
     "expense": "url user category dated_on gross_value description receipt_reference sales_tax_rate sales_tax_value currency attachment mileage vehicle_type engine_type engine_size reclaim_mileage initial_rate_mileage reclaim_mileage_rate rebill_mileage_rate have_vat_receipt project rebill_to_project rebill_type rebill_factor rebilled_on_invoice native_gross_value native_sales_tax_value manual_sales_tax_amount second_sales_tax_rate sales_tax_status second_sales_tax_status ec_status property stock_item stock_item_description stock_altering_quantity recurring next_recurs_on recurring_end_date created_at updated_at",
     "bill": "url contact reference dated_on due_on status currency total_value due_value net_value sales_tax_value second_sales_tax_value bill_items attachment project rebill_to_project rebill_type rebill_factor rebilled_on_invoice_item exchange_rate",
-    "estimate": "url contact project reference dated_on status currency net_value sales_tax_value second_sales_tax_value total_value estimate_items",
+    "estimate": "url contact project reference dated_on status estimate_type currency net_value sales_tax_value second_sales_tax_value total_value estimate_items",
     "bank_account": "url name type currency current_balance latest_activity_date is_personal status",
     "bank_transaction": "url bank_account dated_on amount description unexplained_amount attachment attachments bank_transaction_explanations",
     "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable attachment attachments project rebill_type rebill_factor sales_tax_status sales_tax_rate sales_tax_value",
@@ -453,6 +453,10 @@ def make_registry():
     for helper, root in CREATES.items():
         schema = FunctionTool.from_function(getattr(local, helper)).parameters
         schema["additionalProperties"] = False
+        if helper == "create_draft_estimate":
+            schema["properties"]["estimate_type"]["description"] = (
+                "FreeAgent document type: Estimate (default), Quote or Proposal."
+            )
         if helper == "create_expense_from_payload":
             schema["properties"]["expense"]["description"] = (
                 "Exact approved expense object; provider fields and full resource URLs are forwarded unchanged. "
