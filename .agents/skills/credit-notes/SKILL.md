@@ -52,3 +52,7 @@ Hosted reads: `list_credit_notes`, `get_credit_note`, `list_credit_note_reconcil
 Use these remote tools directly in ChatGPT web or iOS. No client-local Python,
 shell, filesystem, CLI or generic API executor is needed. Issuing/sending is not
 provided by this workflow. Live sandbox evidence remains a separate release gate.
+
+The credit policy contains a proposed issuance policy pending human acceptance.
+It does not authorize issuing a Draft now, including one created in this request.
+Do not use a generic API operation, status edit or email action to bypass that gate.

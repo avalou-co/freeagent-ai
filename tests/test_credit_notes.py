@@ -223,6 +223,50 @@ def test_allocation_policy_does_not_expose_issuing_or_refund_operations():
     )
 
 
+@pytest.mark.parametrize("name", ["issue_credit_note", "mark_credit_note_as_sent", "send_credit_note_email"])
+def test_unapproved_credit_transitions_fail_before_provider_access(credit, name):
+    invoke, _, calls, _ = credit
+    result = invoke(name, id="8", confirmed=True)
+    assert result.is_error
+    assert result.content[0].text == "Tool not available"
+    assert calls == []
+
+
+def test_pending_credit_issuance_policy_is_packaged_without_enabling_a_tool(credit, accounts):
+    _, _, calls, dispatcher = credit
+    files = package_files(Path(__file__).resolve().parents[1])
+    policy = files["docs/credit-notes.md"].decode()
+    skill = files["skills/credit-notes/SKILL.md"].decode()
+    assert "Proposed issuance policy — pending human acceptance" in policy
+    assert "It does not authorize issuing a Draft now" in skill
+    principal = Principal("credit", frozenset({"freeagent:read", "freeagent:write"}), 101)
+    app = create_app(settings(), accounts, SimpleNamespace(principal=lambda _: principal), dispatcher)
+    with TestClient(app, base_url=ORIGIN) as client:
+        headers = {"Authorization": "Bearer synthetic", "Accept": "application/json, text/event-stream"}
+        response = client.post(
+            "/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+        )
+        names = {tool["name"] for tool in response.json()["result"]["tools"]}
+        assert {"create_draft_credit_note", "create_credit_note_reconciliation"} <= names
+        assert not any(
+            "credit_note" in name and any(verb in name for verb in ("issue", "sent", "email", "refund"))
+            for name in names
+        )
+        response = client.post(
+            "/mcp",
+            headers=headers,
+            json={
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "issue_credit_note", "arguments": {"id": "8", "confirmed": True}},
+            },
+        )
+        result = response.json()
+        assert "error" in result or result["result"].get("isError")
+    assert calls == []
+
+
 def test_marketplace_package_and_remote_mcp_credit_path(credit, accounts):
     _, state, calls, dispatcher = credit
     root = Path(__file__).resolve().parents[1]
