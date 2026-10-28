@@ -476,3 +476,27 @@ def run(http=False, host="127.0.0.1", port=8000):
     app = BearerAuth(mcp.streamable_http_app(host=host), token)
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
     anyio.run(server.serve)
+
+
+@mcp.tool(annotations=READ)
+def get_invoice_pdf(id: str):
+    """Read an invoice PDF as an embedded MCP resource; no local paths or sending."""
+    from .pdf_documents import fetch_pdf
+
+    return fetch_pdf(call, api_base(), "invoices", id).tool_result()
+
+
+@mcp.tool(annotations=READ)
+def get_estimate_pdf(id: str):
+    """Read an estimate PDF as an embedded MCP resource; no local paths or sending."""
+    from .pdf_documents import fetch_pdf
+
+    return fetch_pdf(call, api_base(), "estimates", id).tool_result()
+
+
+@mcp.tool(annotations=READ)
+def get_credit_note_pdf(id: str):
+    """Read a credit-note PDF as an embedded MCP resource; no local paths or sending."""
+    from .pdf_documents import fetch_pdf
+
+    return fetch_pdf(call, api_base(), "credit_notes", id).tool_result()

@@ -209,3 +209,7 @@ errors and inspect uncertain writes before any retry.
   receipt predictions. Missing dates or values stay unavailable, never generated.
 - No generated-invoice/profile link is documented. Do not match records or compute
   overlap. Use [named profile reads](recurring-revenue.md) without custom calculations.
+
+## Document PDFs
+
+Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Named PDF reads verify record identity and emit bounded embedded MCP resources, keeping bytes out of text/structured metadata and errors. See [document transport](documents.md) for limits and client verification gates.

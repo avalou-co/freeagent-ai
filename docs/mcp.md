@@ -188,3 +188,7 @@ The envelope adds collection-completion time; provider fields remain unchanged o
 absent. Local clients can use the unchanged generic GET. The packaged workflow uses
 only named remote reads and [provider-returned evidence](recurring-revenue.md); no
 recurrence expansion, calculator or payment scenario is added.
+
+## Document PDF resources
+
+Named `get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` reads return standard embedded MCP PDF resources plus metadata. The account-bound dispatcher verifies identity and authorization, validates bounded file envelopes and checks the binding again before releasing bytes. No arbitrary destination, local path, public download route or persistent file cache is exposed. Resource URIs have random invocation namespaces; they are labels for embedded bytes, not retrievable URLs. [Transport and client support limits](documents.md).

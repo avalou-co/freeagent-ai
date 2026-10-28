@@ -21,6 +21,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `receipts` | Extracting and reviewing receipt images/PDFs before expense or bill creation |
 | `expenses` | Recording expense claims with receipts |
 | `mileage` | Recording reviewed mileage inputs and provider-calculated claim results |
+| `documents` | Read-only invoice, estimate and credit-note PDFs as embedded MCP resources |
 | `estimates` | Creating draft estimates/quotes with line items |
 | `bills` | Recording supplier bills, listing unpaid or overdue ones |
 | `bank-reconcile` | Listing unexplained bank transactions and proposing explanations |
