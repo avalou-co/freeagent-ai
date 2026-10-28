@@ -39,6 +39,10 @@ readback must be investigated before another create.
 
 ## Tool audit
 
+Hosted attachment descriptions distinguish metadata reads from add, update and
+remove operations. Ownership checks are agent responsibilities. The payload invoice
+helper sets Draft status and disables automatic emails; it accepts manual lines.
+
 The hosted `list_categories` adapter combines FreeAgent's four documented category
 groups into its existing `categories` output. It preserves provider category fields
 and fails incomplete reads when a group is missing or malformed; it does not select
