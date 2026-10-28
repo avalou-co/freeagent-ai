@@ -96,11 +96,11 @@ def package_files(root, metadata=None):
     ):
         raise ValueError("Publication metadata contains unsupported fields; credentials are not accepted")
     interface = {
-        "displayName": "FreeAgent AI",
+        "displayName": "FreeAgent AI by Avalou",
         "shortDescription": "FreeAgent accounting in chat",
         "logo": "./assets/icon.png",
         "composerIcon": "./assets/icon.png",
-        "longDescription": "Connect your own UK FreeAgent account to log time, create draft invoices and estimates, record expenses and bills, reconcile banking and read reports. Writes require approval and verification.",
+        "longDescription": "By Avalou. An independent integration for FreeAgent. Connect your own UK FreeAgent account to log time, create draft invoices and estimates, record expenses and bills, reconcile banking and read reports. Writes require approval and verification.",
         "developerName": "Avalou",
         "category": "Productivity",
         "capabilities": [
