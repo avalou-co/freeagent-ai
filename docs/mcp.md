@@ -1,5 +1,10 @@
 # MCP server
 
+Shipped ChatGPT web/mobile workflows use discovered named remote tools under the
+[design contract](#design-contract). The generic tools, Python/CLI setup and stdio
+examples below describe local contributor/legacy clients only; they are never a
+client-runtime fallback for hosted workflows.
+
 Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `freeagent_post`, `freeagent_put` and `freeagent_delete` expose API writes directly. Convenience create tools read back automatically; generic write tools return the API response and the agent follows with `freeagent_get`.
 
 The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
@@ -14,6 +19,22 @@ dates, amounts, tax, resource relationships, status transitions, payments and
 whether a timeslip can be billed. Do not reproduce these rules locally, including
 duplicate-billing guards, eligibility checks, field allowlists or accounting locks.
 Send the request and report FreeAgent's response or validation error.
+
+Every current and future shipped plugin workflow must function in ChatGPT on web
+and mobile without a client interpreter, Python, shell, CLI, local filesystem or
+assumed runtime. This applies to every implementation and skill/tool/doc change.
+Use discovered named remote tools and documented supported host transports for
+inputs and outputs. Server-side execution is allowed for API mechanics only; no
+client runtime or server calculator may substitute for provider functionality.
+
+Unsupported client delivery is unavailable capability: fail closed in hosted
+discovery and packaging, record its status and withhold availability claims.
+A protocol blob or successful developer/CI test is not proof of a usable client
+artifact. Validate the generated package through discovery and authenticated
+remote calls, including permissions, errors and artifact transport; obtain
+independent architecture/client-contract review. The mandatory CI capability gate
+must pass. Actual installed web/mobile evidence is a separate requirement before
+claiming client delivery. See [contributor review guidance](../CONTRIBUTING.md).
 
 The server owns API mechanics: authentication, keeping credentials private,
 restricting requests to the FreeAgent API, JSON serialization, query encoding,

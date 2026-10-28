@@ -204,3 +204,6 @@ and actual client evidence exist. See [document transport status](docs/documents
 UK payroll filing/payment evidence is available through `/freeagent-ai:payroll`
 skill; employee payslips, payroll execution and filing are excluded. See
 [payroll evidence](docs/payroll.md) for access and company limits.
+
+Contributor requirements and the interpreter-free web/mobile review gate are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
