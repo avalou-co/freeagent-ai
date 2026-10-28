@@ -403,3 +403,17 @@ def test_malformed_category_group_fails_instead_of_reporting_empty(remote, monke
     result = rpc("tools/call", {"name": "list_categories", "arguments": {}})
     assert result["isError"]
     assert "categories" not in result.get("structuredContent", {})
+
+
+@pytest.mark.parametrize("root", ["invoice", "timeslip", "bill", "expense"])
+def test_correction_readback_preserves_declared_output_without_read_metadata(remote, root):
+    rpc, calls, _ = remote
+    operation = REGISTRY["update_" + root]
+    body = {root: {"description": "Approved synthetic correction"}}
+    descriptor = next(item for item in rpc("tools/list")["tools"] if item["name"] == operation.name)
+    assert "collected_at" not in descriptor["outputSchema"]["properties"]
+    result = rpc("tools/call", {"name": operation.name, "arguments": {"id": "1", "body": body, "confirmed": True}})
+    assert not result.get("isError", False)
+    assert set(result["structuredContent"]) == {root}
+    assert result["structuredContent"][root]["url"] == BASE + operation.endpoint.replace("{id}", "1")
+    assert [(method, payload) for method, _, payload in calls] == [("PUT", body), ("GET", None)]

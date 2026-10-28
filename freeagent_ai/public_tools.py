@@ -714,7 +714,7 @@ class Dispatcher:
             # Provider detail JSON documents a plural root, unlike XML/create.
             result = {op.root: result["credit_note_reconciliations"]}
         record: dict[str, Any] = {op.root: project_record(result[op.root], op.root)}
-        if op.root in COLLECTED_RESOURCES:
+        if op.method == "GET" and op.root in COLLECTED_RESOURCES:
             record["collected_at"] = datetime.now(timezone.utc).isoformat()
         return record
 
