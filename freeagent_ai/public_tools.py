@@ -25,6 +25,7 @@ from .hosted_accounts import AccessDenied
 from .hosted_client import HostedClient, principal_context
 from .hosted_deadline import deadline_context
 from .hosted_files import download
+from .pdf_documents import PdfDocument, fetch_pdf
 
 SCALAR = {"type": ["string", "number", "boolean", "null"]}
 
@@ -360,6 +361,27 @@ def make_registry():
             object_schema({root: record_schema(root)}, [root]),
             f"Read the linked company's {root.replace('_', ' ')}.",
         )
+    for endpoint, root in (("invoices", "invoice"), ("estimates", "estimate"), ("credit_notes", "credit_note")):
+        add(
+            "get_" + root + "_pdf",
+            "GET",
+            endpoint + "/{id}/pdf",
+            "pdf",
+            object_schema({"id": id_schema}, ["id"]),
+            object_schema(
+                {
+                    "source": {"type": "string"},
+                    "file_name": {"type": "string"},
+                    "mime_type": {"type": "string"},
+                    "size_bytes": {"type": "integer"},
+                    "collected_at": {"type": "string"},
+                },
+                ["source", "file_name", "mime_type", "size_bytes", "collected_at"],
+            ),
+            "Read a PDF for the selected "
+            + root.replace("_", " ")
+            + ". Returns an embedded MCP application/pdf resource and metadata, not a public download URL. Requires a host that supports embedded PDF resources; otherwise report delivery unavailable. No sending or status changes.",
+        )
     # The versioned provider collection separates attachment changes from explanations.
     # One file per write keeps the existing bounded invocation-only upload contract.
     attachment_output = object_schema(
@@ -607,7 +629,7 @@ class Dispatcher:
         self.accounts, self.client_id, self.client_secret = accounts, client_id, client_secret
         self.file_hosts, self.client_factory = file_hosts, client_factory
 
-    def invoke(self, name, arguments):
+    def invoke(self, name, arguments) -> Any:
         if name not in REGISTRY:
             raise AccessDenied("Tool not available")
         operation = REGISTRY[name]
@@ -624,7 +646,11 @@ class Dispatcher:
         token = request_client.set(client)
         try:
             result = self._run(operation, dict(arguments), client)
-            jsonschema.validate(result, operation.descriptor.output_schema)
+            if isinstance(result, PdfDocument):
+                self.accounts.check(binding)  # Do not release bytes after concurrent disconnect/relink.
+            jsonschema.validate(
+                result.metadata if isinstance(result, PdfDocument) else result, operation.descriptor.output_schema
+            )
             return result
         except Exception:
             if client.last_created:
@@ -637,6 +663,8 @@ class Dispatcher:
 
     def _run(self, op, args, client):
         args.pop("confirmed", None)
+        if op.root == "pdf":
+            return fetch_pdf(client.call, client.base, op.endpoint.split("/")[0], args["id"])
         if op.root == "attachments":
             return self._attachments(op, args, client)
         if op.helper:
@@ -758,6 +786,8 @@ class Dispatcher:
     def call_tool(self, name, arguments):
         try:
             data = self.invoke(name, arguments)
+            if isinstance(data, PdfDocument):
+                return data.tool_result()
             return CallToolResult(content=[TextContent(type="text", text=json.dumps(data))], structured_content=data)
         except UnverifiedWrite as error:
             message = str(error)
@@ -778,7 +808,7 @@ class Dispatcher:
             # Attachment validation responses may echo bytes or signed source URLs.
             message = (
                 f"FreeAgent HTTP {error.code}"
-                if name in REGISTRY and REGISTRY[name].root == "attachments"
+                if name in REGISTRY and REGISTRY[name].root in {"attachments", "pdf"}
                 else provider_error(error)
             )
             message += "; inspect the original account before retrying a write"

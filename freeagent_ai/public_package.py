@@ -173,6 +173,7 @@ def package_files(root, metadata=None):
         "credit-notes.md",
         "analysis.md",
         "invoicing.md",
+        "documents.md",
         "recurring-revenue.md",
         "month-end.md",
         "marketplace-contract.md",

@@ -198,3 +198,6 @@ timeslips and expenses now include collected_at UTC after a successful read.
 This is server collection metadata, not provider financial data or an atomic
 snapshot. Existing fields, filters, pagination, authorization and errors remain
 unchanged. See [month-end evidence limits](month-end.md).
+## Document PDF resources
+
+Named `get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` reads return standard embedded MCP PDF resources plus metadata. The account-bound dispatcher verifies identity and authorization, validates bounded file envelopes and checks the binding again before releasing bytes. No arbitrary destination, local path, public download route or persistent file cache is exposed. Resource URIs have random invocation namespaces; they are labels for embedded bytes, not retrievable URLs. [Transport and client support limits](documents.md).

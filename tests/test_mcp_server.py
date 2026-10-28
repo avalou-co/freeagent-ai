@@ -216,6 +216,9 @@ def test_explain_bank_transaction_reads_back(monkeypatch):
 def test_tools_registered_with_hints():
     tools = {t.name: t for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert set(tools) == {
+        "get_invoice_pdf",
+        "get_estimate_pdf",
+        "get_credit_note_pdf",
         "freeagent_post",
         "freeagent_put",
         "freeagent_delete",

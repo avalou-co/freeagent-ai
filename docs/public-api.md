@@ -122,3 +122,7 @@ Packaged [invoicing guidance](invoicing.md) uses named remote reads and creation
 without a client runtime or generic executor. Provider amounts/line evidence are
 preserved; no pre-write total is invented. Actual provider inclusion and deployed
 marketplace-client behavior remain unverified by synthetic tests.
+
+## Document PDF reads
+
+`get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` use fixed GET `invoices/{id}/pdf`, `estimates/{id}/pdf`, `credit_notes/{id}/pdf` after reading the selected identity under the same authenticated binding. Outputs are metadata plus a bounded embedded MCP PDF resource; there is no public URL or storage. [Transport contract and verification limits](documents.md). The generated audit includes these individually reviewed read operations.

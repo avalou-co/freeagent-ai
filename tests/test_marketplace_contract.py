@@ -4,6 +4,7 @@ Fixture calls prove transport reachability, not assistant behavior, provider tax
 rules, file ownership on the host platform or actual marketplace installation.
 """
 
+import base64
 import hashlib
 import json
 import time
@@ -61,6 +62,8 @@ def sample_args(op):
 def provider_result(path):
     path = path.split("?", 1)[0].removeprefix("/v2/")
     record = {"url": BASE + path, "currency": "GBP", "total_value": "-123.45", "description": "Synthetic"}
+    if path.endswith("/pdf"):
+        return {"pdf": {"content": base64.b64encode(b"%PDF-1.4\nsynthetic\n%%EOF").decode()}}
     if path == "expenses/mileage_settings":
         return {"mileage_settings": {"engine_type_and_size_options": [], "mileage_rates": []}}
     if path == "categories":
@@ -172,7 +175,8 @@ def test_each_packaged_skill_has_a_real_provider_http_path(remote, skill, name):
     expected = (
         operation.endpoint.replace("{user_id}", "1").replace("{id}", "1").replace("{period_ends_on}", "2026-01-01")
     )
-    assert urlsplit(calls[0][1]).path == "/v2/" + expected
+    expected_first = expected.removesuffix("/pdf")
+    assert urlsplit(calls[0][1]).path == "/v2/" + expected_first
     assert result["structuredContent"]
     if operation.method == "POST":
         assert [method for method, _, _ in calls].count("POST") == 1
@@ -318,22 +322,29 @@ def test_broken_docs_anchor_source_digests_and_retired_source_fail(tmp_path):
         validate_contract(files, root=tmp_path)
 
 
-def test_every_secondary_operation_named_by_a_workflow_reaches_provider(remote):
+@pytest.mark.parametrize(
+    "name",
+    sorted(
+        {
+            op["name"]
+            for contract in json.loads(package_files(ROOT)["docs/capabilities.json"]).values()
+            for op in contract["operations"]
+        }
+    ),
+)
+def test_every_secondary_operation_named_by_a_workflow_reaches_provider(remote, name):
+    # Separate principals/rate buckets per case, rather than exhausting a real minute's quota.
     rpc, calls, _ = remote
-    contracts = json.loads(package_files(ROOT)["docs/capabilities.json"])
-    referenced = {op["name"] for contract in contracts.values() for op in contract["operations"]}
     discovered = {tool["name"] for tool in rpc("tools/list")["tools"]}
-    assert referenced <= discovered
-    for name in sorted(referenced):
-        calls.clear()
-        operation = REGISTRY[name]
-        result = rpc("tools/call", {"name": name, "arguments": sample_args(operation)})
-        assert not result.get("isError"), (name, result)
-        assert calls and calls[0][0] == operation.method
-        assert all(url.startswith(BASE) for _, url, _ in calls)
-        if operation.method != "GET":
-            assert [method for method, _, _ in calls].count(operation.method) == 1
-            assert any(method == "GET" for method, _, _ in calls)
+    assert name in discovered
+    operation = REGISTRY[name]
+    result = rpc("tools/call", {"name": name, "arguments": sample_args(operation)})
+    assert not result.get("isError"), (name, result)
+    assert calls and calls[0][0] == operation.method
+    assert all(url.startswith(BASE) for _, url, _ in calls)
+    if operation.method != "GET":
+        assert [method for method, _, _ in calls].count(operation.method) == 1
+        assert any(method == "GET" for method, _, _ in calls)
 
 
 def test_fake_file_links_and_tampered_source_digests_fail():
@@ -357,7 +368,12 @@ def test_artifact_and_approval_contracts_are_derived_from_discovered_schemas(rem
     receipts = contracts["receipts"]["input_artifacts"]
     assert {item["parameter"] for item in receipts} == {"receipt", "attachment"}
     for contract in contracts.values():
-        assert contract["output_artifacts"] == ["provider JSON / assistant explanation"]
+        expected_artifacts = (
+            ["embedded MCP application/pdf resource", "provider metadata / assistant explanation"]
+            if any(op["name"].endswith("_pdf") for op in contract["operations"])
+            else ["provider JSON / assistant explanation"]
+        )
+        assert contract["output_artifacts"] == expected_artifacts
         for item in contract["input_artifacts"]:
             tool = tools[item["tool"]]
             assert item["parameter"] in tool["_meta"]["openai/fileParams"]
