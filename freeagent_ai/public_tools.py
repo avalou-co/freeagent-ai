@@ -389,10 +389,20 @@ def make_registry():
             "attachments",
             object_schema(props, required),
             attachment_output,
-            "Read attachment metadata, or change one attachment only on an explanation created during this user request. "
-            "Updates/removals also require attachment ownership in this request. Show exact file/description/ID change and "
-            "obtain approval before writes. Reads back the collection automatically; inspect uncertain outcomes before retry. "
-            "Signed content URLs and bytes are not returned.",
+            (
+                "List attachment metadata for one bank transaction explanation by its numeric ID. "
+                "This read does not add, update or remove attachments. Signed content URLs and file bytes are not returned."
+                if action == "list"
+                else {
+                    "add": "Add one file attachment to a bank transaction explanation by its numeric ID. ",
+                    "update": "Update one attachment's file or description using the explanation ID and attachment ID. ",
+                    "remove": "Remove one attachment using the explanation ID and attachment ID; does not delete the explanation. ",
+                }[action]
+                + "The agent must verify the explanation was created during this request; updates/removals also require "
+                "the attachment to have been created during this request. Preview the exact change and obtain approval. "
+                "The tool writes the change and reads back attachment metadata. Inspect uncertain outcomes before retrying. "
+                "Signed content URLs and file bytes are not returned."
+            ),
             meta={"openai/fileParams": ["file"]} if action in {"add", "update"} else None,
         )
     # Tax returns use period end dates, not numeric record IDs; income tax is user-scoped.
@@ -523,7 +533,8 @@ def make_registry():
                 else ""
             )
             + (
-                " Nested invoice fields use full provider resource URLs. Draft status and all automatic emails are forced off; "
+                " Accepts an invoice object with manual invoice_items, currency and documented source-inclusion fields. "
+                "Nested references use full provider URLs. Sets status to Draft and disables all automatic invoice emails; "
                 "include_estimates accepts open/approved estimates and include_expenses includes expenses, bills and bank entries. "
                 "Review the complete inclusion scope before approval; provider source selection is not individual IDs."
                 if helper == "create_draft_invoice_from_payload"
