@@ -209,3 +209,12 @@ errors and inspect uncertain writes before any retry.
   receipt predictions. Missing dates or values stay unavailable, never generated.
 - No generated-invoice/profile link is documented. Do not match records or compute
   overlap. Use [named profile reads](recurring-revenue.md) without custom calculations.
+
+## Payroll reads
+
+The [payroll API](https://dev.freeagent.com/docs/payroll) requires UK payroll
+support and Tax and Limited Accounting access. Year is the tax-year end, and
+period identifiers come from the provider. Annual periods and payments are
+separate collections; period details omit payslips for privacy. See
+[payroll evidence](payroll.md) for missing-state, currency and filing/payment
+limitations. No mark-paid/unpaid or other payroll transition is exposed.

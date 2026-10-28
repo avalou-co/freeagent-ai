@@ -33,6 +33,8 @@ BASE = "https://api.freeagent.com/v2/"
 
 def sample_args(op):
     def value(key, schema):
+        if key == "year":
+            return "2026"
         if key in {"dated_on", "due_on", "from_date", "to_date", "as_at_date", "period_ends_on"}:
             return "2026-01-01"
         kind = schema.get("type")
@@ -70,6 +72,8 @@ def provider_result(path):
                 ("admin_expenses_categories", "cost_of_sales_categories", "income_categories", "general_categories"), 1
             )
         }
+    if path.startswith("payroll/"):
+        return {"period": record} if len(path.split("/")) == 3 else {"periods": [record], "payments": []}
     if path == "company":
         return {"company": {"url": BASE + "company", "currency": "GBP"}}
     if path == "users/me":
@@ -170,7 +174,11 @@ def test_each_packaged_skill_has_a_real_provider_http_path(remote, skill, name):
     assert not result.get("isError"), result
     assert calls and calls[0][0] == operation.method
     expected = (
-        operation.endpoint.replace("{user_id}", "1").replace("{id}", "1").replace("{period_ends_on}", "2026-01-01")
+        operation.endpoint.replace("{user_id}", "1")
+        .replace("{id}", "1")
+        .replace("{period_ends_on}", "2026-01-01")
+        .replace("{year}", "2026")
+        .replace("{period}", "1")
     )
     assert urlsplit(calls[0][1]).path == "/v2/" + expected
     assert result["structuredContent"]
@@ -317,13 +325,15 @@ def test_broken_docs_anchor_source_digests_and_retired_source_fail(tmp_path):
         validate_contract(files, root=tmp_path)
 
 
-def test_every_secondary_operation_named_by_a_workflow_reaches_provider(remote):
+def test_every_secondary_operation_named_by_a_workflow_reaches_provider(remote, accounts):
     rpc, calls, _ = remote
     contracts = json.loads(package_files(ROOT)["docs/capabilities.json"])
     referenced = {op["name"] for contract in contracts.values() for op in contract["operations"]}
     discovered = {tool["name"] for tool in rpc("tools/list")["tools"]}
     assert referenced <= discovered
-    for name in sorted(referenced):
+    for index, name in enumerate(sorted(referenced)):
+        # This inventory check covers more than one minute of real usage.
+        accounts.clock = lambda index=index: 100 + index * 60
         calls.clear()
         operation = REGISTRY[name]
         result = rpc("tools/call", {"name": name, "arguments": sample_args(operation)})

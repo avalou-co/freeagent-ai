@@ -22,6 +22,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Bank explanations | get/create/delete; safe legacy/plural attachment references | https://dev.freeagent.com/docs/bank_transaction_explanations |
 | Bank-explanation attachments | list/add one/update one/remove one; automatic collection readback after writes | https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01 |
 | Users/company/categories | list/get, current-user/company | https://dev.freeagent.com/docs/users and https://dev.freeagent.com/docs/company and https://dev.freeagent.com/docs/categories |
+| Payroll | list_payroll_periods/get_payroll_period; metadata and payment evidence only, no payslips or transitions | https://dev.freeagent.com/docs/payroll |
 | Tax returns | VAT, Corporation Tax and user-scoped self-assessment list/get only | https://dev.freeagent.com/docs/vat_returns and https://dev.freeagent.com/docs/corporation_tax_returns and https://dev.freeagent.com/docs/income_tax_returns |
 | Accounting reports | P&L summary, balance sheet, trial balance summary | https://dev.freeagent.com/docs/profit_and_loss and https://dev.freeagent.com/docs/balance_sheet and https://dev.freeagent.com/docs/trial_balance |
 

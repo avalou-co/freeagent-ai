@@ -188,3 +188,13 @@ The envelope adds collection-completion time; provider fields remain unchanged o
 absent. Local clients can use the unchanged generic GET. The packaged workflow uses
 only named remote reads and [provider-returned evidence](recurring-revenue.md); no
 recurrence expansion, calculator or payment scenario is added.
+
+## Hosted payroll audit
+
+`list_payroll_periods` and `get_payroll_period` perform only the two documented
+fixed GET reads in the [payroll API](https://dev.freeagent.com/docs/payroll).
+Annual reads preserve both period/payment collections; period reads discard
+employee payslips before returning metadata. Both provide source and collection
+time, use linked-company read authorization, and fail incomplete collection
+shapes. No employee, filing, execution or payment/status mutation is exposed.
+See [payroll evidence](payroll.md) for provider permissions and evidence limits.

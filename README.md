@@ -190,3 +190,7 @@ Draft invoices support exact approved manual lines/currency and documented provi
 source-inclusion modes through `create_draft_invoice_from_payload`. FreeAgent owns
 totals, eligibility and duplicate billing; the tool keeps Draft/emails off and reads
 back. See [invoice workflow](docs/invoicing.md) for inclusion limits and evidence gates.
+
+UK payroll filing/payment evidence is available through `/freeagent-ai:payroll`
+skill; employee payslips, payroll execution and filing are excluded. See
+[payroll evidence](docs/payroll.md) for access and company limits.

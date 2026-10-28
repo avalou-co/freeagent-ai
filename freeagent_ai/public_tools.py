@@ -116,6 +116,8 @@ ITEM_FIELDS = [
     "second_sales_tax_status",
 ]
 ATTACHMENT_FIELDS = ["url", "file_name", "content_type", "file_size", "description"]
+PAYROLL_PERIOD_FIELDS = "url period frequency dated_on status employment_allowance_claimed employment_allowance_amount construction_industry_scheme_deduction created_at updated_at"
+PAYROLL_PAYMENT_FIELDS = ["due_on", "amount_due", "status"]
 TAX_PAYMENT_FIELDS = ["label", "due_on", "amount_due", "status"]
 TAX_RETURNS = {
     "vat_returns": "vat_return",
@@ -405,6 +407,41 @@ def make_registry():
             ),
             meta={"openai/fileParams": ["file"]} if action in {"add", "update"} else None,
         )
+    # Payroll year ends identify a multi-root response. Period detail deliberately
+    # omits payslips: filing/payment review needs no employee compensation data.
+    payroll_period = object_schema({key: SCALAR for key in PAYROLL_PERIOD_FIELDS.split()})
+    metadata = {"source_url": {"type": "string"}, "collected_at": {"type": "string"}}
+    for name, endpoint, detail in [
+        ("list_payroll_periods", "payroll/{year}", False),
+        ("get_payroll_period", "payroll/{year}/{period}", True),
+    ]:
+        params = {"year": {"type": "string", "pattern": "^[0-9]{4}$"}}
+        if detail:
+            params["period"] = id_schema
+        output = (
+            {"period": payroll_period}
+            if detail
+            else {
+                "periods": {"type": "array", "items": payroll_period},
+                "payments": {"type": "array", "items": object_schema({key: SCALAR for key in PAYROLL_PAYMENT_FIELDS})},
+            }
+        )
+        add(
+            name,
+            "GET",
+            endpoint,
+            "payroll",
+            object_schema(params, params),
+            object_schema({**output, **metadata}, [*output, *metadata]),
+            "Read UK FreeAgent RTI payroll filing evidence by tax year end (e.g. 2026 for April 2025–March 2026). "
+            "Requires Tax and Limited Accounting access and a UK company supporting payroll. "
+            + (
+                "Period is the provider period identifier; employee payslips are omitted. "
+                if detail
+                else "Returns all linked periods and provider payment obligations; no employee payslips. "
+            )
+            + "No filing, payment execution or paid/unpaid status changes. Missing status or amount stays unavailable; filing is not payment.",
+        )
     # Tax returns use period end dates, not numeric record IDs; income tax is user-scoped.
     period_schema = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
     for endpoint, root in TAX_RETURNS.items():
@@ -634,6 +671,8 @@ class Dispatcher:
 
     def _run(self, op, args, client):
         args.pop("confirmed", None)
+        if op.root == "payroll":
+            return self._payroll(op, args, client)
         if op.root == "attachments":
             return self._attachments(op, args, client)
         if op.helper:
@@ -715,6 +754,32 @@ class Dispatcher:
             record["collected_at"] = datetime.now(timezone.utc).isoformat()
         return record
 
+    @staticmethod
+    def _payroll(op, args, client):
+        path = op.endpoint.format(**args)
+        result = client.call("GET", path)
+        if not isinstance(result, dict):
+            raise ValueError("Payroll response malformed; read incomplete")
+
+        def period(record):
+            if not isinstance(record, dict):
+                raise ValueError("Payroll period malformed; read incomplete")
+            return {key: record[key] for key in PAYROLL_PERIOD_FIELDS.split() if key in record}
+
+        if op.name == "get_payroll_period":
+            projected = {"period": period(result["period"])}
+        else:
+            # Both collections are required; an absent/malformed collection is not
+            # evidence of no payroll or no obligations. Missing record fields stay absent.
+            if any(not isinstance(result.get(key), list) for key in ("periods", "payments")):
+                raise ValueError("Payroll collections missing or malformed; read incomplete")
+            projected = {"periods": [period(row) for row in result["periods"]], "payments": []}
+            for row in result["payments"]:
+                if not isinstance(row, dict):
+                    raise ValueError("Payroll payment malformed; read incomplete")
+                projected["payments"].append({key: row[key] for key in PAYROLL_PAYMENT_FIELDS if key in row})
+        return {**projected, "source_url": client.base + path, "collected_at": datetime.now(timezone.utc).isoformat()}
+
     def _attachments(self, op, args, client):
         path = op.endpoint.replace("{id}", args.pop("id"))
         if op.method != "GET":
@@ -772,10 +837,10 @@ class Dispatcher:
                 else "Provider operation failed; inspect before retrying"
             )
         except urllib.error.HTTPError as error:
-            # Attachment validation responses may echo bytes or signed source URLs.
+            # Attachment/payroll errors may echo signed URLs, bytes or employee data.
             message = (
                 f"FreeAgent HTTP {error.code}"
-                if name in REGISTRY and REGISTRY[name].root == "attachments"
+                if name in REGISTRY and REGISTRY[name].root in {"attachments", "payroll"}
                 else provider_error(error)
             )
             message += "; inspect the original account before retrying a write"
