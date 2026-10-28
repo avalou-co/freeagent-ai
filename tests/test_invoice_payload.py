@@ -1,5 +1,6 @@
 """Invoice workflow -> remote MCP -> provider payload/readback, without accounting math."""
 
+import hashlib
 import json
 import time
 import urllib.error
@@ -21,7 +22,7 @@ from freeagent_ai.hosted_app import create_app
 from freeagent_ai.hosted_auth import ORIGIN
 from freeagent_ai.hosted_client import HostedClient
 from freeagent_ai.public_package import package_files
-from freeagent_ai.public_tools import Dispatcher
+from freeagent_ai.public_tools import REGISTRY, Dispatcher
 
 BASE = "https://api.freeagent.com/v2/"
 
@@ -377,3 +378,63 @@ def test_source_detail_rebilling_and_tax_evidence_survives_remote_projection(rem
     assert explanation["project"] == BASE + "projects/8"
     assert explanation["rebill_type"] == "cost"
     assert explanation["sales_tax_value"] == "-1.20"
+
+
+PENDING_INVOICE_ACTIONS = (
+    "send_invoice_email",
+    "send_invoice",
+    "duplicate_invoice",
+    "mark_invoice_as_sent",
+    "mark_invoice_as_scheduled",
+    "mark_invoice_as_draft",
+    "mark_invoice_as_cancelled",
+)
+
+
+@pytest.mark.parametrize("name", PENDING_INVOICE_ACTIONS)
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_pending_invoice_actions_cannot_reach_provider_over_authenticated_http(remote, name, confirmed):
+    # A write-authorized principal and confirmed=True cannot enable an absent operation.
+    # This proves transport refusal, not conversational approval or ownership decisions.
+    rpc, calls, _ = remote
+    result = rpc(
+        "tools/call",
+        {
+            "name": name,
+            "arguments": {
+                "id": "2",
+                "confirmed": confirmed,
+                "invoice": {"email": {"to": "review@example.invalid", "subject": "Synthetic draft"}},
+            },
+        },
+    )
+    assert result["isError"]
+    assert calls == []
+
+
+def test_pending_delivery_policy_is_bundled_without_exposing_invoice_actions(remote):
+    rpc, calls, _ = remote
+    root = Path(__file__).resolve().parents[1]
+    files = package_files(root)
+    discovery = {tool["name"] for tool in rpc("tools/list", {})["tools"]}
+    audit = {tool["name"] for tool in json.loads(files["docs/public-tool-audit.json"])}
+    assert not discovery.intersection(PENDING_INVOICE_ACTIONS)
+    assert not audit.intersection(PENDING_INVOICE_ACTIONS)
+    assert {"get_invoice", "list_invoices", "create_draft_invoice_from_payload"} <= discovery
+    # Check endpoint inventory too: adding a renamed send/transition must not evade the gate.
+    assert not any(
+        operation.endpoint.startswith("invoices/")
+        and any(fragment in operation.endpoint for fragment in ("/send_email", "/duplicate", "/transitions/"))
+        for operation in REGISTRY.values()
+    )
+    contract = files["docs/invoicing.md"].decode()
+    assert "Proposed delivery policy — pending human acceptance" in contract
+    assert "Current draft-only/no-send" in contract
+    assert "Existing invoices remain ineligible for sending or status" in contract
+    assert "unchanged invoice status as proof that no email was sent" in contract
+    digests = json.loads(files["docs/source-digests.json"])
+    for source in ("docs/invoicing.md", ".agents/skills/invoicing/SKILL.md", ".agents/skills/invoice-status/SKILL.md"):
+        assert digests[source] == hashlib.sha256((root / source).read_bytes()).hexdigest()
+    for name in ("invoicing", "invoice-status"):
+        assert "pending human acceptance" in files[f"skills/{name}/SKILL.md"].decode()
+    assert calls == []

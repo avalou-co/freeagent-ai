@@ -56,3 +56,10 @@ No local Python, shell, filesystem or generic API executor is required. Follow
    inspect the original company and created resource before another create; never replay blindly.
 
 For corrections, follow the shared current-request ownership and approval rules.
+
+Delivery, duplication and status changes remain unavailable. The
+[proposed delivery policy](../../../docs/invoicing.md#proposed-delivery-policy--pending-human-acceptance)
+is pending human acceptance and separate implementation; do not execute its
+proposed steps, use generic API writes as a workaround, or treat draft approval
+as permission to send. Offer reviewed draft text and direct the user to FreeAgent
+for actions outside the current policy.
