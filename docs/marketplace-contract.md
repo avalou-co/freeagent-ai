@@ -18,7 +18,12 @@ The generated `docs/capabilities.json` records, for each shipped skill:
   input/output schemas, method, fixed provider route and approval parameter.
 - Linked evidence documents and supported transport artifacts. Current workflows
   return provider JSON and explanations; receipt inputs are host file references.
-  No current skill advertises remotely delivered PDF output.
+  No shipped hosted skill advertises remotely delivered PDF output.
+- `docs/unsupported-capabilities.json` explicitly marks document delivery unavailable.
+  The local/server documents prototype is excluded from hosted skills and discovery;
+  the operation gate rejects PDF tools rather than treating embedded blobs as usable
+  artifacts. Re-enablement needs documented host file output and installed web/mobile
+  evidence without a client interpreter.
 
 Validation rejects missing entry points, unknown tools, API-executor instructions,
 required client runtimes, executable package helpers, removed engine sources,

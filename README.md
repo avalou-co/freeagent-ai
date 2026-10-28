@@ -196,7 +196,10 @@ source-inclusion modes through `create_draft_invoice_from_payload`. FreeAgent ow
 totals, eligibility and duplicate billing; the tool keeps Draft/emails off and reads
 back. See [invoice workflow](docs/invoicing.md) for inclusion limits and evidence gates.
 
-Accounting PDFs: `/freeagent-ai:documents` uses authenticated invoice, estimate and credit-note PDF tools with embedded MCP resources. Client viewing support and verification limits are described in [document transport](docs/documents.md).
+Accounting PDF delivery is unavailable in hosted ChatGPT web/mobile. The local
+`/freeagent-ai:documents` prototype is excluded from hosted discovery and both
+marketplace package builders until a supported interpreter-free delivery contract
+and actual client evidence exist. See [document transport status](docs/documents.md).
 
 UK payroll filing/payment evidence is available through `/freeagent-ai:payroll`
 skill; employee payslips, payroll execution and filing are excluded. See

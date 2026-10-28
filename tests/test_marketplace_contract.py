@@ -376,12 +376,7 @@ def test_artifact_and_approval_contracts_are_derived_from_discovered_schemas(rem
     receipts = contracts["receipts"]["input_artifacts"]
     assert {item["parameter"] for item in receipts} == {"receipt", "attachment"}
     for contract in contracts.values():
-        expected_artifacts = (
-            ["embedded MCP application/pdf resource", "provider metadata / assistant explanation"]
-            if any(op["name"].endswith("_pdf") for op in contract["operations"])
-            else ["provider JSON / assistant explanation"]
-        )
-        assert contract["output_artifacts"] == expected_artifacts
+        assert contract["output_artifacts"] == ["provider JSON / assistant explanation"]
         for item in contract["input_artifacts"]:
             tool = tools[item["tool"]]
             assert item["parameter"] in tool["_meta"]["openai/fileParams"]

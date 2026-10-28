@@ -16,13 +16,20 @@ from .public_tools import CORRECTIONS, CREATES, REGISTRY, RESOURCES, TAX_RETURNS
 # Explicit reviewed entry points, plus every operation referenced by the actual
 # workflow (not the full registry appendix). This is a product contract, not a
 # parallel task/status tracker. New skills must declare their executable path.
+HOSTED_EXCLUDED_SKILLS = frozenset({"documents"})
+UNSUPPORTED_CAPABILITIES = {
+    "documents": {
+        "status": "unavailable",
+        "reason": "No verified interpreter-free ChatGPT web/mobile PDF delivery contract",
+        "required_evidence": ["documented host file output", "installed web delivery", "installed mobile delivery"],
+    }
+}
 SKILLS = {
     "bank-reconcile": ("list_bank_transactions", "explain_bank_transaction"),
     "bills": ("list_bills", "create_bill"),
     "cash-flow": ("list_bank_accounts", "list_invoices", "list_bills"),
     "clients": ("list_contacts", "create_contact", "create_project", "create_task"),
     "credit-notes": ("create_draft_credit_note", "create_credit_note_reconciliation"),
-    "documents": ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"),
     "estimates": ("list_estimates", "create_draft_estimate"),
     "expenses": ("list_expenses", "create_expense_from_payload"),
     "invoice-status": ("list_invoices", "get_invoice"),
@@ -129,7 +136,6 @@ def validate_operations():
     """
     routes = {("GET", endpoint) for endpoint in RESOURCES}
     routes.update(("GET", endpoint + "/{id}") for endpoint in RESOURCES)
-    routes.update(("GET", endpoint + "/{id}/pdf") for endpoint in ("invoices", "estimates", "credit_notes"))
     routes.update(("GET", endpoint) for endpoint in TAX_RETURNS)
     routes.update(("GET", endpoint + "/{period_ends_on}") for endpoint in TAX_RETURNS)
     routes.update(
@@ -157,6 +163,7 @@ def validate_operations():
         if (
             not isinstance(op.endpoint, str)
             or not op.endpoint
+            or op.root == "pdf"
             or FORBIDDEN_TOOLS.search(name)
             or FORBIDDEN_TOOLS.search(op.helper)
             or (not create and (op.method, op.endpoint) not in routes)
@@ -246,9 +253,7 @@ def coverage(files):
                     "input_schema": op.descriptor.input_schema,
                     "output_schema": op.descriptor.output_schema,
                     "approval_parameter": "confirmed" if op.method != "GET" else None,
-                    "result": "metadata plus embedded MCP application/pdf resource; errors are explicit"
-                    if op.root == "pdf"
-                    else "provider JSON with source references; errors are explicit",
+                    "result": "provider JSON with source references; errors are explicit",
                 }
             )
         result[skill] = {
@@ -257,9 +262,7 @@ def coverage(files):
             "operations": operations,
             "linked_evidence": sorted(LINK.findall(workflow(text))),
             "input_artifacts": artifacts,
-            "output_artifacts": ["embedded MCP application/pdf resource", "provider metadata / assistant explanation"]
-            if any(REGISTRY[name].root == "pdf" for name in names)
-            else ["provider JSON / assistant explanation"],
+            "output_artifacts": ["provider JSON / assistant explanation"],
             "verification_limits": "Static contract and synthetic HTTP fixtures do not prove assistant decisions or live web/iOS installation.",
         }
     return result
@@ -267,6 +270,8 @@ def coverage(files):
 
 def validate_contract(files, *, root=None):
     validate_operations()
+    if json.loads(files.get("docs/unsupported-capabilities.json", b"{}")) != UNSUPPORTED_CAPABILITIES:
+        raise ValueError("Unsupported capability status is missing or changed")
     for path in files:
         if path.endswith((".py", ".pyc", ".sh", ".ipynb", ".js")):
             raise ValueError(f"Executable client helper in hosted package: {path}")
@@ -279,7 +284,11 @@ def validate_contract(files, *, root=None):
         if any(p.exists() for p in retired):
             raise ValueError("Retired accounting engine exists in release source")
         sources = json.loads(files["docs/source-digests.json"])
-        expected = {str(p.relative_to(root)) for p in (root / ".agents/skills").glob("*/SKILL.md")}
+        expected = {
+            str(p.relative_to(root))
+            for p in (root / ".agents/skills").glob("*/SKILL.md")
+            if p.parent.name not in HOSTED_EXCLUDED_SKILLS
+        }
         expected.update(
             p for p in files if p.startswith("docs/") and p.endswith(".md") and p != "docs/receipt-review-cases.md"
         )

@@ -425,7 +425,11 @@ def test_package_reproducible_and_release_gate(tmp_path):
     assert first.read_bytes() == second.read_bytes()
     files = package_files(root)
     assert json.loads(files["mcp.json"])["mcpServers"]["freeagent"]["url"] == ORIGIN + "/mcp"
-    expected_skills = {f"skills/{path.parent.name}/SKILL.md" for path in (root / ".agents/skills").glob("*/SKILL.md")}
+    expected_skills = {
+        f"skills/{path.parent.name}/SKILL.md"
+        for path in (root / ".agents/skills").glob("*/SKILL.md")
+        if path.parent.name != "documents"
+    }
     assert {key for key in files if key.endswith("SKILL.md")} == expected_skills
     assert "skills/mileage/scripts/preview.py" not in files
     assert "get_mileage_settings" in files["docs/api-notes.md"].decode()

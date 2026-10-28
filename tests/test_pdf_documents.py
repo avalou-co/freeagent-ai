@@ -17,14 +17,18 @@ from freeagent_ai.hosted_app import create_app
 from freeagent_ai.hosted_auth import ORIGIN
 from freeagent_ai.hosted_client import HostedClient
 from freeagent_ai.pdf_documents import MAX_ENCODED_BYTES, MAX_PDF_BYTES, fetch_pdf
-from freeagent_ai.public_tools import Dispatcher
+from freeagent_ai.public_tools import Dispatcher, make_registry
 
 BASE = "https://api.freeagent.com/v2/"
 PDF = b"%PDF-1.4\nsynthetic transport fixture\n%%EOF\n"
 
 
 @pytest.fixture
-def pdf_remote(accounts):
+def pdf_remote(accounts, monkeypatch):
+    # Preserve prototype security diagnostics without enabling hosted discovery.
+    prototype_registry = make_registry(experimental_pdf=True)
+    monkeypatch.setattr("freeagent_ai.public_tools.REGISTRY", prototype_registry)
+    monkeypatch.setattr("freeagent_ai.hosted_app.REGISTRY", prototype_registry)
     for subject, company in (("alice", "1"), ("bob", "2")):
         accounts.replace(
             subject,
@@ -156,3 +160,78 @@ def test_local_fixed_fetch_contract():
     result = fetch_pdf(call, BASE, "invoices", "1").tool_result()
     assert result.structured_content["file_name"] == "invoices-1.pdf"
     assert calls == [("GET", "invoices/1", {}), ("GET", "invoices/1/pdf", {"paginate": False})]
+
+
+def test_production_hosted_discovery_invocation_and_package_exclude_pdf_prototype(accounts):
+    from pathlib import Path
+
+    from freeagent_ai.public_package import package_files
+    from freeagent_ai.public_tools import REGISTRY
+
+    calls = []
+    dispatch = Dispatcher(accounts, "id", "secret", client_factory=lambda *args: calls.append(args))
+    verifier = SimpleNamespace(principal=lambda _: Principal("alice", frozenset({"freeagent:read"}), 101))
+    with TestClient(create_app(settings(), accounts, verifier, dispatch), base_url=ORIGIN) as client:
+        headers = {"Authorization": "Bearer synthetic", "Accept": "application/json, text/event-stream"}
+        discovered = client.post(
+            "/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        ).json()["result"]["tools"]
+        assert not any(tool["name"].endswith("_pdf") for tool in discovered)
+        for name in ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"):
+            response = client.post(
+                "/mcp",
+                headers=headers,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {"name": name, "arguments": {"id": "7"}},
+                },
+            ).json()
+            assert response.get("error") or response["result"].get("isError")
+    assert not calls
+    assert not any(op.root == "pdf" for op in REGISTRY.values())
+    files = package_files(Path(__file__).resolve().parents[1])
+    assert "skills/documents/SKILL.md" not in files
+    assert "documents" not in json.loads(files["docs/capabilities.json"])
+    assert not any(item["name"].endswith("_pdf") for item in json.loads(files["docs/public-tool-audit.json"]))
+    assert json.loads(files["docs/unsupported-capabilities.json"])["documents"]["status"] == "unavailable"
+
+
+def test_package_gate_rejects_pdf_reenablement_and_missing_status(monkeypatch):
+    from pathlib import Path
+
+    from freeagent_ai.package_contract import validate_contract, validate_operations
+    from freeagent_ai.public_package import package_files
+    from freeagent_ai.public_tools import REGISTRY
+
+    files = package_files(Path(__file__).resolve().parents[1])
+    del files["docs/unsupported-capabilities.json"]
+    with pytest.raises(ValueError, match="Unsupported capability status"):
+        validate_contract(files)
+    prototype = make_registry(experimental_pdf=True)["get_invoice_pdf"]
+    monkeypatch.setitem(REGISTRY, "get_invoice_pdf", prototype)
+    with pytest.raises(ValueError, match="Non-provider operation"):
+        validate_operations()
+
+
+@pytest.mark.parametrize("builder", ["draft", "operator"])
+def test_both_archive_builders_refuse_pdf_registry_reenablement(monkeypatch, tmp_path, builder):
+    import runpy
+    from pathlib import Path
+
+    from freeagent_ai.public_package import build
+    from freeagent_ai.public_tools import REGISTRY
+
+    operator_build = runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/package_hosted_plugin.py"))[
+        "build"
+    ]
+
+    monkeypatch.setitem(REGISTRY, "get_invoice_pdf", make_registry(experimental_pdf=True)["get_invoice_pdf"])
+    output = tmp_path / "blocked.zip"
+    with pytest.raises(ValueError, match="Non-provider operation"):
+        if builder == "draft":
+            build(Path(__file__).resolve().parents[1], output, draft=True)
+        else:
+            operator_build(output, "synthetic-client")
+    assert not output.exists()

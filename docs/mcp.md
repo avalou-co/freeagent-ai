@@ -201,7 +201,12 @@ unchanged. See [month-end evidence limits](month-end.md).
 
 ## Document PDF resources
 
-Named `get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` reads return standard embedded MCP PDF resources plus metadata. The account-bound dispatcher verifies identity and authorization, validates bounded file envelopes and checks the binding again before releasing bytes. No arbitrary destination, local path, public download route or persistent file cache is exposed. Resource URIs have random invocation namespaces; they are labels for embedded bytes, not retrievable URLs. [Transport and client support limits](documents.md).
+Hosted discovery excludes `get_invoice_pdf`, `get_estimate_pdf` and
+`get_credit_note_pdf`; both marketplace builders omit the documents workflow.
+The embedded MCP resource implementation remains a local/server prototype, not a
+verified ChatGPT file output. The gate rejects PDF tools and records this feature
+as unavailable until a documented interpreter-free host output contract and
+installed web/mobile evidence exist. [Status and prototype limits](documents.md).
 
 ## Hosted payroll audit
 

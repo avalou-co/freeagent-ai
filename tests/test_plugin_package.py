@@ -25,6 +25,7 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
         assert {name for name in names if name.endswith("SKILL.md")} == {
             f"skills/{source.parent.name}/SKILL.md"
             for source in (Path(__file__).resolve().parents[1] / ".agents/skills").glob("*/SKILL.md")
+            if source.parent.name != "documents"
         }
         assert "docs/receipts.md" in names
         assert "docs/bank-attachments.md" in names

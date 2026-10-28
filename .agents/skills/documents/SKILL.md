@@ -1,9 +1,13 @@
 ---
 name: documents
-description: Retrieve provider invoice, estimate and credit-note PDFs as authenticated embedded MCP resources.
+description: Experimental local MCP PDF diagnostics; unavailable in hosted ChatGPT web/mobile.
 ---
 
-# Accounting document PDFs
+# Experimental local document PDFs
+
+This workflow is excluded from hosted ChatGPT packages and discovery. It is a
+local/server prototype only; do not advertise file delivery on web/mobile.
+No local decoder or interpreter fallback is permitted for hosted users.
 
 1. Ask which linked company, document type and record the user wants. Call
    `get_company`, then resolve the selected record with `list_invoices`,

@@ -288,7 +288,7 @@ class Operation:
     helper: str = ""
 
 
-def make_registry():
+def make_registry(*, experimental_pdf=False):
     registry = {}
 
     def add(name, method, endpoint, root, schema, output, description, helper="", meta=None):
@@ -363,27 +363,29 @@ def make_registry():
             object_schema({root: record_schema(root)}, [root]),
             f"Read the linked company's {root.replace('_', ' ')}.",
         )
-    for endpoint, root in (("invoices", "invoice"), ("estimates", "estimate"), ("credit_notes", "credit_note")):
-        add(
-            "get_" + root + "_pdf",
-            "GET",
-            endpoint + "/{id}/pdf",
-            "pdf",
-            object_schema({"id": id_schema}, ["id"]),
-            object_schema(
-                {
-                    "source": {"type": "string"},
-                    "file_name": {"type": "string"},
-                    "mime_type": {"type": "string"},
-                    "size_bytes": {"type": "integer"},
-                    "collected_at": {"type": "string"},
-                },
-                ["source", "file_name", "mime_type", "size_bytes", "collected_at"],
-            ),
-            "Read a PDF for the selected "
-            + root.replace("_", " ")
-            + ". Returns an embedded MCP application/pdf resource and metadata, not a public download URL. Requires a host that supports embedded PDF resources; otherwise report delivery unavailable. No sending or status changes.",
-        )
+    # Local/server prototype fixtures only; production hosted discovery excludes PDFs.
+    if experimental_pdf:
+        for endpoint, root in (("invoices", "invoice"), ("estimates", "estimate"), ("credit_notes", "credit_note")):
+            add(
+                "get_" + root + "_pdf",
+                "GET",
+                endpoint + "/{id}/pdf",
+                "pdf",
+                object_schema({"id": id_schema}, ["id"]),
+                object_schema(
+                    {
+                        "source": {"type": "string"},
+                        "file_name": {"type": "string"},
+                        "mime_type": {"type": "string"},
+                        "size_bytes": {"type": "integer"},
+                        "collected_at": {"type": "string"},
+                    },
+                    ["source", "file_name", "mime_type", "size_bytes", "collected_at"],
+                ),
+                "Read a PDF for the selected "
+                + root.replace("_", " ")
+                + ". Returns an embedded MCP application/pdf resource and metadata, not a public download URL. Requires a host that supports embedded PDF resources; otherwise report delivery unavailable. No sending or status changes.",
+            )
     # The versioned provider collection separates attachment changes from explanations.
     # One file per write keeps the existing bounded invocation-only upload contract.
     attachment_output = object_schema(
