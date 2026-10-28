@@ -37,7 +37,6 @@ SKILLS = {
         "list_timeslips",
         "list_expenses",
     ),
-
     "payroll": ("list_payroll_periods", "get_payroll_period"),
     "profitability": ("list_projects", "list_timeslips", "list_invoices"),
     "receipts": ("list_expenses", "list_bills", "create_expense_from_payload", "create_bill"),
