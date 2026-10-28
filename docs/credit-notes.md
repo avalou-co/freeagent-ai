@@ -52,6 +52,69 @@ policy decision. No issuance/status-transition/email operation is added. Draft
 approval and this policy approval do not substitute for exact per-allocation approval.
 The approved exception is shared in [agent rules](agent-rules.md#approved-credit-allocation-exception).
 
+## Proposed issuance policy — pending human acceptance
+
+This proposal is for review under issue #69. It is not an approved exception,
+an executable workflow or permission to issue a credit. The current workflow and
+hosted registry continue to exclude issuance. A human must explicitly accept this
+policy and review its implementation before an issuance operation is exposed.
+Accepting this document alone would not approve any financial write.
+
+The [provider credit-note contract](https://dev.freeagent.com/docs/credit_notes)
+was checked on 2026-10-28. It documents
+`PUT credit_notes/:id/transitions/mark_as_sent`, returning HTTP 200, separately
+from `POST credit_notes/:id/send_email`. The transition can also reopen a
+cancelled credit; that broader provider behavior is outside this proposal.
+Provider status values include `Draft`, `Open`, `Overdue`, `Refunded` and
+`Written-off`; do not expect a literal `Sent` readback merely because of the
+transition's name. Sandbox verification of actual eligible transitions remains
+required before enablement.
+
+The proposed scope would permit only a Draft created and successfully read back
+during the current user request, in the same linked company. It would not grant
+ownership over an older Draft, reopen a cancelled credit, return an issued credit
+to Draft, edit invoice lines, send email, cancel a credit or refund cash. Existing
+issued credits remain eligible only for the separately approved allocation
+exception above. No additional exception for historical drafts is proposed.
+
+If accepted and implemented, the agent would follow these steps:
+
+1. Establish current-request creation evidence and re-read the company, selected
+   Draft, original invoice where applicable, and complete related credit and
+   reconciliation collections. Stop on an incomplete read, unresolved duplicate,
+   changed company, changed document or unavailable ownership evidence. Provider
+   eligibility remains FreeAgent's decision; do not build a local accounting engine.
+2. Preview the company, credit identity/reference, contact/project, source invoice,
+   date, signed lines/tax, currency/exchange-rate basis and all provider-returned
+   totals/balances. Label missing values unavailable. Explain the exact status
+   transition and that it neither emails the customer nor allocates credit or
+   pays cash. Do not invent expected totals, balances or conversions.
+3. Obtain separate explicit approval to issue that exact Draft. Draft-creation
+   approval, policy acceptance, allocation approval and a general request to
+   process credits are insufficient. Refusal causes no write. If the record
+   changes after preview, refresh the preview and obtain approval again.
+4. Submit the fixed status transition once. Read back the credit, source invoice
+   where applicable and related reconciliations in the original company. Report
+   actual returned status, lines, totals, balances and relationships; flag changes
+   or missing evidence. HTTP 200 alone is not verification. An unexpected state
+   blocks further action; do not force a preferred status or manufacture balances.
+5. On timeout, denial, provider rejection or failed readback, report the outcome
+   and re-read the original records before considering any further write. Do not
+   automatically retry the transition, recreate the credit, email it or allocate
+   it as a workaround. If status is already issued, do not replay issuance. Any
+   retry after evidence establishes no transition requires a fresh exact approval.
+6. Allocation, if requested after verified issuance, would still require the full
+   existing allocation preview, eligibility/duplicate reads and separate exact
+   approval. Issuance approval would never authorize allocation.
+
+Before enabling this proposal, independent financial-workflow review must assess
+the ownership boundary and refusal/uncertain-result paths. A separately reviewed
+implementation must add one named remote operation, annotations, tool audit and
+canonical skill/rule updates together; verify authenticated discovery/invocation,
+permissions and affected-record readbacks with synthetic fixtures. Dedicated
+authorized sandbox evidence and marketplace client verification must be reported
+separately. No current tool or local generic executor is a workaround for this gate.
+
 ## Review examples and safeguards
 
 These are policy review examples, not claims of observed assistant execution:
