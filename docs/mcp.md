@@ -188,3 +188,13 @@ The envelope adds collection-completion time; provider fields remain unchanged o
 absent. Local clients can use the unchanged generic GET. The packaged workflow uses
 only named remote reads and [provider-returned evidence](recurring-revenue.md); no
 recurrence expansion, calculator or payment scenario is added.
+
+## Month-end read coverage
+
+The read-only month-end skill composes existing named company, bank, invoice,
+bill, timeslip and expense reads; no accounting/checking tool is introduced.
+Collection and detail envelopes for bank accounts/transactions, invoices, bills,
+timeslips and expenses now include collected_at UTC after a successful read.
+This is server collection metadata, not provider financial data or an atomic
+snapshot. Existing fields, filters, pagination, authorization and errors remain
+unchanged. See [month-end evidence limits](month-end.md).

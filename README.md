@@ -94,6 +94,11 @@ Use `/freeagent-ai:recurring-revenue` to read FreeAgent recurring invoice profil
 returned next/end dates, status and values. It does not expand future occurrences
 or predict cash receipts. See [recurring profile coverage](docs/recurring-revenue.md).
 
+Use `/freeagent-ai:month-end` to review provider-marked unexplained transactions,
+overdue records, drafts and unbilled time for a selected period. Receipt and possible
+duplicate observations remain evidence for review, not automatic bookkeeping corrections.
+See [month-end coverage](docs/month-end.md).
+
 ## Using it
 
 Ask your agent in plain language, for example:

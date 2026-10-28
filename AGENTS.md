@@ -28,6 +28,7 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 | `profitability` | Read-only provider project, budget, time and billing records |
 | `recurring-revenue` | Read-only FreeAgent recurring invoice profiles and provider-reported dates/statuses |
 | `tax-overview` | Read-only provider tax amounts, filing/payment deadlines and status |
+| `month-end` | Read-only month-end bookkeeping evidence and approved-workflow handoffs |
 | `reports` | Read-only P&L, balance sheet, trial balance, cash, overdue invoices and bills |
 | `invoice-status` | Read-only: list invoices by status/contact/date, show payment status, draft overdue chasers |
 

@@ -174,6 +174,7 @@ def package_files(root, metadata=None):
         "analysis.md",
         "invoicing.md",
         "recurring-revenue.md",
+        "month-end.md",
         "marketplace-contract.md",
     ]:
         source = root / "docs" / name
