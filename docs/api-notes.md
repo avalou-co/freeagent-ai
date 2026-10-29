@@ -223,7 +223,7 @@ errors and inspect uncertain writes before any retry.
 
 ## Document PDFs
 
-Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Hosted named reads verify record identity and PDF bounds, then emit public metadata plus a private one-use offer to the registered download UI. The same-account browser route produces a native HTTPS attachment. Legacy local embedded resources remain diagnostics only; installed web/mobile delivery acceptance remains separate. See [document transport](documents.md) for limits and client verification gates.
+Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Hosted named reads verify record identity and PDF bounds, then emit public metadata plus a private original-bound UI context. Its authenticated UI-only refresh mints a short one-file delegated capability; the browser route auto-submits for a native HTTPS attachment without cookie or login dependence. Legacy local embedded resources remain diagnostics only; installed web/mobile delivery acceptance remains separate. See [document transport](documents.md) for limits and client verification gates.
 
 ## Payroll reads
 

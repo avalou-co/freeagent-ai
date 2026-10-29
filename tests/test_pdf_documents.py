@@ -176,7 +176,9 @@ def test_shipped_document_transport_is_registered_ui_not_prototype_blob():
     files = package_files(Path(__file__).resolve().parents[1])
     assert "skills/documents/SKILL.md" in files
     contract = json.loads(files["docs/capabilities.json"])["documents"]
-    assert contract["output_artifacts"] == ["registered MCP Apps UI -> same-account HTTPS application/pdf attachment"]
+    assert contract["output_artifacts"] == [
+        "registered MCP Apps UI -> original-account delegated HTTPS application/pdf attachment"
+    ]
     assert (
         json.loads(files["docs/unsupported-capabilities.json"])["documents"]["status"]
         == "awaiting_installed_client_verification"

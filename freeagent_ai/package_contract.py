@@ -191,6 +191,14 @@ def validate_operations():
 
             if (op.descriptor.meta or {}).get("ui", {}).get("resourceUri") != UI_URI:
                 raise ValueError("Document delivery requires registered UI transport")
+        if op.root == "document_download_refresh":
+            meta = op.descriptor.meta or {}
+            if (
+                meta.get("ui", {}).get("visibility") != ["app"]
+                or meta.get("ui", {}).get("resourceUri")
+                or meta.get("openai/outputTemplate")
+            ):
+                raise ValueError("Document refresh must be UI-only without a new output template")
         if op.method != "GET":
             schema = op.descriptor.input_schema
             if (
@@ -282,7 +290,7 @@ def coverage(files):
                     "input_schema": op.descriptor.input_schema,
                     "output_schema": op.descriptor.output_schema,
                     "approval_parameter": "confirmed" if op.method != "GET" else None,
-                    "result": "provider metadata plus registered UI with private one-use download offer"
+                    "result": "provider metadata plus registered UI with private original-account context"
                     if op.root == "document_download"
                     else "provider JSON with source references; errors are explicit",
                 }
@@ -293,7 +301,9 @@ def coverage(files):
             "operations": operations,
             "linked_evidence": sorted(LINK.findall(workflow(text))),
             "input_artifacts": artifacts,
-            "output_artifacts": ["registered MCP Apps UI -> same-account HTTPS application/pdf attachment"]
+            "output_artifacts": [
+                "registered MCP Apps UI -> original-account delegated HTTPS application/pdf attachment"
+            ]
             if any(REGISTRY[name].root == "document_download" for name in names)
             else ["provider JSON / assistant explanation"],
             "verification_limits": "Static contract and synthetic HTTP fixtures do not prove assistant decisions or live web/iOS installation.",

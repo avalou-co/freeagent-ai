@@ -23,7 +23,7 @@ from starlette.staticfiles import StaticFiles
 
 from .document_delivery import UI_URI, redeem
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
-from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier, connection_generation
+from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import HostedClient, principal_context, request_json
 from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
@@ -33,6 +33,9 @@ from .landing import ROOT as LANDING_ROOT
 from .landing import render as render_landing
 from .landing import validate_config as validate_landing_config
 from .public_tools import REGISTRY, Dispatcher, PublicToolsResult
+
+RECEIVER_SCRIPT = (Path(__file__).with_name("document_ui") / "receiver.js").read_text()
+RECEIVER_SCRIPT_HASH = base64.b64encode(hashlib.sha256(RECEIVER_SCRIPT.encode()).digest()).decode()
 
 
 def page(title, body):
@@ -50,8 +53,8 @@ class SecurityHeaders:
             if message["type"] == "http.response.start":
                 marketing = scope.get("path") == "/" or scope.get("path", "").startswith("/landing-assets/")
                 csp = "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
-                if scope.get("path") == "/documents" or scope.get("path", "").startswith("/document-assets/"):
-                    csp += "; script-src 'self'"
+                if scope.get("path") == "/documents":
+                    csp += "; script-src 'sha256-" + RECEIVER_SCRIPT_HASH + "'"
                 if marketing:
                     csp += "; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self'"
                 cache = "no-store"
@@ -212,7 +215,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
                             "resource_domains": [],
                             "redirect_domains": [ORIGIN],
                         },
-                        "openai/widgetDescription": "Secure accounting PDF download. Opens an authenticated first-party page; document offers expire after two minutes.",
+                        "openai/widgetDescription": "Accounting PDF card with one Download PDF action. Authorization refreshes internally; the browser download starts automatically.",
                     },
                 )
             ]
@@ -261,7 +264,11 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         return token, record
 
     async def documents(request):
-        return HTMLResponse((document_root / "receiver.html").read_text())
+        return HTMLResponse(
+            (document_root / "receiver.html")
+            .read_text()
+            .replace("<!-- receiver-script -->", "<script>" + RECEIVER_SCRIPT + "</script>")
+        )
 
     async def document_download(request):
         if request.headers.get("origin") != ORIGIN:
@@ -283,7 +290,6 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
             raise AccessDenied("Invalid document download request") from None
         if set(form) != {"grant"} or len(form["grant"]) != 1:
             raise AccessDenied("Invalid document download request")
-        _, record = await anyio.to_thread.run_sync(session, request)
 
         def fetch():
             def client(binding):
@@ -296,7 +302,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
                     config.freeagent_client_secret,
                 )
 
-            return redeem(accounts, record, form["grant"][0], client, connection_name=settings.connection_name)
+            return redeem(accounts, form["grant"][0], client)
 
         document = await anyio.to_thread.run_sync(fetch)
         return Response(
@@ -352,7 +358,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
             # permitted sandbox account before any data access is granted.
             sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("reviewer_entry", {}))
         else:
-            sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("login_browser", {}))
+            sid = secrets.token_urlsafe(32)
         nonce, code_verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         state = await anyio.to_thread.run_sync(
             lambda: accounts.new_state("auth0", {"session": sid, "nonce": nonce, "verifier": code_verifier})
@@ -399,11 +405,11 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         claims = await anyio.to_thread.run_sync(verifier.claims, tokens["id_token"], settings.web_client_id)
         if claims.get("nonce") != state["nonce"]:
             raise AccessDenied("Callback nonce mismatch")
-        generation = connection_generation(claims, settings.connection_name)
-        session_values = {"subject": claims["sub"], "primary_auth_time": claims[PRIMARY_AUTH_CLAIM]}
-        if generation is not None:
-            session_values["connection_generation"] = generation
-        sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("session", session_values, ttl=3600))
+        sid = await anyio.to_thread.run_sync(
+            lambda: accounts.new_state(
+                "session", {"subject": claims["sub"], "primary_auth_time": claims[PRIMARY_AUTH_CLAIM]}, ttl=3600
+            )
+        )
         response = RedirectResponse("/account")
         response.set_cookie("__session", sid, secure=True, httponly=True, samesite="lax", max_age=3600)
         return response
@@ -492,7 +498,6 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         Route("/account", account),
         Route("/documents", documents),
         Route("/documents/download", document_download, methods=["POST"]),
-        Mount("/document-assets", app=StaticFiles(directory=document_root)),
         Route("/login", login),
         Route("/reviewer/login", login),
         Route("/auth/callback", auth_callback),

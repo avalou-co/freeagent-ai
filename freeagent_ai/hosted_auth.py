@@ -115,22 +115,6 @@ class Settings:
         )
 
 
-def connection_generation(data, connection_name):
-    """Validate a generation from verified signed claims or their persisted session.
-
-    Timestamp-only legacy identities must never acquire generation authorization.
-    Federated FreeAgent identities require the signed post-link generation because
-    provider authentication occurs before the account replacement cutoff.
-    """
-    generation = data.get(GENERATION_CLAIM)
-    federated = data["sub"].startswith(f"oauth2|{connection_name}|")
-    if federated and (type(generation) is not int or generation < 1):
-        raise AccessDenied("FreeAgent connection authorization is missing")
-    if generation is not None and not federated:
-        raise AccessDenied("Invalid FreeAgent connection identity")
-    return generation
-
-
 class Verifier:
     def __init__(self, settings, key_client=None):
         self.settings = settings
@@ -184,5 +168,10 @@ class Verifier:
             raise AccessDenied("ChatGPT session expired; sign in again")
         if data.get("azp") != self.settings.mcp_client_id:
             raise AccessDenied("OAuth client is not authorized for this plugin")
-        generation = connection_generation(data, self.settings.connection_name)
+        generation = data.get(GENERATION_CLAIM)
+        federated = data["sub"].startswith(f"oauth2|{self.settings.connection_name}|")
+        if federated and (type(generation) is not int or generation < 1):
+            raise AccessDenied("FreeAgent connection authorization is missing")
+        if generation is not None and not federated:
+            raise AccessDenied("Invalid FreeAgent connection identity")
         return Principal(data["sub"], frozenset(data.get("scope", "").split()), data[PRIMARY_AUTH_CLAIM], generation)

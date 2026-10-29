@@ -1,17 +1,14 @@
 (()=>{
-  const token=window.location.hash.slice(1);
-  // Fragments never reach HTTP request/access logs. Clear it immediately and do
-  // not persist it in storage, cookies, analytics or model-visible state.
+  let token=window.location.hash.slice(1);
+  // Clear the fragment before any further request. No cookies, storage, analytics
+  // or model-visible data carry this one-use delegated capability.
   window.history.replaceState(null,"",window.location.pathname);
-  const status=document.getElementById("status"), grant=document.getElementById("grant"), button=document.getElementById("download");
-  if(!/^[A-Za-z0-9_-]{43}$/.test(token)){status.textContent="This offer is missing or invalid. Request a new PDF in ChatGPT.";return;}
-  grant.value=token; button.disabled=false;
-  document.querySelector("form").addEventListener("submit",()=>{
-    button.disabled=true;
-    status.textContent="Download requested. If it fails or the offer expires, request a new PDF in ChatGPT.";
-    window.addEventListener("pagehide",()=>{grant.value="";button.disabled=true;});
-  window.setTimeout(()=>{grant.value="";},0);
-  });
-  window.addEventListener("pagehide",()=>{grant.value="";button.disabled=true;});
-  window.setTimeout(()=>{grant.value="";button.disabled=true;status.textContent="This offer expired. Request a new PDF in ChatGPT.";},120000);
+  window.addEventListener("DOMContentLoaded",()=>{
+    const status=document.getElementById("status"), form=document.getElementById("download-form"), grant=document.getElementById("grant");
+    if(!/^[A-Za-z0-9_-]{43}$/.test(token)){status.textContent="This download isn’t available. Try Download PDF again.";return;}
+    grant.value=token;token="";
+    window.addEventListener("pagehide",()=>{grant.value="";});
+    form.submit();
+    window.setTimeout(()=>{grant.value="";},0);
+  },{once:true});
 })();

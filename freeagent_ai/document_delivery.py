@@ -1,4 +1,4 @@
-"""Authenticated one-use browser delivery; state stores metadata, never PDF bytes."""
+"""One-file delegated downloads, issued only under the original MCP authorization."""
 
 import json
 import re
@@ -6,93 +6,115 @@ from dataclasses import dataclass, field
 
 from mcp.types import CallToolResult, TextContent
 
-from .hosted_accounts import AccessDenied, Binding, Principal, key_for
-from .hosted_auth import GENERATION_CLAIM, ORIGIN, connection_generation
+from .hosted_accounts import AccessDenied, Binding, key_for
+from .hosted_auth import MAX_SESSION_SECONDS, ORIGIN
 from .pdf_documents import fetch_pdf
 
-UI_URI = "ui://freeagent/document-download.html"
+UI_URI = "ui://freeagent/document-download-v2.html"
 GRANT_TTL = 120
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
+COLLECTION_ROOTS = {"invoices": "invoice", "estimates": "estimate", "credit_notes": "credit_note"}
 
 
 @dataclass
 class DownloadOffer:
     metadata: dict
-    token: str = field(repr=False)
+    private: dict = field(repr=False)
 
     def tool_result(self):
         return CallToolResult(
             content=[TextContent(type="text", text=json.dumps(self.metadata))],
             structured_content=self.metadata,
-            _meta={"document_download": {"url": ORIGIN + "/documents#" + self.token}},
+            _meta={"document_download": self.private},
         )
+
+
+def _original(binding, collection, record_id):
+    return {
+        "subject": binding.subject,
+        "company": binding.company,
+        "environment": binding.environment,
+        "generation": binding.generation,
+        "primary_auth_time": binding.primary_auth_time,
+        "generation_authorized": binding.generation_authorized,
+        "collection": collection,
+        "record_id": record_id,
+        "scope": "freeagent:read",
+    }
+
+
+def _binding(record):
+    return Binding(
+        record["subject"],
+        record["company"],
+        record["environment"],
+        record["generation"],
+        record["primary_auth_time"],
+        record["generation_authorized"],
+    )
+
+
+def _read_state(accounts, token, kind):
+    if not isinstance(token, str) or not TOKEN_PATTERN.fullmatch(token):
+        raise AccessDenied("This document is unavailable. Try Download PDF again.")
+    state = accounts.store.get("web_state", key_for(token))
+    if (
+        state.get("kind") != kind
+        or state.get("used")
+        or state.get("expires", 0) <= accounts.clock()
+        or state.get("scope") != "freeagent:read"
+    ):
+        raise AccessDenied("This download expired. Try Download PDF again.")
+    return state
+
+
+def _metadata(document, collection, record_id, ttl):
+    kind = {"invoices": "Invoice", "estimates": "Estimate", "credit_notes": "Credit note"}[collection]
+    return {
+        **document.metadata,
+        "expires_in_seconds": ttl,
+        "document_label": kind + " " + (document.reference or record_id),
+    }
 
 
 def prepare(accounts, binding, client, collection, record_id):
-    # Provider content is checked but not persisted. The browser refetches under
-    # the original binding at redemption, keeping retention invocation-only.
     document = fetch_pdf(client.call, client.base, collection, record_id)
     accounts.check(binding)
-    token = accounts.new_state(
-        "document_download",
-        {
-            "subject": binding.subject,
-            "company": binding.company,
-            "environment": binding.environment,
-            "generation": binding.generation,
-            "primary_auth_time": binding.primary_auth_time,
-            "generation_authorized": binding.generation_authorized,
-            "collection": collection,
-            "record_id": record_id,
-        },
-        ttl=GRANT_TTL,
+    # This context is not a download capability. Every refresh requires current
+    # MCP read authorization and an exact immutable original-binding match.
+    ttl = max(1, int(binding.primary_auth_time + MAX_SESSION_SECONDS - accounts.clock()))
+    context = accounts.new_state("document_context", _original(binding, collection, record_id), ttl=ttl)
+    return DownloadOffer(
+        _metadata(document, collection, record_id, ttl),
+        {"context": context, "refresh_tool": "refresh_" + COLLECTION_ROOTS[collection] + "_pdf"},
     )
-    return DownloadOffer({**document.metadata, "expires_in_seconds": GRANT_TTL}, token)
 
 
-def redeem(accounts, session_record, token, client_factory, *, connection_name="freeagent"):
-    if not isinstance(token, str) or not TOKEN_PATTERN.fullmatch(token):
-        raise AccessDenied("Document offer unavailable; request a new PDF in ChatGPT")
-    grant = accounts.store.get("web_state", key_for(token))
-    if (
-        grant.get("kind") != "document_download"
-        or grant.get("used")
-        or grant.get("expires", 0) <= accounts.clock()
-        or grant.get("subject") != session_record.get("subject")
-    ):
-        raise AccessDenied("Document offer expired or belongs to a different signed-in account")
-    # Browser authentication is independent; it cannot supply a new account for
-    # the request. Verify both the original and browser authorization context.
-    binding = Binding(
-        grant["subject"],
-        grant["company"],
-        grant["environment"],
-        grant["generation"],
-        grant["primary_auth_time"],
-        grant["generation_authorized"],
-    )
+def refresh(accounts, current_binding, client, collection, context):
+    original = _read_state(accounts, context, "document_context")
+    fields = ("subject", "company", "environment", "generation")
+    if original["collection"] != collection or any(original[name] != getattr(current_binding, name) for name in fields):
+        raise AccessDenied("The connected account changed. Select the document again.")
+    binding = _binding(original)
     accounts.check(binding)
-    browser_generation = connection_generation(
-        {"sub": session_record["subject"], GENERATION_CLAIM: session_record.get("connection_generation")},
-        connection_name,
+    document = fetch_pdf(client.call, client.base, original["collection"], original["record_id"])
+    accounts.check(binding)
+    # The browser receives only this 256-bit, two-minute, single-file delegated
+    # capability. Its authority is possession, not a browser cookie or login.
+    token = accounts.new_state(
+        "document_download", _original(binding, collection, original["record_id"]), ttl=GRANT_TTL
     )
-    browser_binding = accounts.bind(
-        Principal(
-            session_record["subject"],
-            frozenset({"freeagent:read"}),
-            session_record["primary_auth_time"],
-            browser_generation,
-        )
+    return DownloadOffer(
+        _metadata(document, collection, original["record_id"], GRANT_TTL),
+        {"url": ORIGIN + "/documents#" + token},
     )
-    if (browser_binding.company, browser_binding.environment, browser_binding.generation) != (
-        binding.company,
-        binding.environment,
-        binding.generation,
-    ):
-        raise AccessDenied("Document account changed; request a new PDF in ChatGPT")
+
+
+def redeem(accounts, token, client_factory):
+    grant = _read_state(accounts, token, "document_download")
+    binding = _binding(grant)
+    accounts.check(binding)
     accounts.limit(binding.subject)
-    # Consume atomically before the outbound read; uncertain failures require a
-    # new offer. One grant never produces multiple file responses across workers.
     accounts.take_state(token, "document_download")
     client = client_factory(binding)
     document = fetch_pdf(client.call, client.base, grant["collection"], grant["record_id"])

@@ -464,7 +464,7 @@ def test_app_selects_refresh_client_from_binding_not_default_config(sandbox_flow
 def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow, monkeypatch):
     from types import SimpleNamespace
 
-    from freeagent_ai.hosted_auth import GENERATION_CLAIM, PRIMARY_AUTH_CLAIM
+    from freeagent_ai.hosted_auth import PRIMARY_AUTH_CLAIM
 
     _, accounts, config, _ = sandbox_flow
     claims = {}
@@ -510,7 +510,7 @@ def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow,
         claims.update(
             sub="oauth2|freeagent|" + info["user_id"],
             nonce=outer["nonce"][0],
-            **{PRIMARY_AUTH_CLAIM: linked.json()["authenticated_at"], GENERATION_CLAIM: linked.json()["generation"]},
+            **{PRIMARY_AUTH_CLAIM: linked.json()["authenticated_at"]},
         )
         response = client.get("/auth/callback", params={"state": outer["state"][0], "code": "synthetic-auth0-code"})
         assert response.headers["location"] == "/account"
@@ -529,89 +529,3 @@ def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow,
         )
         assert response.status_code == 307
         assert urlsplit(response.headers["location"]).hostname == "api.sandbox.freeagent.com"
-
-
-def test_pending_browser_cookie_is_not_authenticated_until_confidential_complete(flow):
-    client, accounts, config, _ = flow
-    info = profile(client, config)
-    cookie = client.cookies.get(COOKIE)
-    pending = accounts.store.get("web_state", key_for(cookie))
-    assert pending["kind"] == "pending_document_session"
-    # Canonical state retains only a hash reference, never the browser cookie.
-    assert all(cookie not in str(row) for row in accounts.store.records.values())
-    denied = client.post("/documents/download", data={"grant": "a" * 43}, headers={"Origin": ORIGIN})
-    assert denied.status_code == 400
-    assert "Sign in" in denied.text
-    assert complete(client, config, info, "oauth2|freeagent|wrong").status_code == 400
-    assert accounts.store.get("web_state", key_for(cookie))["kind"] == "pending_document_session"
-    result = complete(client, config, info)
-    assert result.status_code == 200
-    session = accounts.store.get("web_state", key_for(cookie))
-    assert session["kind"] == "session"
-    assert session["connection_generation"] == result.json()["generation"]
-    assert session["subject"] == "oauth2|freeagent|" + info["user_id"]
-    assert complete(client, config, info).status_code == 400
-    assert accounts.store.get("web_state", key_for(cookie)) == session
-
-
-@pytest.mark.parametrize(
-    "change", [{"subject": "other"}, {"company": "other"}, {"environment": "sandbox"}, {"expires": 0}]
-)
-def test_tampered_or_expired_pending_browser_record_is_never_activated(flow, change):
-    client, accounts, config, _ = flow
-    info = profile(client, config)
-    cookie = client.cookies.get(COOKIE)
-    accounts.store.mutate("web_state", key_for(cookie), lambda old: {**old, **change})
-    assert complete(client, config, info).status_code == 400
-    assert accounts.store.get("web_state", key_for(cookie))["kind"] != "session"
-    assert complete(client, config, info).status_code == 400
-
-
-def test_normal_chatgpt_login_replaces_old_or_arbitrary_cookie_without_fixation(flow):
-    client, accounts, config, _ = flow
-    client.cookies.set(COOKIE, "untrusted-prior-cookie", domain="freeagent-ai.avalou.co")
-    first = profile(client, config)
-    first_cookie = client.cookies.get(COOKIE)
-    assert first_cookie != "untrusted-prior-cookie"
-    assert not accounts.store.get("web_state", key_for("untrusted-prior-cookie"))
-    assert complete(client, config, first).status_code == 200
-    old = accounts.store.get("web_state", key_for(first_cookie))
-    second = profile(client, config)
-    second_cookie = client.cookies.get(COOKIE)
-    assert second_cookie != first_cookie
-    assert accounts.store.get("web_state", key_for(second_cookie))["kind"] == "pending_document_session"
-    result = complete(client, config, second)
-    assert result.status_code == 200
-    assert accounts.store.get("web_state", key_for(first_cookie)) == old
-    assert (
-        accounts.store.get("web_state", key_for(second_cookie))["connection_generation"]
-        == old["connection_generation"] + 1
-    )
-
-
-def test_stale_concurrent_completion_cannot_activate_or_overwrite_newer_generation(flow):
-    client, accounts, config, _ = flow
-    first = profile(client, config)
-    first_cookie = client.cookies.get(COOKIE)
-    second = profile(client, config)
-    second_cookie = client.cookies.get(COOKIE)
-    result = complete(client, config, first)
-    assert result.status_code == 200
-    active = accounts.store.get("web_state", key_for(first_cookie))
-    assert complete(client, config, second).status_code == 400
-    assert accounts.store.get("web_state", key_for(second_cookie))["kind"] == "pending_document_session"
-    assert accounts.store.get("web_state", key_for(first_cookie)) == active
-    linked = accounts.store.get("account_links", key_for(active["subject"]))
-    assert linked["generation"] == active["connection_generation"]
-
-
-def test_normal_management_login_restores_only_server_recognized_outer_marker(flow):
-    client, accounts, config, _ = flow
-    client.get("/login")
-    marker = client.cookies.get(COOKIE)
-    assert accounts.store.get("web_state", key_for(marker))["kind"] == "login_browser"
-    info = profile(client, config)
-    assert client.cookies.get(COOKIE) == marker
-    assert complete(client, config, info).status_code == 200
-    # Only the subsequent signed /auth/callback can create the management session.
-    assert accounts.store.get("web_state", key_for(marker))["kind"] == "login_browser"

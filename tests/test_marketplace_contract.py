@@ -383,7 +383,7 @@ def test_artifact_and_approval_contracts_are_derived_from_discovered_schemas(rem
     assert {item["parameter"] for item in receipts} == {"receipt", "attachment"}
     for contract in contracts.values():
         expected_artifacts = (
-            ["registered MCP Apps UI -> same-account HTTPS application/pdf attachment"]
+            ["registered MCP Apps UI -> original-account delegated HTTPS application/pdf attachment"]
             if any(op["name"].endswith("_pdf") for op in contract["operations"])
             else ["provider JSON / assistant explanation"]
         )

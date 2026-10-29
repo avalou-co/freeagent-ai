@@ -31,7 +31,7 @@ The generated `docs/capabilities.json` records, for each shipped skill:
   input/output schemas, method, fixed provider route and approval parameter.
 - Linked evidence documents and supported transport artifacts. Current workflows
   return provider JSON and explanations; receipt inputs are host file references.
-  Document output uses registered MCP Apps UI -> same-account HTTPS PDF attachment.
+  Document output uses registered MCP Apps UI -> original-account delegated HTTPS PDF attachment.
 - `docs/unsupported-capabilities.json` records outstanding installed-client verification for document delivery.
   The embedded-blob prototype is rejected by the operation gate. The reviewed document
   UI/HTTPS source contract is distinct from actual installed web/mobile acceptance;

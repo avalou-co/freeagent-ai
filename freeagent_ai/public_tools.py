@@ -21,7 +21,7 @@ from pydantic import Field, SerializeAsAny
 from . import mcp_server as local
 from .api_mechanics import provider_error
 from .client import request_client
-from .document_delivery import UI_URI, DownloadOffer, prepare
+from .document_delivery import UI_URI, DownloadOffer, prepare, refresh
 from .hosted_accounts import AccessDenied
 from .hosted_client import HostedClient, principal_context
 from .hosted_deadline import deadline_context
@@ -389,29 +389,52 @@ def make_registry(*, experimental_pdf=False):
             )
     if not experimental_pdf:
         for endpoint, root in (("invoices", "invoice"), ("estimates", "estimate"), ("credit_notes", "credit_note")):
+            output = object_schema(
+                {
+                    "source": {"type": "string"},
+                    "file_name": {"type": "string"},
+                    "mime_type": {"type": "string"},
+                    "size_bytes": {"type": "integer"},
+                    "collected_at": {"type": "string"},
+                    "expires_in_seconds": {"type": "integer"},
+                    "document_label": {"type": "string"},
+                },
+                [
+                    "source",
+                    "file_name",
+                    "mime_type",
+                    "size_bytes",
+                    "collected_at",
+                    "expires_in_seconds",
+                    "document_label",
+                ],
+            )
             add(
                 "get_" + root + "_pdf",
                 "GET",
                 endpoint + "/{id}/pdf",
                 "document_download",
                 object_schema({"id": id_schema}, ["id"]),
-                object_schema(
-                    {
-                        "source": {"type": "string"},
-                        "file_name": {"type": "string"},
-                        "mime_type": {"type": "string"},
-                        "size_bytes": {"type": "integer"},
-                        "collected_at": {"type": "string"},
-                        "expires_in_seconds": {"type": "integer"},
-                    },
-                    ["source", "file_name", "mime_type", "size_bytes", "collected_at", "expires_in_seconds"],
-                ),
-                "Prepare the selected " + root.replace("_", " ") + " PDF for secure browser download. "
-                "The registered document UI opens a first-party HTTPS download page. Browser sign-in must match "
-                "the original linked account. The two-minute offer is single use; no PDF bytes or grant appear "
-                "in model-visible output. No email or status changes. Host openExternal support is required; "
-                "report unavailable if absent. Installed web/mobile behavior is verified separately.",
+                output,
+                "Prepare the selected "
+                + root.replace("_", " ")
+                + " PDF card. Its single Download PDF action refreshes "
+                "the original account authorization and starts a browser download without another login or confirmation. "
+                "No PDF bytes or capability appear in model-visible output. No email or status changes. "
+                "Requires documented host tool-call and external-navigation support; installed web/mobile verification is separate.",
                 meta={"ui": {"resourceUri": UI_URI}, "openai/outputTemplate": UI_URI},
+            )
+            add(
+                "refresh_" + root + "_pdf",
+                "GET",
+                endpoint + "/{id}/pdf",
+                "document_download_refresh",
+                object_schema({"context": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}}, ["context"]),
+                output,
+                "UI-only: mint a fresh one-file download capability after checking current read authorization against "
+                "the immutable original document/account context. Refuse changed accounts rather than reading the same "
+                "numeric ID from another company. Capability is two-minute single-use bearer authority, private to UI.",
+                meta={"ui": {"visibility": ["app"]}, "openai/widgetAccessible": True},
             )
     # The versioned provider collection separates attachment changes from explanations.
     # One file per write keeps the existing bounded invocation-only upload contract.
@@ -773,6 +796,8 @@ class Dispatcher:
         try:
             if operation.root == "document_download":
                 result = prepare(self.accounts, binding, client, operation.endpoint.split("/")[0], arguments["id"])
+            elif operation.root == "document_download_refresh":
+                result = refresh(self.accounts, binding, client, operation.endpoint.split("/")[0], arguments["context"])
             else:
                 result = self._run(operation, dict(arguments), client)
             if isinstance(result, PdfDocument):
@@ -1048,7 +1073,9 @@ class Dispatcher:
             # Attachment/payroll errors may echo signed URLs, bytes or employee data.
             message = (
                 f"FreeAgent HTTP {error.code}"
-                if name in REGISTRY and REGISTRY[name].root in {"attachments", "pdf", "payroll", "document_download"}
+                if name in REGISTRY
+                and REGISTRY[name].root
+                in {"attachments", "pdf", "payroll", "document_download", "document_download_refresh"}
                 else provider_error(error)
             )
             message += "; inspect the original account before retrying a write"

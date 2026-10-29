@@ -134,8 +134,9 @@ marketplace-client behavior remain unverified by synthetic tests.
 `get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` use fixed GET
 `invoices/{id}/pdf`, `estimates/{id}/pdf`, `credit_notes/{id}/pdf` after reading the
 selected identity under the original binding. The generated audit includes the
-registered UI and metadata schema. Hidden tool-result metadata holds a short-lived
-one-use fragment offer for a same-account authenticated HTTPS attachment route;
+registered UI and metadata schema. Hidden initial metadata holds an immutable original-account context. A UI-only
+authenticated refresh produces a short one-use fragment capability for one-action
+browser delivery using the original MCP authorization;
 no PDF blob is advertised as usable output. [Transport contract and pending
 installed-client verification](documents.md). The local embedded prototype remains
 diagnostic only and is rejected by the hosted package gate.

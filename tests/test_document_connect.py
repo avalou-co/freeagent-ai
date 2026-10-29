@@ -15,7 +15,7 @@ from starlette.testclient import TestClient
 from test_document_delivery import PDF
 from test_hosted_connect import complete, profile
 
-from freeagent_ai.hosted_accounts import Accounts, MemoryStore, TokenCipher, key_for
+from freeagent_ai.hosted_accounts import Accounts, MemoryStore, TokenCipher
 from freeagent_ai.hosted_app import create_app
 from freeagent_ai.hosted_auth import GENERATION_CLAIM, ORIGIN, PRIMARY_AUTH_CLAIM, Verifier
 from freeagent_ai.hosted_client import HostedClient
@@ -51,7 +51,7 @@ def connected_delivery(monkeypatch):
         if url.endswith("/pdf"):
             return {"pdf": {"content": base64.encodebytes(PDF).decode()}}, {}
         if "/invoices/" in url:
-            return {"invoice": {"url": url}}, {}
+            return {"invoice": {"url": url, "reference": "INV-007"}}, {}
         pytest.fail("Unexpected provider route")
 
     monkeypatch.setattr("freeagent_ai.hosted_connect.request_json", transport)
@@ -62,17 +62,11 @@ def connected_delivery(monkeypatch):
         create_app(config, accounts, verifier, dispatcher), base_url=ORIGIN, follow_redirects=False
     ) as client:
         info = profile(client, config)
-        pending = client.cookies.get(COOKIE)
-        assert accounts.store.get("web_state", key_for(pending))["kind"] == "pending_document_session"
-        # Upstream authentication genuinely precedes the confidential account commit.
+        assert client.cookies.get(COOKIE) is None  # No extra browser-session coupling.
         clock[0] += 1
         linked = complete(client, config, info)
         assert linked.status_code == 200
         subject = "oauth2|freeagent|" + info["user_id"]
-        session = accounts.store.get("web_state", key_for(pending))
-        assert session["kind"] == "session"
-        assert session["connection_generation"] == linked.json()["generation"]
-        assert session["primary_auth_time"] <= accounts.store.get("account_links", key_for(subject))["revoked_before"]
         now = int(time.time())
         token = jwt.encode(
             {
@@ -103,7 +97,7 @@ def connected_delivery(monkeypatch):
             return rpc("tools/call", {"name": "get_invoice_pdf", "arguments": {"id": "7"}})
 
         yield SimpleNamespace(
-            client=client, accounts=accounts, rpc=rpc, offer=offer, cookies={"alice": pending}, calls=calls
+            client=client, accounts=accounts, now=clock, rpc=rpc, offer=offer, cookies={}, calls=calls
         )
 
 
@@ -111,6 +105,8 @@ def test_full_connect_hops_signed_mcp_offer_and_same_generation_browser_download
     d = connected_delivery
     result = d.offer()
     assert not result.get("isError")
+    context = result["_meta"]["document_download"]["context"]
+    result = d.rpc("tools/call", {"name": "refresh_invoice_pdf", "arguments": {"context": context}})
     token = urlsplit(result["_meta"]["document_download"]["url"]).fragment
     response = d.client.post("/documents/download", data={"grant": token}, headers={"Origin": ORIGIN})
     assert response.status_code == 200

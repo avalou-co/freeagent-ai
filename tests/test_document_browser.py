@@ -1,10 +1,10 @@
-"""Real Chromium UI -> HTTPS receiver -> native attachment with synthetic host.
+"""Real Chromium one-action PDF UX with documented host adapters and synthetic API.
 
-The OpenAI host adapter and network are fixtures, not installed ChatGPT evidence.
-No agent interpreter or user-local runtime is involved in the product journey.
+These browser fixtures are not evidence from an installed ChatGPT client.
 """
 
 import os
+from pathlib import Path
 
 import pytest
 from test_document_delivery import PDF
@@ -13,7 +13,6 @@ from freeagent_ai.document_delivery import UI_URI
 from freeagent_ai.hosted_auth import ORIGIN
 
 pytest_plugins = ("test_document_delivery", "test_document_connect")
-
 sync_api = pytest.importorskip("playwright.sync_api")
 
 
@@ -32,10 +31,10 @@ def browser_context(request):
         browser.close()
 
 
-def mount(browser_context, d, *, account="alice", host_supported=True):
+def mount(browser_context, d, *, host_supported=True, cookie=""):
     resource = d.rpc("resources/read", {"uri": UI_URI})["contents"][0]
-    urls = []
-    d.browser_responses = []
+    urls, refreshes, grant_urls, downloads = [], [], [], []
+    browser_context.on("page", lambda page: page.on("download", lambda download: downloads.append(download)))
 
     def route(request_route):
         request = request_route.request
@@ -44,91 +43,125 @@ def mount(browser_context, d, *, account="alice", host_supported=True):
             response = d.client.request(
                 request.method, request.url, headers=request.all_headers(), content=request.post_data_buffer
             )
-            d.browser_responses.append(
-                (
-                    request.method,
-                    response.status_code,
-                    response.headers.get("content-type"),
-                    response.text if response.status_code != 200 else "ok",
-                )
-            )
             request_route.fulfill(status=response.status_code, headers=dict(response.headers), body=response.content)
         else:
             request_route.fulfill(status=200, content_type="text/html", body=resource["text"])
 
     browser_context.route("**/*", route)
-    if account:
+    if cookie:
         browser_context.add_cookies(
-            [
-                {
-                    "name": "__session",
-                    "value": d.cookies[account],
-                    "url": ORIGIN,
-                    "secure": True,
-                    "httpOnly": True,
-                    "sameSite": "Lax",
-                }
-            ]
+            [{"name": "__session", "value": cookie, "url": ORIGIN, "secure": True, "httpOnly": True}]
         )
+    page = browser_context.new_page()
+
+    def host_rpc(method, params):
+        if method == "ui/initialize":
+            return {"hostContext": {"theme": "light"}}
+        assert method == "tools/call"
+        refreshes.append(params)
+        result = d.rpc(method, params)
+        url = result.get("_meta", {}).get("document_download", {}).get("url")
+        if url:
+            grant_urls.append(url)
+        return result
+
+    page.expose_function("__hostRpc", host_rpc)
+    browser_context.add_init_script("""
+      window.addEventListener("message",async event=>{
+        const m=event.data;
+        if(event.source!==window||m?.jsonrpc!=="2.0"||!["ui/initialize","tools/call"].includes(m.method))return;
+        const result=await window.__hostRpc(m.method,m.params);
+        window.postMessage({jsonrpc:"2.0",id:m.id,result},"*");
+      });
+    """)
     if host_supported:
         browser_context.add_init_script(
             "window.openai={openExternal:({href,redirectUrl})=>{if(redirectUrl!==false)throw Error('Invalid navigation');window.open(href,'_blank','noopener');}};"
         )
-    page = browser_context.new_page()
     page.goto("https://widget.example.invalid/")
     result = d.offer()
     page.evaluate(
         "result => window.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result},'*')", result
     )
-    return page, urls
+    return page, urls, refreshes, grant_urls, downloads
 
 
-def test_registered_widget_native_download_without_client_interpreter(connected_delivery, browser_context, tmp_path):
-    delivery = connected_delivery
-    page, urls = mount(browser_context, delivery)
-    with browser_context.expect_page() as popup:
-        page.get_by_role("button", name="Download PDF").click()
-    receiver = popup.value
-    receiver.wait_for_load_state()
-    assert receiver.url == ORIGIN + "/documents"
-    original_token = receiver.locator("#grant").input_value()
-    assert original_token
-    try:
-        with receiver.expect_download(timeout=5000) as downloading:
-            receiver.get_by_role("button", name="Download PDF").click()
-    except sync_api.TimeoutError:
-        pytest.fail(repr(delivery.browser_responses) + receiver.locator("body").inner_text())
-    download = downloading.value
+def wait_download(receiver, downloads):
+    for _ in range(100):
+        if downloads:
+            return downloads[-1]
+        receiver.wait_for_timeout(50)
+    pytest.fail("The browser did not receive a PDF attachment")
+
+
+@pytest.mark.parametrize("elapsed,cookie", [(0, ""), (4 * 3600, "different-browser-account")])
+def test_single_action_identified_pdf_auto_download_stale_refresh_and_replay(
+    connected_delivery, browser_context, tmp_path, elapsed, cookie
+):
+    d = connected_delivery
+    page, urls, refreshes, grant_urls, downloads = mount(browser_context, d, cookie=cookie)
+    button = page.get_by_role("button", name="Download PDF")
+    sync_api.expect(button).to_be_enabled()
+    assert page.get_by_role("button").count() == 1
+    assert page.get_by_role("heading", name="Invoice INV-007").is_visible()
+    assert not refreshes  # Preparation does not mint a bearer download capability.
+    if not elapsed:
+        directory = os.environ.get("FREEAGENT_UX_SCREENSHOT_DIR")
+        if directory:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+            name = "mobile" if page.viewport_size["width"] == 390 else "desktop"
+            page.locator("main").screenshot(path=str(Path(directory) / (name + ".png")))
+    d.now[0] += elapsed
+    with browser_context.expect_page() as opened:
+        button.click()
+    receiver = opened.value
+    download = wait_download(receiver, downloads)
     assert download.suggested_filename == "invoices-7.pdf"
     output = tmp_path / download.suggested_filename
     download.save_as(output)
     assert output.read_bytes() == PDF
+    assert len(refreshes) == 1 and len(downloads) == 1
+    assert receiver.get_by_role("button").count() == 0
+    assert receiver.get_by_role("link").count() == 0
+    assert receiver.url == ORIGIN + "/documents"
     assert receiver.locator("#grant").input_value() == ""
-    assert all("#" not in url and "grant=" not in url for url in urls)
-    assert receiver.evaluate("Object.keys(localStorage).length + Object.keys(sessionStorage).length") == 0
-    assert receiver.get_by_role("button", name="Download PDF").is_disabled()
+    assert all("#" not in url and "grant=" not in url and "/login" not in url for url in urls)
+    assert receiver.evaluate("Object.keys(localStorage).length+Object.keys(sessionStorage).length") == 0
     replay = browser_context.new_page()
-    replay.goto(ORIGIN + "/documents#" + original_token)
-    replay.get_by_role("button", name="Download PDF").click()
-    replay.get_by_text("Document offer expired or belongs to a different signed-in account").wait_for()
+    replay.goto(grant_urls[0])
+    replay.get_by_text("This download expired. Try Download PDF again.").wait_for()
+    assert len(downloads) == 1
 
 
-def test_host_without_navigation_reports_unavailable(delivery, browser_context):
-    page, _ = mount(browser_context, delivery, host_supported=False)
-    assert page.get_by_text("This host cannot open the secure document download.", exact=False).is_visible()
-    assert page.get_by_role("button", name="Download PDF").is_hidden()
+def test_unsupported_host_has_clear_inline_error_without_extra_flow(delivery, browser_context):
+    page, urls, refreshes, _, _ = mount(browser_context, delivery, host_supported=False)
+    assert page.get_by_text("Downloads aren’t supported in this client.").is_visible()
+    assert page.get_by_role("button", name="Download PDF").is_disabled()
+    assert not refreshes and not any(url.startswith(ORIGIN) for url in urls)
 
 
-def test_wrong_browser_account_cannot_receive_attachment(delivery, browser_context):
-    page, _ = mount(browser_context, delivery, account="bob")
-    with browser_context.expect_page() as popup:
-        page.get_by_role("button", name="Download PDF").click()
-    receiver = popup.value
-    receiver.wait_for_load_state()
-    downloads = []
-    receiver.on("download", lambda value: downloads.append(value))
-    receiver.get_by_role("button", name="Download PDF").click()
-    receiver.wait_for_url(ORIGIN + "/documents/download")
-    assert receiver.get_by_text("Document offer expired or belongs to a different signed-in account").is_visible()
-    assert not downloads
-    assert all(subject == "alice" for subject, _, _ in delivery.calls)
+def test_refused_refresh_stays_inline_and_never_opens_other_account(delivery, browser_context):
+    page, urls, refreshes, _, downloads = mount(browser_context, delivery)
+    button = page.get_by_role("button", name="Download PDF")
+    sync_api.expect(button).to_be_enabled()
+    delivery.accounts.disconnect("oauth2|freeagent|alice", 1)
+    button.click()
+    page.get_by_text("Couldn’t open this PDF. Try again, or check the connected account.").wait_for()
+    assert len(refreshes) == 1 and not downloads
+    assert not any(url.startswith(ORIGIN) for url in urls)
+    assert button.is_enabled()
+    assert page.get_by_role("heading", name="Invoice INV-007").is_visible()
+
+
+def test_double_click_is_suppressed_and_keyboard_focus_is_visible(delivery, browser_context):
+    page, _, refreshes, _, downloads = mount(browser_context, delivery)
+    button = page.get_by_role("button", name="Download PDF")
+    sync_api.expect(button).to_be_enabled()
+    page.keyboard.press("Tab")
+    assert button.evaluate(
+        "element => element===document.activeElement && getComputedStyle(element).outlineStyle!=='none'"
+    )
+    with browser_context.expect_page() as opened:
+        button.evaluate("element=>{element.click();element.click();}")
+    wait_download(opened.value, downloads)
+    assert len(refreshes) == 1 and len(downloads) == 1

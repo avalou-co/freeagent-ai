@@ -69,18 +69,7 @@ class FreeAgentConnect:
             or not re.fullmatch(r"[A-Za-z0-9_-]{43}", q.get("code_challenge", ""))
         ):
             raise AccessDenied("Invalid connection authorization request")
-        prior_session = request.cookies.get(COOKIE, "")
-        prior_record = (
-            await anyio.to_thread.run_sync(self.accounts.store.get, "web_state", key_for(prior_session))
-            if prior_session
-            else {}
-        )
-        management_session = (
-            prior_record.get("kind") in {"login_browser", "reviewer_entry"}
-            and not prior_record.get("used")
-            and prior_record.get("expires", 0) > self.accounts.clock()
-        )
-        environment = await anyio.to_thread.run_sync(self.browser_environment, prior_session)
+        environment = await anyio.to_thread.run_sync(self.browser_environment, request.cookies.get(COOKIE, ""))
         config = self.settings.upstream(environment)
         browser = secrets.token_urlsafe(32)
         state = await anyio.to_thread.run_sync(
@@ -91,8 +80,7 @@ class FreeAgentConnect:
                     "environment": environment,
                     "state": q["state"],
                     "challenge": q["code_challenge"],
-                    "prior_session": prior_session if management_session else "",
-                    "management_session": management_session,
+                    "prior_session": request.cookies.get(COOKIE, ""),
                 },
             )
         )
@@ -142,7 +130,6 @@ class FreeAgentConnect:
             raise AccessDenied("Connection browser mismatch; start again from ChatGPT")
         state = await anyio.to_thread.run_sync(self.accounts.take_state, state_token, "connect_browser")
         callback = self.settings.issuer + "login/callback"
-        browser_session = ""
         if request.query_params.get("error") or not request.query_params.get("code"):
             response = RedirectResponse(callback + "?" + urlencode({"error": "access_denied", "state": state["state"]}))
         else:
@@ -167,20 +154,7 @@ class FreeAgentConnect:
                 identity = hashlib.sha256(f"{config.environment}|{company['id']}|{user_url}".encode()).hexdigest()
                 subject = f"oauth2|{self.settings.connection_name}|{identity}"
                 current = self.accounts.store.get("account_links", key_for(subject))
-                authenticated_at = int(self.accounts.clock())
-                browser_session = ""
-                if not state.get("management_session"):
-                    browser_session = self.accounts.new_state(
-                        "pending_document_session",
-                        {
-                            "subject": subject,
-                            "company": company_url,
-                            "environment": config.environment,
-                            "primary_auth_time": authenticated_at,
-                        },
-                        ttl=3600,
-                    )
-                code = self.accounts.new_state(
+                return self.accounts.new_state(
                     "connect_code",
                     {
                         "identity": identity,
@@ -190,25 +164,18 @@ class FreeAgentConnect:
                         "generation": current.get("generation", 0),
                         "challenge": state["challenge"],
                         "tokens": self.accounts.cipher.seal(credentials, subject),
-                        "authenticated_at": authenticated_at,
-                        "browser_session_key": key_for(browser_session) if browser_session else "",
+                        "authenticated_at": int(self.accounts.clock()),
                     },
                     ttl=120,
                 )
-                return code, browser_session
 
-            code, browser_session = await anyio.to_thread.run_sync(exchange)
+            code = await anyio.to_thread.run_sync(exchange)
             response = RedirectResponse(callback + "?" + urlencode({"code": code, "state": state["state"]}))
-        # Restore only a server-recognized outer management transaction. A normal
-        # ChatGPT login must replace an old account session with this newly verified
-        # browser's pending session; it cannot inherit an arbitrary prior cookie.
-        if state.get("management_session") and state.get("prior_session"):
+        # The optional web-management OAuth flow also uses Firebase's one cookie.
+        # Restore only the value captured before this browser-bound transaction.
+        if state.get("prior_session"):
             response.set_cookie(
                 COOKIE, state["prior_session"], secure=True, httponly=True, samesite="lax", path="/", max_age=600
-            )
-        elif browser_session:
-            response.set_cookie(
-                COOKIE, browser_session, secure=True, httponly=True, samesite="lax", path="/", max_age=3600
             )
         else:
             response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="lax")
@@ -252,29 +219,13 @@ class FreeAgentConnect:
 
         def commit():
             self.settings.upstream(record["environment"])
-            linked = self.accounts.replace(
+            return self.accounts.replace(
                 record["subject"],
                 record["company"],
                 record["environment"],
                 self.accounts.cipher.open(record["tokens"], record["subject"]),
                 record["generation"],
             )
-            if record.get("browser_session_key"):
-
-                def activate(old):
-                    if (
-                        old.get("kind") != "pending_document_session"
-                        or old.get("expires", 0) <= self.accounts.clock()
-                        or old.get("subject") != record["subject"]
-                        or old.get("company") != record["company"]
-                        or old.get("environment") != record["environment"]
-                        or old.get("primary_auth_time") != record["authenticated_at"]
-                    ):
-                        raise AccessDenied("Browser authorization expired; reconnect from ChatGPT")
-                    return {**old, "kind": "session", "connection_generation": linked["generation"]}
-
-                self.accounts.store.mutate("web_state", record["browser_session_key"], activate)
-            return linked
 
         linked = await anyio.to_thread.run_sync(commit)
         return JSONResponse({"generation": linked["generation"], "authenticated_at": record["authenticated_at"]})

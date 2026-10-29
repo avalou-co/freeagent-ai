@@ -237,8 +237,11 @@ unchanged. See [month-end evidence limits](month-end.md).
 
 ## Document PDF delivery
 
-Named PDF reads return metadata and a registered MCP Apps document UI. A private,
-short-lived offer opens the first-party receiver through documented host navigation;
-redemption requires the original account's authenticated browser session. The
-response is a real HTTPS PDF attachment. Hosted tools never return prototype blobs
-as supported client delivery. See [document contract and verification gates](documents.md).
+Named PDF reads identify the selected document and return the registered card.
+Its one Download PDF action calls a UI-only refresh tool through authenticated
+MCP, checks the immutable original account/document context and obtains a short,
+single-use delegated capability. The transient browser bridge clears the fragment
+and auto-submits for a native PDF attachment; no second click or browser login is
+required. Browser cookies never select another account. This is narrow bearer
+capability authority, not a browser identity check. [Full contract and remaining
+installed-client verification](documents.md).
