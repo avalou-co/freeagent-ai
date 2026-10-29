@@ -50,6 +50,7 @@ def manifest(root):
             ".svg",
             ".woff2",
             ".webp",
+            ".png",
             ".txt",
             ".xml",
         }:

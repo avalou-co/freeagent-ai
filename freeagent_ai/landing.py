@@ -5,6 +5,7 @@ requests or accounting clients are needed to render or preview the page.
 """
 
 import argparse
+import hashlib
 import html
 import json
 import shutil
@@ -12,6 +13,21 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).with_name("landing")
+
+
+def asset_version() -> str:
+    """Change the asset URL namespace whenever any shipped asset changes."""
+    digest = hashlib.sha256()
+    for path in sorted((ROOT / "assets").rglob("*")):
+        if path.is_file():
+            digest.update(path.relative_to(ROOT / "assets").as_posix().encode())
+            digest.update(b"\0")
+            digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return "v-" + digest.hexdigest()[:20]
+
+
+ASSET_VERSION = asset_version()
+ASSET_PREFIX = f"/landing-assets/{ASSET_VERSION}/"
 LINKS = ("listing_url", "privacy_url", "terms_url", "support_url")
 PROVIDERS = {"listing_url": ("chatgpt.com", "ChatGPT"), "claude_url": ("claude.ai", "Claude")}
 
@@ -76,12 +92,13 @@ def render(config: dict[str, str]) -> str:
     document = document.replace("{{provider_buttons}}", controls)
     for key in LINKS:
         document = document.replace("{{" + key + "}}", html.escape(config[key], quote=True))
-    return document
+    return document.replace("/landing-assets/", ASSET_PREFIX)
 
 
 def build(output: Path, config: dict[str, str]) -> None:
     output.mkdir(parents=True, exist_ok=True)
     shutil.copytree(ROOT / "assets", output / "landing-assets", dirs_exist_ok=True)
+    shutil.copytree(ROOT / "assets", output / "landing-assets" / ASSET_VERSION, dirs_exist_ok=True)
     (output / "index.html").write_text(render(config))
 
 
@@ -150,7 +167,7 @@ def build_static(output: Path) -> None:
             + body
             + "</main></body></html>"
         )
-        (directory / "index.html").write_text(document)
+        (directory / "index.html").write_text(document.replace("/landing-assets/", ASSET_PREFIX))
     origin = "https://freeagent-ai.avalou.co"
     disallow = "".join(
         f"Disallow: {path}\n"
