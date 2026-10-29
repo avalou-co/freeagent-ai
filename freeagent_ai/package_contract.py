@@ -29,7 +29,7 @@ SKILLS = {
     "bills": ("list_bills", "create_bill"),
     "cash-flow": ("list_bank_accounts", "list_invoices", "list_bills"),
     "clients": ("list_contacts", "create_contact", "create_project", "create_task"),
-    "credit-notes": ("create_draft_credit_note", "create_credit_note_reconciliation"),
+    "credit-notes": ("create_draft_credit_note", "issue_credit_note", "create_credit_note_reconciliation"),
     "estimates": ("list_estimates", "create_draft_estimate"),
     "expenses": ("list_expenses", "create_expense_from_payload"),
     "invoice-status": ("list_invoices", "get_invoice"),
@@ -53,7 +53,7 @@ SKILLS = {
     "timesheets": ("list_timeslips", "create_timeslip"),
 }
 TOOL_TOKEN = re.compile(
-    r"\b((?:list|get|create|update|delete|explain|add|remove|find|calculate|execute|run)_[a-z][a-z0-9_]*)\b"
+    r"\b((?:list|get|create|update|delete|explain|issue|add|remove|find|calculate|execute|run)_[a-z][a-z0-9_]*)\b"
 )
 CALL_REFERENCE = re.compile(r"\b(?:call|invoke|tool|helper|function)\s+`([a-z][a-z0-9_]*)(?:\(|`)", re.I)
 LINK = re.compile(r"\[[^\]]*\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
@@ -157,6 +157,7 @@ def validate_operations():
             routes.add(("PUT", endpoint + "/{id}"))
         if delete:
             routes.add(("DELETE", endpoint + "/{id}"))
+    routes.add(("PUT", "credit_notes/{id}/transitions/mark_as_sent"))
     routes.update((method, "bank_transaction_explanations/{id}/attachments") for method in ["GET", "POST", "PUT"])
     for name, op in REGISTRY.items():
         create = op.method == "POST" and op.helper in CREATES

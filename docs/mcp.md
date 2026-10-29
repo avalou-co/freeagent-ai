@@ -85,6 +85,7 @@ verify wrapper behavior; they do not independently test FreeAgent's accounting r
 | `create_contact` | POST supplied contact fields and read back; omitted payment terms use provider defaults, explicit zero is preserved. |
 | `create_timeslip` | POST supplied timeslip fields and read back; no date, hours, relationship or duplicate checks. |
 | `create_draft_credit_note` | POST supplied signed credit items using FreeAgent default Draft status, then read back; no issuance/email/allocation. |
+| `issue_credit_note` | PUT fixed mark_as_sent transition after separate exact current-request Draft approval, then GET the credit; no email/allocation/refund or cancelled-credit reopening. |
 | `create_credit_note_reconciliation` | POST separately approved allocation fields, then read reconciliation, credit note and invoice; destructive, non-idempotent, and subject to the narrow allocation ownership exception. |
 | `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
 | `create_draft_invoice_from_payload` | POST approved invoice object to fixed invoices endpoint with Draft and all automatic emails off, then read back. Manual lines/currency/provider inclusion strings remain unchanged; no accounting calculations or source eligibility validation. |
@@ -189,6 +190,11 @@ only allocation affecting a selected existing issued credit and invoice after
 complete reads, exact preview and separate approval. It does not authorize issuing,
 invoice edits, cash refunds or unrelated changes. No task ledger or local
 eligibility validator is added.
+
+`issue_credit_note` requires write scope and confirmed=true, issues a current-request
+Draft with separate exact approval and GETs the credit for verification. It never
+emails or allocates. Read related source evidence using named reads; inspect an
+uncertain result before retrying. See [issuance policy](credit-notes.md#current-request-draft-issuance-policy).
 
 ## Bank attachment migration
 

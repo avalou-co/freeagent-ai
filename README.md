@@ -186,10 +186,11 @@ Income Tax evidence, with separate provider filing/payment dates and statuses.
 Unavailable remaining debt is reported explicitly; no forecast commitments are calculated.
 
 Use `/freeagent-ai:credit-notes` to review duplicate credits and create approved
-Draft credit notes. A [narrow allocation exception](docs/credit-notes.md) permits
+Draft credit notes and separately approve issuance of a Draft created during the
+current user request using `issue_credit_note`. A [narrow allocation exception](docs/credit-notes.md) permits
 separately approved allocation of a selected existing issued credit to a selected
-invoice after complete reads and an exact preview. Issuing, invoice edits and cash
-refunds remain excluded. Allocation mechanics return all affected provider records.
+invoice after complete reads and an exact preview. Historical Draft issuance,
+credit emailing and cash refunds remain excluded. Allocation mechanics return all affected provider records.
 
 Draft invoices support exact approved manual lines/currency and documented provider
 source-inclusion modes through `create_draft_invoice_from_payload`. FreeAgent owns

@@ -1,6 +1,6 @@
 ---
 name: credit-notes
-description: Review customer credits, create draft credit notes and prepare separately approved invoice allocations under the reviewed ownership policy.
+description: Review customer credits, create draft credit notes, separately approve current-request Draft issuance and prepare invoice allocations under the reviewed ownership policy.
 ---
 
 # Credit notes
@@ -23,12 +23,22 @@ Never assume a full refund, tax rate or exchange rate.
    `create_draft_credit_note` once, then verify provider Draft status, reference,
    contact, currency, every line and totals. Never treat a POST response as readback.
    Report any changed or absent provider values and leave the credit unissued.
-4. Issuing, marking sent, emailing and cash refunds remain outside this workflow.
-   A new Draft stays unissued: do not transition it to enable allocation. If the
-   request is allocation only, skip draft creation and select an existing issued
-   credit and invoice explicitly. Read both records, source lines, all related
-   credits/reconciliations and current balances in the original linked company.
-   Missing status/balance/currency or incomplete duplicate reads means stop and ask.
+4. Issue only a Draft created and successfully read back during this user request,
+   in the original company. Read company, credit, source invoice where applicable
+   and complete related credits/reconciliations. Stop for unavailable ownership,
+   incomplete reads, unresolved duplicates or changed records. Preview exact credit
+   identity/reference, contact/project, signed lines/tax, date, currency/exchange-rate
+   basis and provider totals/balances. Obtain separate explicit issuance approval;
+   draft approval is insufficient. If refused, do not write. Use `issue_credit_note`
+   once, then verify the returned credit status/lines/balances and re-read source
+   invoice and related reconciliations where applicable. Report unexpected or absent
+   values; a success status alone does not prove verification. Never issue an older
+   Draft, reopen a cancelled credit or assume the provider returns literal Sent.
+   Issuance does not email, allocate or refund. Allocation requires its own approval.
+   For allocation only, skip creation/issuance and select an existing issued credit
+   and invoice explicitly. Read both, source lines, related credits/reconciliations
+   and current balances in the original company. Missing status/balance/currency
+   or incomplete duplicate reads means stop and ask.
 5. The approved narrow ownership exception permits only allocation affecting that
    selected existing issued credit and invoice. Preview both identities, exact
    amount/date/currency/exchange-rate basis, provider-returned current balances,
@@ -45,14 +55,13 @@ Never assume a full refund, tax rate or exchange rate.
    change an old reconciliation or touch unrelated records under this exception.
 6. For timeout, failed readback or partial outcome, STOP. Inspect original company,
    credit/invoice and complete reconciliation list. Reconcile what exists before
-   asking whether to resume. Never blindly repeat a create or reapply an allocation.
+   asking whether to resume. Never blindly repeat a create, issuance transition or allocation. Re-read the credit
+   status before considering another issuance; if already issued, do not replay.
+   A retry after evidence establishes no transition requires fresh exact approval.
 
 Hosted reads: `list_credit_notes`, `get_credit_note`, `list_credit_note_reconciliations`,
 `get_credit_note_reconciliation`, `list_invoices`, `get_invoice`, `list_contacts`.
 Use these remote tools directly in ChatGPT web or iOS. No client-local Python,
-shell, filesystem, CLI or generic API executor is needed. Issuing/sending is not
-provided by this workflow. Live sandbox evidence remains a separate release gate.
-
-The credit policy contains a proposed issuance policy pending human acceptance.
-It does not authorize issuing a Draft now, including one created in this request.
-Do not use a generic API operation, status edit or email action to bypass that gate.
+shell, filesystem, CLI or generic API executor is needed. Credit emailing, cash
+refunds, cancellation and historical Draft issuance remain outside this workflow.
+Live sandbox evidence remains a separate release gate.

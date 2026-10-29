@@ -189,13 +189,15 @@ action is added.
 
 Use the [credit workflow and allocation policy](credit-notes.md). Provider creates credit
 notes as Draft. Named helper forwards signed credit_note_items and reads back;
-issuing/email are separate and not exposed by this workflow. Reconciliations use
+`issue_credit_note` separately calls fixed PUT credit_notes/:id/transitions/mark_as_sent
+and reads the credit back. Only a current-request-created Draft with separate exact
+approval is in scope; email/reopening cancelled credits are excluded. Reconciliations use
 POST credit_note_reconciliations with credit_note/invoice/gross_value; helper reads
 reconciliation, credit note and invoice. Detail JSON may use a plural root.
 Allocation is not a cash refund. The approved narrow ownership exception permits
 allocation affecting only the selected existing issued credit and invoice, after
 complete reads, exact preview and separate approval. It excludes invoice edits,
-issuing, cash refunds and unrelated records. Preserve provider
+cash refunds and unrelated records; it never supplies issuance approval. Preserve provider
 errors and inspect uncertain writes before any retry.
 
 

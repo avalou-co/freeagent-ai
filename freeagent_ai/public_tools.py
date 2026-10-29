@@ -631,6 +631,15 @@ def make_registry(*, experimental_pdf=False):
         ),
         "Read date-specific provider mileage rates, thresholds and engine options. Use returned settings as context; FreeAgent calculates claims. Do not compute rates, thresholds or allowance pools.",
     )
+    add(
+        "issue_credit_note",
+        "PUT",
+        "credit_notes/{id}/transitions/mark_as_sent",
+        "credit_note",
+        object_schema({"id": id_schema, "confirmed": {"type": "boolean"}}, ["id", "confirmed"]),
+        object_schema({"credit_note": record_schema("credit_note")}, ["credit_note"]),
+        "Issue only a Draft created and read back during this user request in the original company. Agent must verify ownership, current Draft and complete duplicate evidence, preview exact document and obtain separate issuance approval. Draft/allocation approval is insufficient. Calls only the fixed provider mark_as_sent transition and reads the credit back; no email, allocation, refund or reopening cancelled credits. Inspect uncertain outcomes before any retry; never blindly replay.",
+    )
     for endpoint, (root, update, delete) in CORRECTIONS.items():
         for verb, method, enabled in [("update", "PUT", update), ("delete", "DELETE", delete)]:
             if not enabled:
@@ -704,6 +713,26 @@ class Dispatcher:
         args.pop("confirmed", None)
         if op.root == "pdf":
             return fetch_pdf(client.call, client.base, op.endpoint.split("/")[0], args["id"])
+
+        if op.name == "issue_credit_note":
+            resource = "credit_notes/" + args["id"]
+            try:
+                client.call("PUT", resource + "/transitions/mark_as_sent")
+                return {"credit_note": project_record(client.call("GET", resource)["credit_note"], "credit_note")}
+            except urllib.error.HTTPError as error:
+                raise UnverifiedWrite(
+                    f"FreeAgent HTTP {error.code}; credit issuance outcome/readback not verified for "
+                    + client.base
+                    + resource
+                    + "; inspect this credit in the original company before any retry. Do not email, allocate or recreate it as a workaround."
+                ) from None
+            except Exception:
+                raise UnverifiedWrite(
+                    "Credit issuance outcome/readback not verified for "
+                    + client.base
+                    + resource
+                    + "; inspect this credit in the original company before any retry. Do not email, allocate or recreate it as a workaround."
+                ) from None
 
         if op.root == "payroll":
             return self._payroll(op, args, client)
