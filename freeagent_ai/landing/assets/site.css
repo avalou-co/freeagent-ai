@@ -225,17 +225,44 @@ p {
   width: 15px;
   height: 15px;
 }
-.theme-toggle {
-  display: grid;
-  place-items: center;
+.theme-selector {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-low);
+}
+.theme-selector button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
-  background: transparent;
-  border: 1px solid var(--border);
+  padding: 0;
+  border: 0;
   border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
 }
-.theme-toggle:hover {
-  background: var(--surface);
+.theme-selector button:hover {
+  color: var(--primary);
+}
+.theme-selector button[aria-checked="true"] {
+  background: var(--lowest);
+  color: var(--primary);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 0 0 1px var(--border);
+}
+.theme-selector button:focus-visible {
+  outline-offset: 2px;
+}
+.theme-selector svg {
+  width: 16px;
+  height: 16px;
 }
 .hero {
   margin: auto;
@@ -1432,4 +1459,19 @@ h1 {
 .workflow-guide footer a {
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+@media (max-width: 480px) {
+  .header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header .theme-selector {
+    margin-left: auto;
+  }
+  .header nav {
+    order: 1;
+    width: 100%;
+    margin-left: 0;
+  }
 }

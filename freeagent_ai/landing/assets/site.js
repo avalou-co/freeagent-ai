@@ -1,38 +1,52 @@
 // Theme preference follows the Avalou website.
 (() => {
   const root = document.documentElement;
-  const toggle = document.querySelector(".theme-toggle");
-  let saved;
+  const selector = document.querySelector(".theme-selector");
+  const options = [...selector.querySelectorAll("[data-theme-option]")];
+  let preference = "system";
   try {
-    saved = localStorage.getItem("theme");
+    const saved = localStorage.getItem("theme");
+    if (["light", "system", "dark"].includes(saved)) preference = saved;
   } catch {
     /* System theme works without storage. */
   }
-  if (saved === "light" || saved === "dark") root.dataset.theme = saved;
-  const dark = () =>
-    root.dataset.theme
-      ? root.dataset.theme === "dark"
-      : matchMedia("(prefers-color-scheme: dark)").matches;
-  const updateLabel = () =>
-    toggle.setAttribute(
-      "aria-label",
-      `Switch to ${dark() ? "light" : "dark"} theme`,
-    );
-  updateLabel();
-  toggle.hidden = false;
-  toggle.addEventListener("click", () => {
-    root.dataset.theme = dark() ? "light" : "dark";
+  const apply = () => {
+    if (preference === "system") delete root.dataset.theme;
+    else root.dataset.theme = preference;
+    root.dataset.themePreference = preference;
+    options.forEach((option) => {
+      const active = option.dataset.themeOption === preference;
+      option.setAttribute("aria-checked", String(active));
+      option.tabIndex = active ? 0 : -1;
+    });
+  };
+  const selectTheme = (option) => {
+    preference = option.dataset.themeOption;
+    apply();
     try {
-      localStorage.setItem("theme", root.dataset.theme);
+      localStorage.setItem("theme", preference);
     } catch {
       /* A theme still lasts for this page. */
     }
-    updateLabel();
+  };
+  options.forEach((option, index) => {
+    option.addEventListener("click", () => selectTheme(option));
+    option.addEventListener("keydown", (event) => {
+      let next;
+      if (event.key === "ArrowRight" || event.key === "ArrowDown")
+        next = (index + 1) % options.length;
+      else if (event.key === "ArrowLeft" || event.key === "ArrowUp")
+        next = (index - 1 + options.length) % options.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = options.length - 1;
+      else return;
+      event.preventDefault();
+      selectTheme(options[next]);
+      options[next].focus();
+    });
   });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener(
-    "change",
-    updateLabel,
-  );
+  apply();
+  selector.hidden = false;
 
   // Enhance linked examples into the line-tab pattern. Without JavaScript,
   // the links and all workflow content remain available.
