@@ -22,6 +22,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Bank explanations | get/create/delete; safe legacy/plural attachment references | https://dev.freeagent.com/docs/bank_transaction_explanations |
 | Bank-explanation attachments | list/add one/update one/remove one; automatic collection readback after writes | https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01 |
 | Users/company/categories | list/get, current-user/company | https://dev.freeagent.com/docs/users and https://dev.freeagent.com/docs/company and https://dev.freeagent.com/docs/categories |
+| Payroll | list_payroll_periods/get_payroll_period; metadata and payment evidence only, no payslips or transitions | https://dev.freeagent.com/docs/payroll |
 | Tax returns | VAT, Corporation Tax and user-scoped self-assessment list/get only | https://dev.freeagent.com/docs/vat_returns and https://dev.freeagent.com/docs/corporation_tax_returns and https://dev.freeagent.com/docs/income_tax_returns |
 | Accounting reports | P&L summary, balance sheet, trial balance summary | https://dev.freeagent.com/docs/profit_and_loss and https://dev.freeagent.com/docs/balance_sheet and https://dev.freeagent.com/docs/trial_balance |
 
@@ -122,3 +123,10 @@ Packaged [invoicing guidance](invoicing.md) uses named remote reads and creation
 without a client runtime or generic executor. Provider amounts/line evidence are
 preserved; no pre-write total is invented. Actual provider inclusion and deployed
 marketplace-client behavior remain unverified by synthetic tests.
+
+## Experimental local document PDF reads
+
+`get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` use fixed GET `invoices/{id}/pdf`, `estimates/{id}/pdf`, `credit_notes/{id}/pdf` after reading the selected identity under the same authenticated binding. Outputs are metadata plus a bounded embedded MCP PDF resource; there is no public URL or storage. [Transport contract and verification limits](documents.md). The generated hosted audit excludes these experimental local operations.
+
+Hosted PDF delivery is unavailable: production discovery and both marketplace
+package builders exclude PDF tools/workflows. See [document status](documents.md).

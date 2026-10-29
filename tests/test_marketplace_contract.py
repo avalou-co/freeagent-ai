@@ -4,6 +4,7 @@ Fixture calls prove transport reachability, not assistant behavior, provider tax
 rules, file ownership on the host platform or actual marketplace installation.
 """
 
+import base64
 import hashlib
 import json
 import time
@@ -33,6 +34,8 @@ BASE = "https://api.freeagent.com/v2/"
 
 def sample_args(op):
     def value(key, schema):
+        if key == "year":
+            return "2026"
         if key in {"dated_on", "due_on", "from_date", "to_date", "as_at_date", "period_ends_on"}:
             return "2026-01-01"
         kind = schema.get("type")
@@ -61,6 +64,8 @@ def sample_args(op):
 def provider_result(path):
     path = path.split("?", 1)[0].removeprefix("/v2/")
     record = {"url": BASE + path, "currency": "GBP", "total_value": "-123.45", "description": "Synthetic"}
+    if path.endswith("/pdf"):
+        return {"pdf": {"content": base64.b64encode(b"%PDF-1.4\nsynthetic\n%%EOF").decode()}}
     if path == "expenses/mileage_settings":
         return {"mileage_settings": {"engine_type_and_size_options": [], "mileage_rates": []}}
     if path == "categories":
@@ -70,6 +75,8 @@ def provider_result(path):
                 ("admin_expenses_categories", "cost_of_sales_categories", "income_categories", "general_categories"), 1
             )
         }
+    if path.startswith("payroll/"):
+        return {"period": record} if len(path.split("/")) == 3 else {"periods": [record], "payments": []}
     if path == "company":
         return {"company": {"url": BASE + "company", "currency": "GBP"}}
     if path == "users/me":
@@ -170,9 +177,14 @@ def test_each_packaged_skill_has_a_real_provider_http_path(remote, skill, name):
     assert not result.get("isError"), result
     assert calls and calls[0][0] == operation.method
     expected = (
-        operation.endpoint.replace("{user_id}", "1").replace("{id}", "1").replace("{period_ends_on}", "2026-01-01")
+        operation.endpoint.replace("{user_id}", "1")
+        .replace("{id}", "1")
+        .replace("{period_ends_on}", "2026-01-01")
+        .replace("{year}", "2026")
+        .replace("{period}", "1")
     )
-    assert urlsplit(calls[0][1]).path == "/v2/" + expected
+    expected_first = expected.removesuffix("/pdf")
+    assert urlsplit(calls[0][1]).path == "/v2/" + expected_first
     assert result["structuredContent"]
     if operation.method == "POST":
         assert [method for method, _, _ in calls].count("POST") == 1
@@ -213,7 +225,8 @@ def test_provider_error_missing_fields_and_uncertain_write_are_not_fabricated(re
     assert denied["isError"] and "Read incomplete" in denied["content"][0]["text"]
     mode[:] = ["missing"]
     missing = rpc("tools/call", {"name": "get_invoice", "arguments": {"id": "1"}})
-    assert missing["structuredContent"] == {"invoice": {}}
+    assert missing["structuredContent"]["invoice"] == {}
+    assert missing["structuredContent"]["collected_at"]
     mode[:] = ["readback"]
     calls.clear()
     result = rpc("tools/call", {"name": "create_contact", "arguments": sample_args(REGISTRY["create_contact"])})
@@ -317,22 +330,29 @@ def test_broken_docs_anchor_source_digests_and_retired_source_fail(tmp_path):
         validate_contract(files, root=tmp_path)
 
 
-def test_every_secondary_operation_named_by_a_workflow_reaches_provider(remote):
+@pytest.mark.parametrize(
+    "name",
+    sorted(
+        {
+            op["name"]
+            for contract in json.loads(package_files(ROOT)["docs/capabilities.json"]).values()
+            for op in contract["operations"]
+        }
+    ),
+)
+def test_every_secondary_operation_named_by_a_workflow_reaches_provider(remote, name):
+    # Separate principals/rate buckets per case, rather than exhausting a real minute's quota.
     rpc, calls, _ = remote
-    contracts = json.loads(package_files(ROOT)["docs/capabilities.json"])
-    referenced = {op["name"] for contract in contracts.values() for op in contract["operations"]}
     discovered = {tool["name"] for tool in rpc("tools/list")["tools"]}
-    assert referenced <= discovered
-    for name in sorted(referenced):
-        calls.clear()
-        operation = REGISTRY[name]
-        result = rpc("tools/call", {"name": name, "arguments": sample_args(operation)})
-        assert not result.get("isError"), (name, result)
-        assert calls and calls[0][0] == operation.method
-        assert all(url.startswith(BASE) for _, url, _ in calls)
-        if operation.method != "GET":
-            assert [method for method, _, _ in calls].count(operation.method) == 1
-            assert any(method == "GET" for method, _, _ in calls)
+    assert name in discovered
+    operation = REGISTRY[name]
+    result = rpc("tools/call", {"name": name, "arguments": sample_args(operation)})
+    assert not result.get("isError"), (name, result)
+    assert calls and calls[0][0] == operation.method
+    assert all(url.startswith(BASE) for _, url, _ in calls)
+    if operation.method != "GET":
+        assert [method for method, _, _ in calls].count(operation.method) == 1
+        assert any(method == "GET" for method, _, _ in calls)
 
 
 def test_fake_file_links_and_tampered_source_digests_fail():
@@ -402,3 +422,17 @@ def test_malformed_category_group_fails_instead_of_reporting_empty(remote, monke
     result = rpc("tools/call", {"name": "list_categories", "arguments": {}})
     assert result["isError"]
     assert "categories" not in result.get("structuredContent", {})
+
+
+@pytest.mark.parametrize("root", ["invoice", "timeslip", "bill", "expense"])
+def test_correction_readback_preserves_declared_output_without_read_metadata(remote, root):
+    rpc, calls, _ = remote
+    operation = REGISTRY["update_" + root]
+    body = {root: {"description": "Approved synthetic correction"}}
+    descriptor = next(item for item in rpc("tools/list")["tools"] if item["name"] == operation.name)
+    assert "collected_at" not in descriptor["outputSchema"]["properties"]
+    result = rpc("tools/call", {"name": operation.name, "arguments": {"id": "1", "body": body, "confirmed": True}})
+    assert not result.get("isError", False)
+    assert set(result["structuredContent"]) == {root}
+    assert result["structuredContent"][root]["url"] == BASE + operation.endpoint.replace("{id}", "1")
+    assert [(method, payload) for method, _, payload in calls] == [("PUT", body), ("GET", None)]

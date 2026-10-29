@@ -94,6 +94,11 @@ Use `/freeagent-ai:recurring-revenue` to read FreeAgent recurring invoice profil
 returned next/end dates, status and values. It does not expand future occurrences
 or predict cash receipts. See [recurring profile coverage](docs/recurring-revenue.md).
 
+Use `/freeagent-ai:month-end` to review provider-marked unexplained transactions,
+overdue records, drafts and unbilled time for a selected period. Receipt and possible
+duplicate observations remain evidence for review, not automatic bookkeeping corrections.
+See [month-end coverage](docs/month-end.md).
+
 ## Using it
 
 Ask your agent in plain language, for example:
@@ -190,3 +195,15 @@ Draft invoices support exact approved manual lines/currency and documented provi
 source-inclusion modes through `create_draft_invoice_from_payload`. FreeAgent owns
 totals, eligibility and duplicate billing; the tool keeps Draft/emails off and reads
 back. See [invoice workflow](docs/invoicing.md) for inclusion limits and evidence gates.
+
+Accounting PDF delivery is unavailable in hosted ChatGPT web/mobile. The local
+`/freeagent-ai:documents` prototype is excluded from hosted discovery and both
+marketplace package builders until a supported interpreter-free delivery contract
+and actual client evidence exist. See [document transport status](docs/documents.md).
+
+UK payroll filing/payment evidence is available through `/freeagent-ai:payroll`
+skill; employee payslips, payroll execution and filing are excluded. See
+[payroll evidence](docs/payroll.md) for access and company limits.
+
+Contributor requirements and the interpreter-free web/mobile review gate are in
+[CONTRIBUTING.md](CONTRIBUTING.md).

@@ -25,6 +25,7 @@ from .hosted_accounts import AccessDenied
 from .hosted_client import HostedClient, principal_context
 from .hosted_deadline import deadline_context
 from .hosted_files import download
+from .pdf_documents import PdfDocument, fetch_pdf
 
 SCALAR = {"type": ["string", "number", "boolean", "null"]}
 
@@ -116,6 +117,8 @@ ITEM_FIELDS = [
     "second_sales_tax_status",
 ]
 ATTACHMENT_FIELDS = ["url", "file_name", "content_type", "file_size", "description"]
+PAYROLL_PERIOD_FIELDS = "url period frequency dated_on status employment_allowance_claimed employment_allowance_amount construction_industry_scheme_deduction created_at updated_at"
+PAYROLL_PAYMENT_FIELDS = ["due_on", "amount_due", "status"]
 TAX_PAYMENT_FIELDS = ["label", "due_on", "amount_due", "status"]
 TAX_RETURNS = {
     "vat_returns": "vat_return",
@@ -145,6 +148,9 @@ FIELDS = {
     "bank_transaction_explanation": "url bank_transaction dated_on gross_value category paid_invoice paid_bill description is_deletable attachment attachments project rebill_type rebill_factor sales_tax_status sales_tax_rate sales_tax_value",
     "company": "url name currency type sales_tax_registration_status",
 }
+COLLECTED_RESOURCES = frozenset(
+    {"recurring_invoice", "bank_account", "bank_transaction", "invoice", "bill", "timeslip", "expense"}
+)
 RESOURCES = {
     # endpoint, singular, supported collection query parameters
     "contacts": ("contact", "view"),
@@ -282,7 +288,7 @@ class Operation:
     helper: str = ""
 
 
-def make_registry():
+def make_registry(*, experimental_pdf=False):
     registry = {}
 
     def add(name, method, endpoint, root, schema, output, description, helper="", meta=None):
@@ -315,7 +321,7 @@ def make_registry():
 
     id_schema = {"type": "string", "pattern": "^[0-9]+$"}
     for endpoint, (root, query) in RESOURCES.items():
-        read_metadata = {"collected_at": {"type": "string"}} if root == "recurring_invoice" else {}
+        read_metadata = {"collected_at": {"type": "string"}} if root in COLLECTED_RESOURCES else {}
         params: dict = {name: {"type": "string"} for name in query.split()}
         params.update(
             per_page={"type": "integer", "minimum": 1, "maximum": 100},
@@ -357,6 +363,29 @@ def make_registry():
             object_schema({root: record_schema(root)}, [root]),
             f"Read the linked company's {root.replace('_', ' ')}.",
         )
+    # Local/server prototype fixtures only; production hosted discovery excludes PDFs.
+    if experimental_pdf:
+        for endpoint, root in (("invoices", "invoice"), ("estimates", "estimate"), ("credit_notes", "credit_note")):
+            add(
+                "get_" + root + "_pdf",
+                "GET",
+                endpoint + "/{id}/pdf",
+                "pdf",
+                object_schema({"id": id_schema}, ["id"]),
+                object_schema(
+                    {
+                        "source": {"type": "string"},
+                        "file_name": {"type": "string"},
+                        "mime_type": {"type": "string"},
+                        "size_bytes": {"type": "integer"},
+                        "collected_at": {"type": "string"},
+                    },
+                    ["source", "file_name", "mime_type", "size_bytes", "collected_at"],
+                ),
+                "Read a PDF for the selected "
+                + root.replace("_", " ")
+                + ". Returns an embedded MCP application/pdf resource and metadata, not a public download URL. Requires a host that supports embedded PDF resources; otherwise report delivery unavailable. No sending or status changes.",
+            )
     # The versioned provider collection separates attachment changes from explanations.
     # One file per write keeps the existing bounded invocation-only upload contract.
     attachment_output = object_schema(
@@ -404,6 +433,41 @@ def make_registry():
                 "Signed content URLs and file bytes are not returned."
             ),
             meta={"openai/fileParams": ["file"]} if action in {"add", "update"} else None,
+        )
+    # Payroll year ends identify a multi-root response. Period detail deliberately
+    # omits payslips: filing/payment review needs no employee compensation data.
+    payroll_period = object_schema({key: SCALAR for key in PAYROLL_PERIOD_FIELDS.split()})
+    metadata = {"source_url": {"type": "string"}, "collected_at": {"type": "string"}}
+    for name, endpoint, detail in [
+        ("list_payroll_periods", "payroll/{year}", False),
+        ("get_payroll_period", "payroll/{year}/{period}", True),
+    ]:
+        params = {"year": {"type": "string", "pattern": "^[0-9]{4}$"}}
+        if detail:
+            params["period"] = id_schema
+        output = (
+            {"period": payroll_period}
+            if detail
+            else {
+                "periods": {"type": "array", "items": payroll_period},
+                "payments": {"type": "array", "items": object_schema({key: SCALAR for key in PAYROLL_PAYMENT_FIELDS})},
+            }
+        )
+        add(
+            name,
+            "GET",
+            endpoint,
+            "payroll",
+            object_schema(params, params),
+            object_schema({**output, **metadata}, [*output, *metadata]),
+            "Read UK FreeAgent RTI payroll filing evidence by tax year end (e.g. 2026 for April 2025–March 2026). "
+            "Requires Tax and Limited Accounting access and a UK company supporting payroll. "
+            + (
+                "Period is the provider period identifier; employee payslips are omitted. "
+                if detail
+                else "Returns all linked periods and provider payment obligations; no employee payslips. "
+            )
+            + "No filing, payment execution or paid/unpaid status changes. Missing status or amount stays unavailable; filing is not payment.",
         )
     # Tax returns use period end dates, not numeric record IDs; income tax is user-scoped.
     period_schema = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
@@ -604,7 +668,7 @@ class Dispatcher:
         self.accounts, self.client_id, self.client_secret = accounts, client_id, client_secret
         self.file_hosts, self.client_factory = file_hosts, client_factory
 
-    def invoke(self, name, arguments):
+    def invoke(self, name, arguments) -> Any:
         if name not in REGISTRY:
             raise AccessDenied("Tool not available")
         operation = REGISTRY[name]
@@ -621,7 +685,11 @@ class Dispatcher:
         token = request_client.set(client)
         try:
             result = self._run(operation, dict(arguments), client)
-            jsonschema.validate(result, operation.descriptor.output_schema)
+            if isinstance(result, PdfDocument):
+                self.accounts.check(binding)  # Do not release bytes after concurrent disconnect/relink.
+            jsonschema.validate(
+                result.metadata if isinstance(result, PdfDocument) else result, operation.descriptor.output_schema
+            )
             return result
         except Exception:
             if client.last_created:
@@ -634,6 +702,11 @@ class Dispatcher:
 
     def _run(self, op, args, client):
         args.pop("confirmed", None)
+        if op.root == "pdf":
+            return fetch_pdf(client.call, client.base, op.endpoint.split("/")[0], args["id"])
+
+        if op.root == "payroll":
+            return self._payroll(op, args, client)
         if op.root == "attachments":
             return self._attachments(op, args, client)
         if op.helper:
@@ -693,7 +766,7 @@ class Dispatcher:
         if op.name.startswith("list_"):
             collection = op.root + "s" if op.endpoint in TAX_RETURNS else op.endpoint
             records: dict[str, Any] = {collection: [project_record(item, op.root) for item in result[collection]]}
-            if op.root == "recurring_invoice":
+            if op.root in COLLECTED_RESOURCES:
                 records["collected_at"] = datetime.now(timezone.utc).isoformat()
             return records
         if op.endpoint.startswith("accounting/"):
@@ -711,9 +784,35 @@ class Dispatcher:
             # Provider detail JSON documents a plural root, unlike XML/create.
             result = {op.root: result["credit_note_reconciliations"]}
         record: dict[str, Any] = {op.root: project_record(result[op.root], op.root)}
-        if op.root == "recurring_invoice":
+        if op.method == "GET" and op.root in COLLECTED_RESOURCES:
             record["collected_at"] = datetime.now(timezone.utc).isoformat()
         return record
+
+    @staticmethod
+    def _payroll(op, args, client):
+        path = op.endpoint.format(**args)
+        result = client.call("GET", path)
+        if not isinstance(result, dict):
+            raise ValueError("Payroll response malformed; read incomplete")
+
+        def period(record):
+            if not isinstance(record, dict):
+                raise ValueError("Payroll period malformed; read incomplete")
+            return {key: record[key] for key in PAYROLL_PERIOD_FIELDS.split() if key in record}
+
+        if op.name == "get_payroll_period":
+            projected = {"period": period(result["period"])}
+        else:
+            # Both collections are required; an absent/malformed collection is not
+            # evidence of no payroll or no obligations. Missing record fields stay absent.
+            if any(not isinstance(result.get(key), list) for key in ("periods", "payments")):
+                raise ValueError("Payroll collections missing or malformed; read incomplete")
+            projected = {"periods": [period(row) for row in result["periods"]], "payments": []}
+            for row in result["payments"]:
+                if not isinstance(row, dict):
+                    raise ValueError("Payroll payment malformed; read incomplete")
+                projected["payments"].append({key: row[key] for key in PAYROLL_PAYMENT_FIELDS if key in row})
+        return {**projected, "source_url": client.base + path, "collected_at": datetime.now(timezone.utc).isoformat()}
 
     def _attachments(self, op, args, client):
         path = op.endpoint.replace("{id}", args.pop("id"))
@@ -755,6 +854,8 @@ class Dispatcher:
     def call_tool(self, name, arguments):
         try:
             data = self.invoke(name, arguments)
+            if isinstance(data, PdfDocument):
+                return data.tool_result()
             return CallToolResult(content=[TextContent(type="text", text=json.dumps(data))], structured_content=data)
         except UnverifiedWrite as error:
             message = str(error)
@@ -772,10 +873,10 @@ class Dispatcher:
                 else "Provider operation failed; inspect before retrying"
             )
         except urllib.error.HTTPError as error:
-            # Attachment validation responses may echo bytes or signed source URLs.
+            # Attachment/payroll errors may echo signed URLs, bytes or employee data.
             message = (
                 f"FreeAgent HTTP {error.code}"
-                if name in REGISTRY and REGISTRY[name].root == "attachments"
+                if name in REGISTRY and REGISTRY[name].root in {"attachments", "pdf", "payroll"}
                 else provider_error(error)
             )
             message += "; inspect the original account before retrying a write"

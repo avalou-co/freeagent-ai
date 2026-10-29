@@ -6,10 +6,23 @@ account isolation, fixed API requests, serialization, pagination, bounded file
 handling and provider readback. Skills gather inputs, obtain approval and explain
 provider evidence. An unavailable provider capability remains unsupported.
 
+## All implementations
+
+Every current and future skill, tool, document and artifact change must preserve
+interpreter-free ChatGPT web/mobile workflows. No client Python, shell, CLI, local
+filesystem or assumed runtime is permitted. Backend code performs API mechanics;
+workflows use discovered named remote tools and documented supported host artifact
+transports. Unsupported delivery stays unavailable in discovery, packages and
+claims. Developer/CI interpreter execution is not client compatibility evidence.
+Independent architecture/client-contract review is required; installed web/mobile
+observations remain separate from synthetic package/HTTP tests. See
+the repository MCP design contract and contributor guidance.
+
 ## Packaging and CI gate
 
 Both archive builders run the same contract validation, including draft builds.
-CI also runs `python -m freeagent_ai.package_contract` in its build environment.
+CI runs `python -m freeagent_ai.package_contract` as a mandatory lint-job step
+on every pull request and main push, without a path filter or continue-on-error.
 That is a contributor/CI check, not a command for the marketplace-installed user.
 The generated `docs/capabilities.json` records, for each shipped skill:
 
@@ -18,7 +31,12 @@ The generated `docs/capabilities.json` records, for each shipped skill:
   input/output schemas, method, fixed provider route and approval parameter.
 - Linked evidence documents and supported transport artifacts. Current workflows
   return provider JSON and explanations; receipt inputs are host file references.
-  No current skill advertises remotely delivered PDF output.
+  No shipped hosted skill advertises remotely delivered PDF output.
+- `docs/unsupported-capabilities.json` explicitly marks document delivery unavailable.
+  The local/server documents prototype is excluded from hosted skills and discovery;
+  the operation gate rejects PDF tools rather than treating embedded blobs as usable
+  artifacts. Re-enablement needs documented host file output and installed web/mobile
+  evidence without a client interpreter.
 
 Validation rejects missing entry points, unknown tools, API-executor instructions,
 required client runtimes, executable package helpers, removed engine sources,

@@ -16,6 +16,14 @@ from .public_tools import CORRECTIONS, CREATES, REGISTRY, RESOURCES, TAX_RETURNS
 # Explicit reviewed entry points, plus every operation referenced by the actual
 # workflow (not the full registry appendix). This is a product contract, not a
 # parallel task/status tracker. New skills must declare their executable path.
+HOSTED_EXCLUDED_SKILLS = frozenset({"documents"})
+UNSUPPORTED_CAPABILITIES = {
+    "documents": {
+        "status": "unavailable",
+        "reason": "No verified interpreter-free ChatGPT web/mobile PDF delivery contract",
+        "required_evidence": ["documented host file output", "installed web delivery", "installed mobile delivery"],
+    }
+}
 SKILLS = {
     "bank-reconcile": ("list_bank_transactions", "explain_bank_transaction"),
     "bills": ("list_bills", "create_bill"),
@@ -27,6 +35,16 @@ SKILLS = {
     "invoice-status": ("list_invoices", "get_invoice"),
     "invoicing": ("list_invoices", "create_draft_invoice_from_payload"),
     "mileage": ("get_mileage_settings", "create_mileage_expense"),
+    "month-end": (
+        "get_company",
+        "list_bank_accounts",
+        "list_bank_transactions",
+        "list_invoices",
+        "list_bills",
+        "list_timeslips",
+        "list_expenses",
+    ),
+    "payroll": ("list_payroll_periods", "get_payroll_period"),
     "profitability": ("list_projects", "list_timeslips", "list_invoices"),
     "receipts": ("list_expenses", "list_bills", "create_expense_from_payload", "create_bill"),
     "recurring-revenue": ("list_recurring_invoices", "get_recurring_invoice"),
@@ -123,6 +141,8 @@ def validate_operations():
     routes.update(
         ("GET", endpoint)
         for endpoint in [
+            "payroll/{year}",
+            "payroll/{year}/{period}",
             "company",
             "users/me",
             "expenses/mileage_settings",
@@ -143,6 +163,7 @@ def validate_operations():
         if (
             not isinstance(op.endpoint, str)
             or not op.endpoint
+            or op.root == "pdf"
             or FORBIDDEN_TOOLS.search(name)
             or FORBIDDEN_TOOLS.search(op.helper)
             or (not create and (op.method, op.endpoint) not in routes)
@@ -249,6 +270,8 @@ def coverage(files):
 
 def validate_contract(files, *, root=None):
     validate_operations()
+    if json.loads(files.get("docs/unsupported-capabilities.json", b"{}")) != UNSUPPORTED_CAPABILITIES:
+        raise ValueError("Unsupported capability status is missing or changed")
     for path in files:
         if path.endswith((".py", ".pyc", ".sh", ".ipynb", ".js")):
             raise ValueError(f"Executable client helper in hosted package: {path}")
@@ -261,7 +284,11 @@ def validate_contract(files, *, root=None):
         if any(p.exists() for p in retired):
             raise ValueError("Retired accounting engine exists in release source")
         sources = json.loads(files["docs/source-digests.json"])
-        expected = {str(p.relative_to(root)) for p in (root / ".agents/skills").glob("*/SKILL.md")}
+        expected = {
+            str(p.relative_to(root))
+            for p in (root / ".agents/skills").glob("*/SKILL.md")
+            if p.parent.name not in HOSTED_EXCLUDED_SKILLS
+        }
         expected.update(
             p for p in files if p.startswith("docs/") and p.endswith(".md") and p != "docs/receipt-review-cases.md"
         )

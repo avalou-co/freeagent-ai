@@ -22,3 +22,9 @@ reminders, mark paid or mutate an invoice. No local runtime is required.
    business's tone, wording and chase schedule when missing.
 
 Follow `docs/agent-rules.md` throughout.
+
+The [proposed delivery policy](../../../docs/invoicing.md#proposed-delivery-policy--pending-human-acceptance)
+is pending human acceptance. Chaser drafting stays read-only; do not send, duplicate
+or change status, even if an invoice is existing/issued or OAuth grants write scope. There
+is no approved sending workflow to enter until that policy is accepted and the
+named remote implementation is separately reviewed.

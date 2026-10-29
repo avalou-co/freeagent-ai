@@ -12,7 +12,13 @@ import zipfile
 from pathlib import Path
 
 from .hosted_auth import ORIGIN
-from .package_contract import coverage, validate_contract, validate_workflow
+from .package_contract import (
+    HOSTED_EXCLUDED_SKILLS,
+    UNSUPPORTED_CAPABILITIES,
+    coverage,
+    validate_contract,
+    validate_workflow,
+)
 from .public_tools import REGISTRY, RESOURCES, audit
 
 VERSION = "0.4.0"
@@ -158,10 +164,13 @@ def package_files(root, metadata=None):
             },
             indent=2,
         ).encode(),
+        "docs/unsupported-capabilities.json": json.dumps(UNSUPPORTED_CAPABILITIES, sort_keys=True, indent=2).encode(),
         "docs/public-tool-audit.json": json.dumps(audit(), indent=2, sort_keys=True).encode(),
     }
     sources = {}
     for source in sorted((root / ".agents/skills").glob("*/SKILL.md")):
+        if source.parent.name in HOSTED_EXCLUDED_SKILLS:
+            continue
         files[f"skills/{source.parent.name}/SKILL.md"] = render_hosted(source.read_text()).encode()
         sources[str(source.relative_to(root))] = hashlib.sha256(source.read_bytes()).hexdigest()
     for name in [
@@ -170,10 +179,13 @@ def package_files(root, metadata=None):
         "receipts.md",
         "bank-attachments.md",
         "tax-overview.md",
+        "payroll.md",
         "credit-notes.md",
         "analysis.md",
         "invoicing.md",
+        "documents.md",
         "recurring-revenue.md",
+        "month-end.md",
         "marketplace-contract.md",
     ]:
         source = root / "docs" / name

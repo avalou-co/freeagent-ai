@@ -1,5 +1,10 @@
 # MCP server
 
+Shipped ChatGPT web/mobile workflows use discovered named remote tools under the
+[design contract](#design-contract). The generic tools, Python/CLI setup and stdio
+examples below describe local contributor/legacy clients only; they are never a
+client-runtime fallback for hosted workflows.
+
 Typed tools over the client: `freeagent_get` and `find_contacts` (read-only), `create_contact`, `create_timeslip`, `create_draft_invoice` (always Draft, emails off), `create_expense` (optional local receipt file), `create_bill` (supplier bill with line items and optional attachment), `create_draft_estimate` (always Draft, never sent), `create_project`, `create_task`, `explain_bank_transaction` (one explanation per call). `freeagent_post`, `freeagent_put` and `freeagent_delete` expose API writes directly. Convenience create tools read back automatically; generic write tools return the API response and the agent follows with `freeagent_get`.
 
 The Claude Code and Codex plugins start it with `uvx` straight from GitHub (see `.mcp.json`), so no checkout or pip install is needed; `uv` must be installed. Run `freeagent-ai login` once first (e.g. `uvx --from git+https://github.com/avalou-co/freeagent-ai freeagent-ai login`); the server uses the same credentials file.
@@ -14,6 +19,22 @@ dates, amounts, tax, resource relationships, status transitions, payments and
 whether a timeslip can be billed. Do not reproduce these rules locally, including
 duplicate-billing guards, eligibility checks, field allowlists or accounting locks.
 Send the request and report FreeAgent's response or validation error.
+
+Every current and future shipped plugin workflow must function in ChatGPT on web
+and mobile without a client interpreter, Python, shell, CLI, local filesystem or
+assumed runtime. This applies to every implementation and skill/tool/doc change.
+Use discovered named remote tools and documented supported host transports for
+inputs and outputs. Server-side execution is allowed for API mechanics only; no
+client runtime or server calculator may substitute for provider functionality.
+
+Unsupported client delivery is unavailable capability: fail closed in hosted
+discovery and packaging, record its status and withhold availability claims.
+A protocol blob or successful developer/CI test is not proof of a usable client
+artifact. Validate the generated package through discovery and authenticated
+remote calls, including permissions, errors and artifact transport; obtain
+independent architecture/client-contract review. The mandatory CI capability gate
+must pass. Actual installed web/mobile evidence is a separate requirement before
+claiming client delivery. See [contributor review guidance](../CONTRIBUTING.md).
 
 The server owns API mechanics: authentication, keeping credentials private,
 restricting requests to the FreeAgent API, JSON serialization, query encoding,
@@ -188,3 +209,32 @@ The envelope adds collection-completion time; provider fields remain unchanged o
 absent. Local clients can use the unchanged generic GET. The packaged workflow uses
 only named remote reads and [provider-returned evidence](recurring-revenue.md); no
 recurrence expansion, calculator or payment scenario is added.
+
+## Month-end read coverage
+
+The read-only month-end skill composes existing named company, bank, invoice,
+bill, timeslip and expense reads; no accounting/checking tool is introduced.
+Collection and detail envelopes for bank accounts/transactions, invoices, bills,
+timeslips and expenses now include collected_at UTC after a successful read.
+This is server collection metadata, not provider financial data or an atomic
+snapshot. Existing fields, filters, pagination, authorization and errors remain
+unchanged. See [month-end evidence limits](month-end.md).
+
+## Document PDF resources
+
+Hosted discovery excludes `get_invoice_pdf`, `get_estimate_pdf` and
+`get_credit_note_pdf`; both marketplace builders omit the documents workflow.
+The embedded MCP resource implementation remains a local/server prototype, not a
+verified ChatGPT file output. The gate rejects PDF tools and records this feature
+as unavailable until a documented interpreter-free host output contract and
+installed web/mobile evidence exist. [Status and prototype limits](documents.md).
+
+## Hosted payroll audit
+
+`list_payroll_periods` and `get_payroll_period` perform only the two documented
+fixed GET reads in the [payroll API](https://dev.freeagent.com/docs/payroll).
+Annual reads preserve both period/payment collections; period reads discard
+employee payslips before returning metadata. Both provide source and collection
+time, use linked-company read authorization, and fail incomplete collection
+shapes. No employee, filing, execution or payment/status mutation is exposed.
+See [payroll evidence](payroll.md) for provider permissions and evidence limits.
