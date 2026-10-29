@@ -101,3 +101,37 @@ def test_backend_config_uses_only_explicit_deployment_inputs():
     for service, region in [("../other", "europe-west1"), ("example-service", "bad/region")]:
         with pytest.raises(ValueError):
             module.deployment_config({}, service=service, region=region)
+
+
+def test_real_export_can_publish_versioned_assets_and_png(tmp_path):
+    import json
+
+    from freeagent_ai.landing import ASSET_PREFIX, build_static
+
+    build_static(tmp_path)
+    files, _ = module.manifest(tmp_path)
+    assert ASSET_PREFIX + "social-card-v1.png" in files
+    assert ASSET_PREFIX + "site.css" in files
+    assert ASSET_PREFIX + "fonts/hanken-grotesk-latin.woff2" in files
+    homepage = (tmp_path / "index.html").read_text()
+    assert ASSET_PREFIX + "site.css" in homepage
+    assert ASSET_PREFIX + "site.js" in homepage
+    assert ASSET_PREFIX + "site.css" in (tmp_path / "support/index.html").read_text()
+    config = json.loads((Path(__file__).parents[1] / "hosting.json").read_text())
+    rules = {rule["glob"]: rule["headers"] for rule in config["headers"]}
+    assert rules["**"]["Cache-Control"] == "no-store"
+    assert rules["/landing-assets/v-*/**"]["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert rules["/{,index.html}"]["Cache-Control"] == "public, max-age=0, must-revalidate"
+
+
+def test_asset_namespace_changes_when_asset_bytes_change(tmp_path, monkeypatch):
+    from freeagent_ai import landing
+
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "site.css").write_text("first")
+    monkeypatch.setattr(landing, "ROOT", tmp_path)
+    before = landing.asset_version()
+    assert landing.asset_version() == before
+    (assets / "site.css").write_text("second")
+    assert landing.asset_version() != before

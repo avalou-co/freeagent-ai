@@ -86,7 +86,8 @@ the sitemap in Google Search Console after deploying.
 Marketing responses allow same-origin styles, scripts, images and fonts through a
 restricted CSP. No inline script, external font request, analytics, account request
 or accounting write is introduced. Auth/account/MCP routes retain the original
-restrictive CSP; all responses retain `Cache-Control: no-store`.
+restrictive CSP; account and auth responses retain `Cache-Control: no-store`.
+Versioned landing assets use a one-year immutable public cache.
 
 Run `ruff check .`, `ruff format --check .`, `pyright`, `pytest` and
 `node --check freeagent_ai/landing/assets/site.js`. Review desktop/mobile and both
@@ -189,7 +190,7 @@ The homepage includes Open Graph and Twitter large-image card metadata. Both use
 existing palette and licensed fonts, with the product logo from
 `publication/assets/icon.svg` beside the title and a smaller Avalou publisher
 credit. It ships in the wheel and static export.
-Use a new versioned filename when replacing the image to refresh crawler caches.
+The content-derived asset namespace changes when the image changes.
 After deployment, check the public homepage with a social-card validator; local
 export checks do not prove that a third-party crawler has refreshed its preview.
 
@@ -212,3 +213,16 @@ After deployment, inspect the public URL with Google's Rich Results Test and the
 Schema.org validator. Valid Schema.org entities do not by themselves establish
 Google software-app rich-result eligibility; do not invent offers or ratings to
 satisfy that separate feature's requirements.
+
+## Asset caching
+
+Rendered pages use `/landing-assets/v-<content hash>/` URLs. The hash covers asset
+paths and bytes, so changing a stylesheet, script, font or image changes the
+namespace for the entire asset bundle, including relative CSS font URLs. The
+static export and hosted app both serve this namespace with
+`public, max-age=31536000, immutable`. Legacy unversioned URLs remain available
+with no-store. Firebase HTML revalidates on each visit; account/auth/MCP responses
+retain no-store. The publisher accepts PNG files so the social card can deploy.
+
+After deployment, check the headers of a versioned CSS file and font from the
+rendered homepage, and confirm `/account` and `/mcp` remain no-store.
