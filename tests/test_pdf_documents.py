@@ -162,40 +162,25 @@ def test_local_fixed_fetch_contract():
     assert calls == [("GET", "invoices/1", {}), ("GET", "invoices/1/pdf", {"paginate": False})]
 
 
-def test_production_hosted_discovery_invocation_and_package_exclude_pdf_prototype(accounts):
+def test_shipped_document_transport_is_registered_ui_not_prototype_blob():
     from pathlib import Path
 
+    from freeagent_ai.document_delivery import UI_URI
     from freeagent_ai.public_package import package_files
     from freeagent_ai.public_tools import REGISTRY
 
-    calls = []
-    dispatch = Dispatcher(accounts, "id", "secret", client_factory=lambda *args: calls.append(args))
-    verifier = SimpleNamespace(principal=lambda _: Principal("alice", frozenset({"freeagent:read"}), 101))
-    with TestClient(create_app(settings(), accounts, verifier, dispatch), base_url=ORIGIN) as client:
-        headers = {"Authorization": "Bearer synthetic", "Accept": "application/json, text/event-stream"}
-        discovered = client.post(
-            "/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-        ).json()["result"]["tools"]
-        assert not any(tool["name"].endswith("_pdf") for tool in discovered)
-        for name in ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"):
-            response = client.post(
-                "/mcp",
-                headers=headers,
-                json={
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {"name": name, "arguments": {"id": "7"}},
-                },
-            ).json()
-            assert response.get("error") or response["result"].get("isError")
-    assert not calls
     assert not any(op.root == "pdf" for op in REGISTRY.values())
+    for name in ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"):
+        assert REGISTRY[name].root == "document_download"
+        assert REGISTRY[name].descriptor.meta["ui"]["resourceUri"] == UI_URI
     files = package_files(Path(__file__).resolve().parents[1])
-    assert "skills/documents/SKILL.md" not in files
-    assert "documents" not in json.loads(files["docs/capabilities.json"])
-    assert not any(item["name"].endswith("_pdf") for item in json.loads(files["docs/public-tool-audit.json"]))
-    assert json.loads(files["docs/unsupported-capabilities.json"])["documents"]["status"] == "unavailable"
+    assert "skills/documents/SKILL.md" in files
+    contract = json.loads(files["docs/capabilities.json"])["documents"]
+    assert contract["output_artifacts"] == ["registered MCP Apps UI -> same-account HTTPS application/pdf attachment"]
+    assert (
+        json.loads(files["docs/unsupported-capabilities.json"])["documents"]["status"]
+        == "awaiting_installed_client_verification"
+    )
 
 
 def test_package_gate_rejects_pdf_reenablement_and_missing_status(monkeypatch):
@@ -229,7 +214,7 @@ def test_both_archive_builders_refuse_pdf_registry_reenablement(monkeypatch, tmp
 
     monkeypatch.setitem(REGISTRY, "get_invoice_pdf", make_registry(experimental_pdf=True)["get_invoice_pdf"])
     output = tmp_path / "blocked.zip"
-    with pytest.raises(ValueError, match="Non-provider operation"):
+    with pytest.raises(ValueError, match="Non-provider operation|Unsupported file-output"):
         if builder == "draft":
             build(Path(__file__).resolve().parents[1], output, draft=True)
         else:

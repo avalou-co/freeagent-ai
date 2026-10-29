@@ -25,14 +25,15 @@ def test_hosted_archive_is_reproducible_and_contains_resolvable_skill_references
         assert {name for name in names if name.endswith("SKILL.md")} == {
             f"skills/{source.parent.name}/SKILL.md"
             for source in (Path(__file__).resolve().parents[1] / ".agents/skills").glob("*/SKILL.md")
-            if source.parent.name != "documents"
         }
         assert "docs/receipts.md" in names
         assert "docs/bank-attachments.md" in names
         assert "docs/receipt-review-cases.md" in names
         assert "skills/mileage/scripts/preview.py" not in names
         assert all(
-            name in {"plugin.json", "mcp.json"} or name.startswith(("skills/", "docs/", "assets/")) for name in names
+            name in {"plugin.json", "mcp.json", "CANDIDATE-NOT-FOR-SUBMISSION.txt"}
+            or name.startswith(("skills/", "docs/", "assets/"))
+            for name in names
         )
         interface = json.loads(archive.read("plugin.json"))["extensions"]["com.openai"]["interface"]
         assert len(interface["shortDescription"]) <= 30
@@ -71,9 +72,10 @@ def test_operator_archive_matches_shared_named_tool_package_and_stays_private(tm
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
     root = Path(__file__).resolve().parents[1]
     with ZipFile(output) as archive:
-        assert {name: archive.read(name) for name in archive.namelist()} == package_files(
-            root, {"mcp_client_id": "synthetic-client"}
-        )
+        assert archive.read("CANDIDATE-NOT-FOR-SUBMISSION.txt").startswith(b"Private operator candidate only")
+        assert {
+            name: archive.read(name) for name in archive.namelist() if name != "CANDIDATE-NOT-FOR-SUBMISSION.txt"
+        } == package_files(root, {"mcp_client_id": "synthetic-client"})
         for name in archive.namelist():
             if name.endswith("SKILL.md"):
                 text = archive.read(name).decode()

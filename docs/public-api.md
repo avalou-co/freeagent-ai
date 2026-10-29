@@ -129,9 +129,13 @@ without a client runtime or generic executor. Provider amounts/line evidence are
 preserved; no pre-write total is invented. Actual provider inclusion and deployed
 marketplace-client behavior remain unverified by synthetic tests.
 
-## Experimental local document PDF reads
+## Document PDF delivery reads
 
-`get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` use fixed GET `invoices/{id}/pdf`, `estimates/{id}/pdf`, `credit_notes/{id}/pdf` after reading the selected identity under the same authenticated binding. Outputs are metadata plus a bounded embedded MCP PDF resource; there is no public URL or storage. [Transport contract and verification limits](documents.md). The generated hosted audit excludes these experimental local operations.
-
-Hosted PDF delivery is unavailable: production discovery and both marketplace
-package builders exclude PDF tools/workflows. See [document status](documents.md).
+`get_invoice_pdf`, `get_estimate_pdf` and `get_credit_note_pdf` use fixed GET
+`invoices/{id}/pdf`, `estimates/{id}/pdf`, `credit_notes/{id}/pdf` after reading the
+selected identity under the original binding. The generated audit includes the
+registered UI and metadata schema. Hidden tool-result metadata holds a short-lived
+one-use fragment offer for a same-account authenticated HTTPS attachment route;
+no PDF blob is advertised as usable output. [Transport contract and pending
+installed-client verification](documents.md). The local embedded prototype remains
+diagnostic only and is rejected by the hosted package gate.

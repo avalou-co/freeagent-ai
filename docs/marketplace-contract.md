@@ -31,12 +31,11 @@ The generated `docs/capabilities.json` records, for each shipped skill:
   input/output schemas, method, fixed provider route and approval parameter.
 - Linked evidence documents and supported transport artifacts. Current workflows
   return provider JSON and explanations; receipt inputs are host file references.
-  No shipped hosted skill advertises remotely delivered PDF output.
-- `docs/unsupported-capabilities.json` explicitly marks document delivery unavailable.
-  The local/server documents prototype is excluded from hosted skills and discovery;
-  the operation gate rejects PDF tools rather than treating embedded blobs as usable
-  artifacts. Re-enablement needs documented host file output and installed web/mobile
-  evidence without a client interpreter.
+  Document output uses registered MCP Apps UI -> same-account HTTPS PDF attachment.
+- `docs/unsupported-capabilities.json` records outstanding installed-client verification for document delivery.
+  The embedded-blob prototype is rejected by the operation gate. The reviewed document
+  UI/HTTPS source contract is distinct from actual installed web/mobile acceptance;
+  the latter remains explicitly pending before claiming delivery.
 
 Validation rejects missing entry points, unknown tools, API-executor instructions,
 required client runtimes, executable package helpers, removed engine sources,
@@ -46,8 +45,8 @@ CI-runner Python and provider report fields are not custom accounting features.
 Canonical skill identifiers retained for compatibility do not authorize analytics.
 
 All workflows use named provider operations. User files remain untrusted evidence;
-file inputs use the bounded hosted downloader. A base64 blob, signed URL or server
-filesystem path is not a supported user-facing document delivery mechanism.
+file inputs use the bounded hosted downloader. A base64 blob, bearer-only signed URL or server
+filesystem path alone is not a supported user-facing document delivery mechanism.
 Introducing file output requires a reviewed artifact contract and actual client
 transport verification; metadata alone does not create an output capability.
 

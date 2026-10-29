@@ -21,6 +21,7 @@ from pydantic import Field, SerializeAsAny
 from . import mcp_server as local
 from .api_mechanics import provider_error
 from .client import request_client
+from .document_delivery import UI_URI, DownloadOffer, prepare
 from .hosted_accounts import AccessDenied
 from .hosted_client import HostedClient, principal_context
 from .hosted_deadline import deadline_context
@@ -386,6 +387,32 @@ def make_registry(*, experimental_pdf=False):
                 + root.replace("_", " ")
                 + ". Returns an embedded MCP application/pdf resource and metadata, not a public download URL. Requires a host that supports embedded PDF resources; otherwise report delivery unavailable. No sending or status changes.",
             )
+    if not experimental_pdf:
+        for endpoint, root in (("invoices", "invoice"), ("estimates", "estimate"), ("credit_notes", "credit_note")):
+            add(
+                "get_" + root + "_pdf",
+                "GET",
+                endpoint + "/{id}/pdf",
+                "document_download",
+                object_schema({"id": id_schema}, ["id"]),
+                object_schema(
+                    {
+                        "source": {"type": "string"},
+                        "file_name": {"type": "string"},
+                        "mime_type": {"type": "string"},
+                        "size_bytes": {"type": "integer"},
+                        "collected_at": {"type": "string"},
+                        "expires_in_seconds": {"type": "integer"},
+                    },
+                    ["source", "file_name", "mime_type", "size_bytes", "collected_at", "expires_in_seconds"],
+                ),
+                "Prepare the selected " + root.replace("_", " ") + " PDF for secure browser download. "
+                "The registered document UI opens a first-party HTTPS download page. Browser sign-in must match "
+                "the original linked account. The two-minute offer is single use; no PDF bytes or grant appear "
+                "in model-visible output. No email or status changes. Host openExternal support is required; "
+                "report unavailable if absent. Installed web/mobile behavior is verified separately.",
+                meta={"ui": {"resourceUri": UI_URI}, "openai/outputTemplate": UI_URI},
+            )
     # The versioned provider collection separates attachment changes from explanations.
     # One file per write keeps the existing bounded invocation-only upload contract.
     attachment_output = object_schema(
@@ -744,11 +771,15 @@ class Dispatcher:
         client = self.client_factory(self.accounts, binding, deadline_context.get(), self.client_id, self.client_secret)
         token = request_client.set(client)
         try:
-            result = self._run(operation, dict(arguments), client)
+            if operation.root == "document_download":
+                result = prepare(self.accounts, binding, client, operation.endpoint.split("/")[0], arguments["id"])
+            else:
+                result = self._run(operation, dict(arguments), client)
             if isinstance(result, PdfDocument):
                 self.accounts.check(binding)  # Do not release bytes after concurrent disconnect/relink.
             jsonschema.validate(
-                result.metadata if isinstance(result, PdfDocument) else result, operation.descriptor.output_schema
+                result.metadata if isinstance(result, (PdfDocument, DownloadOffer)) else result,
+                operation.descriptor.output_schema,
             )
             return result
         except Exception:
@@ -995,7 +1026,7 @@ class Dispatcher:
     def call_tool(self, name, arguments):
         try:
             data = self.invoke(name, arguments)
-            if isinstance(data, PdfDocument):
+            if isinstance(data, (PdfDocument, DownloadOffer)):
                 return data.tool_result()
             return CallToolResult(content=[TextContent(type="text", text=json.dumps(data))], structured_content=data)
         except UnverifiedWrite as error:
@@ -1017,7 +1048,7 @@ class Dispatcher:
             # Attachment/payroll errors may echo signed URLs, bytes or employee data.
             message = (
                 f"FreeAgent HTTP {error.code}"
-                if name in REGISTRY and REGISTRY[name].root in {"attachments", "pdf", "payroll"}
+                if name in REGISTRY and REGISTRY[name].root in {"attachments", "pdf", "payroll", "document_download"}
                 else provider_error(error)
             )
             message += "; inspect the original account before retrying a write"

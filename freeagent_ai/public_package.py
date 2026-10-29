@@ -217,6 +217,10 @@ def validate_files(files, *, root=None):
 
 def build(root, output, *, draft=False, metadata=None):
     if not draft:
+        if UNSUPPORTED_CAPABILITIES.get("documents", {}).get("status") == "awaiting_installed_client_verification":
+            raise ValueError(
+                "Installed web/mobile document delivery acceptance pending; build a draft/operator candidate only"
+            )
         if not metadata or not metadata.get("mcp_client_id"):
             raise ValueError("Create Auth0 and supply public MCP client ID before a release build")
         gates = [

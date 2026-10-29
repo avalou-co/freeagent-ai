@@ -223,7 +223,7 @@ errors and inspect uncertain writes before any retry.
 
 ## Document PDFs
 
-Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Experimental local PDF reads verify record identity and emit bounded embedded MCP resources, keeping bytes out of text/structured metadata and errors. Hosted discovery and packages exclude PDF delivery until supported interpreter-free web/mobile output is verified. See [document transport](documents.md) for limits and client verification gates.
+Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Hosted named reads verify record identity and PDF bounds, then emit public metadata plus a private one-use offer to the registered download UI. The same-account browser route produces a native HTTPS attachment. Legacy local embedded resources remain diagnostics only; installed web/mobile delivery acceptance remains separate. See [document transport](documents.md) for limits and client verification gates.
 
 ## Payroll reads
 

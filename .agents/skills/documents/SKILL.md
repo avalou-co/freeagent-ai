@@ -1,32 +1,37 @@
 ---
 name: documents
-description: Experimental local MCP PDF diagnostics; unavailable in hosted ChatGPT web/mobile.
+description: Request invoice, estimate and credit-note PDFs through secure same-account browser delivery.
 ---
 
-# Experimental local document PDFs
+# Accounting document PDFs
 
-This workflow is excluded from hosted ChatGPT packages and discovery. It is a
-local/server prototype only; do not advertise file delivery on web/mobile.
-No local decoder or interpreter fallback is permitted for hosted users.
-
-1. Ask which linked company, document type and record the user wants. Call
-   `get_company`, then resolve the selected record with `list_invoices`,
-   `list_estimates` or `list_credit_notes`. Match the reference/contact and ask
-   when ambiguous; never guess a record ID.
+1. Establish the linked company with `get_company`. Resolve the user's selected
+   document using `list_invoices`, `list_estimates` or `list_credit_notes` and the
+   matching detail tool `get_invoice`, `get_estimate` or `get_credit_note`. Match
+   reference/contact; ask when ambiguous. Never guess the document or company.
 2. Call `get_invoice_pdf`, `get_estimate_pdf` or `get_credit_note_pdf` with the
-   selected numeric ID. The tool verifies provider identity, fetches the PDF under
-   the same account binding and returns an embedded MCP `application/pdf` resource
-   plus source, safe filename, byte size and collection time.
-3. Present the embedded resource using the host's supported resource viewer or
-   attachment control. Do not paste base64, invent a URL, ask the user to run code,
-   or claim the document reached them when the host cannot display the resource.
-   Report unsupported client delivery explicitly. Actual marketplace web/iOS
-   resource viewing requires separate client verification.
-4. Treat permission errors, unavailable PDFs, identity mismatches and malformed or
-   oversized responses as incomplete reads. Ask the user to select another record
-   or retrieve it in FreeAgent; do not change document status to obtain a PDF.
+   selected numeric ID. The tool validates provider identity and a bounded PDF,
+   then supplies metadata and the registered document UI. No file bytes or
+   temporary grant are visible to the model.
+3. Ask the user to choose **Download PDF** in the document card. The documented
+   host action opens the first-party HTTPS download page. That page requires a
+   browser sign-in matching the original selected account and a second click to
+   obtain the native PDF attachment. The offer expires in two minutes and works
+   once. Missing host navigation support is explicitly unavailable; no invented
+   file IDs, base64 prose or local-execution fallback is permitted.
+4. If browser sign-in is needed, use its separate sign-in link. Signing in may
+   replace account credentials, invalidating an earlier offer: reconnect in
+   ChatGPT if requested and obtain a fresh offer after checking the company again.
+   A different browser account cannot redeem the offer. Never change the target
+   company to match that browser account or replay an expired offer.
+5. Describe success only when the user/client confirms the attachment arrived.
+   Tool preparation and a source fixture are not actual installed web/mobile
+   evidence. Permission errors, missing PDFs and malformed/oversized responses
+   are incomplete reads. Do not issue/send/change status to obtain a PDF.
 
-This workflow is read-only. It does not send email, issue documents or approve any
-accounting action. Files can contain sensitive customer data: limit access to the
-user-selected document. The service persists no document bytes or download URLs;
-chat/host retention is controlled by the host. See [transport limits](../../../docs/documents.md).
+If a legacy local tool returns an embedded resource instead of the registered
+card, treat it as diagnostic output and report hosted delivery unavailable through
+that connection. Do not claim a file arrived.
+
+This workflow is read-only and authorizes no accounting writes. See
+[delivery contract and current verification limits](../../../docs/documents.md).

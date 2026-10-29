@@ -16,11 +16,11 @@ from .public_tools import CORRECTIONS, CREATES, REGISTRY, RESOURCES, TAX_RETURNS
 # Explicit reviewed entry points, plus every operation referenced by the actual
 # workflow (not the full registry appendix). This is a product contract, not a
 # parallel task/status tracker. New skills must declare their executable path.
-HOSTED_EXCLUDED_SKILLS = frozenset({"documents"})
+HOSTED_EXCLUDED_SKILLS = frozenset()
 UNSUPPORTED_CAPABILITIES = {
     "documents": {
-        "status": "unavailable",
-        "reason": "No verified interpreter-free ChatGPT web/mobile PDF delivery contract",
+        "status": "awaiting_installed_client_verification",
+        "reason": "Registered MCP Apps UI and authenticated HTTPS attachment source implemented; deployed web/mobile delivery not yet observed",
         "required_evidence": ["documented host file output", "installed web delivery", "installed mobile delivery"],
     }
 }
@@ -30,6 +30,7 @@ SKILLS = {
     "cash-flow": ("list_bank_accounts", "list_invoices", "list_bills"),
     "clients": ("list_contacts", "create_contact", "create_project", "create_task"),
     "credit-notes": ("create_draft_credit_note", "issue_credit_note", "create_credit_note_reconciliation"),
+    "documents": ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"),
     "estimates": ("list_estimates", "create_draft_estimate"),
     "expenses": ("list_expenses", "create_expense_from_payload"),
     "invoice-status": ("list_invoices", "get_invoice"),
@@ -142,6 +143,7 @@ def validate_operations():
     """
     routes = {("GET", endpoint) for endpoint in RESOURCES}
     routes.update(("GET", endpoint + "/{id}") for endpoint in RESOURCES)
+    routes.update(("GET", endpoint + "/{id}/pdf") for endpoint in ("invoices", "estimates", "credit_notes"))
     routes.update(("GET", endpoint) for endpoint in TAX_RETURNS)
     routes.update(("GET", endpoint + "/{period_ends_on}") for endpoint in TAX_RETURNS)
     routes.update(
@@ -184,6 +186,11 @@ def validate_operations():
             or (create and op.root != CREATES[op.helper])
         ):
             raise ValueError(f"Non-provider operation in hosted inventory: {name}")
+        if op.root == "document_download":
+            from .document_delivery import UI_URI
+
+            if (op.descriptor.meta or {}).get("ui", {}).get("resourceUri") != UI_URI:
+                raise ValueError("Document delivery requires registered UI transport")
         if op.method != "GET":
             schema = op.descriptor.input_schema
             if (
@@ -229,7 +236,15 @@ def validate_workflow(path, text):
             raise ValueError(f"Required client runtime in workflow: {path}")
         if affirmative_match(ACCOUNTING_INSTRUCTION, clause):
             raise ValueError(f"Custom accounting instruction in workflow: {path}")
-        if affirmative_match(FILE_OUTPUT, clause) or affirmative_match(LOCAL_PATH, clause):
+        document_output = (
+            path == "skills/documents/SKILL.md"
+            and {"get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"} <= tool_names(body)
+            and all(
+                REGISTRY[name].root == "document_download"
+                for name in ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf")
+            )
+        )
+        if (affirmative_match(FILE_OUTPUT, clause) and not document_output) or affirmative_match(LOCAL_PATH, clause):
             raise ValueError(f"Unsupported file-output or local-path promise: {path}")
     return tool_names(body)
 
@@ -267,7 +282,9 @@ def coverage(files):
                     "input_schema": op.descriptor.input_schema,
                     "output_schema": op.descriptor.output_schema,
                     "approval_parameter": "confirmed" if op.method != "GET" else None,
-                    "result": "provider JSON with source references; errors are explicit",
+                    "result": "provider metadata plus registered UI with private one-use download offer"
+                    if op.root == "document_download"
+                    else "provider JSON with source references; errors are explicit",
                 }
             )
         result[skill] = {
@@ -276,7 +293,9 @@ def coverage(files):
             "operations": operations,
             "linked_evidence": sorted(LINK.findall(workflow(text))),
             "input_artifacts": artifacts,
-            "output_artifacts": ["provider JSON / assistant explanation"],
+            "output_artifacts": ["registered MCP Apps UI -> same-account HTTPS application/pdf attachment"]
+            if any(REGISTRY[name].root == "document_download" for name in names)
+            else ["provider JSON / assistant explanation"],
             "verification_limits": "Static contract and synthetic HTTP fixtures do not prove assistant decisions or live web/iOS installation.",
         }
     return result

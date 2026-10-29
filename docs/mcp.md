@@ -235,21 +235,10 @@ This is server collection metadata, not provider financial data or an atomic
 snapshot. Existing fields, filters, pagination, authorization and errors remain
 unchanged. See [month-end evidence limits](month-end.md).
 
-## Document PDF resources
+## Document PDF delivery
 
-Hosted discovery excludes `get_invoice_pdf`, `get_estimate_pdf` and
-`get_credit_note_pdf`; both marketplace builders omit the documents workflow.
-The embedded MCP resource implementation remains a local/server prototype, not a
-verified ChatGPT file output. The gate rejects PDF tools and records this feature
-as unavailable until a documented interpreter-free host output contract and
-installed web/mobile evidence exist. [Status and prototype limits](documents.md).
-
-## Hosted payroll audit
-
-`list_payroll_periods` and `get_payroll_period` perform only the two documented
-fixed GET reads in the [payroll API](https://dev.freeagent.com/docs/payroll).
-Annual reads preserve both period/payment collections; period reads discard
-employee payslips before returning metadata. Both provide source and collection
-time, use linked-company read authorization, and fail incomplete collection
-shapes. No employee, filing, execution or payment/status mutation is exposed.
-See [payroll evidence](payroll.md) for provider permissions and evidence limits.
+Named PDF reads return metadata and a registered MCP Apps document UI. A private,
+short-lived offer opens the first-party receiver through documented host navigation;
+redemption requires the original account's authenticated browser session. The
+response is a real HTTPS PDF attachment. Hosted tools never return prototype blobs
+as supported client delivery. See [document contract and verification gates](documents.md).

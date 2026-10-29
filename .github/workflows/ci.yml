@@ -52,8 +52,19 @@ jobs:
       - run: pip install -e ".[hosted,dev]"
       - run: pytest
 
+  document-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[hosted,dev,browser]"
+      - run: python -m playwright install --with-deps chromium
+      - run: pytest tests/test_document_browser.py
+
   deploy-landing:
-    needs: [auth0-action, lint, test]
+    needs: [auth0-action, lint, test, document-browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production

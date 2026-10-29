@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Accounting document</title>
+<body><main><p id="status">Preparing your document…</p><button id="download" hidden>Download PDF</button></main>
+<script>
+(()=>{
+  const status=document.getElementById("status"), button=document.getElementById("download");
+  let downloadUrl=null, rpcId=0;
+  function receive(result){
+    downloadUrl=null; button.hidden=true;
+    const metadata=result?._meta?.document_download;
+    if(result?.isError || !metadata?.url){status.textContent="Document unavailable. Request a new PDF in ChatGPT.";return;}
+    try{
+      const url=new URL(metadata.url);
+      if(url.origin!=="https://freeagent-ai.avalou.co" || url.pathname!=="/documents" || url.search || !/^#[A-Za-z0-9_-]{43}$/.test(url.hash)) throw Error();
+      if(typeof window.openai?.openExternal!=="function"){status.textContent="This host cannot open the secure document download. Open FreeAgent to retrieve the PDF.";return;}
+      downloadUrl=url.href; status.textContent="Open the secure download page. Sign in with the same FreeAgent account if needed. This offer expires in two minutes."; button.hidden=false;
+    }catch{status.textContent="Invalid document offer. Request a new PDF in ChatGPT.";}
+  }
+  button.addEventListener("click",async()=>{
+    if(!downloadUrl)return;
+    try{await window.openai.openExternal({href:downloadUrl,redirectUrl:false});}
+    catch{status.textContent="Unable to open the secure download. Request a new PDF in ChatGPT.";}
+  });
+  window.addEventListener("message",event=>{
+    if(event.source!==window.parent || event.data?.jsonrpc!=="2.0")return;
+    const message=event.data;
+    if(message.method==="ui/notifications/tool-result")receive(message.params);
+    if(message.id===1 && !message.error)window.parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}},"*");
+  });
+  window.parent.postMessage({jsonrpc:"2.0",id:++rpcId,method:"ui/initialize",params:{appInfo:{name:"freeagent-document-download",version:"1.0.0"},appCapabilities:{},protocolVersion:"2026-01-26"}},"*");
+  // Compatibility initialization may precede the shared notification.
+  const initial=window.openai?.toolResponseMetadata;
+  if(initial)receive(initial.mcp_tool_result || initial.call_tool_result || initial);
+})();
+</script></body></html>

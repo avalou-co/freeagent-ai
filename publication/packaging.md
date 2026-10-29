@@ -51,3 +51,5 @@ it dispatches the deployment workflow without repository contents write or cloud
 apply permissions. Never put private destinations or credentials in this public
 repository. A successful image build alone is not deployment success; inspect the
 private apply and running-revision verification.
+
+Document UI/HTTPS source integration is available in draft/operator candidates, which remain review artifacts. Installed web/mobile delivery acceptance is explicitly pending. The release builder refuses submission-approved output while that reviewed capability status is pending; an environment variable or evidence boolean cannot bypass it. Change that status only in a separately reviewed source change after recording actual installed-client attachment evidence for issue #72.

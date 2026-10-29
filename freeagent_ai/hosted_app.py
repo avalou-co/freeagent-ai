@@ -8,17 +8,20 @@ import os
 import secrets
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from urllib.parse import urlencode
 
 import anyio
 from mcp.server.lowlevel.server import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ListResourcesResult, ReadResourceResult, Resource, TextResourceContents
 from starlette.applications import Starlette
-from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from .document_delivery import UI_URI, redeem
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
 from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import HostedClient, principal_context, request_json
@@ -47,6 +50,8 @@ class SecurityHeaders:
             if message["type"] == "http.response.start":
                 marketing = scope.get("path") == "/" or scope.get("path", "").startswith("/landing-assets/")
                 csp = "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+                if scope.get("path") == "/documents" or scope.get("path", "").startswith("/document-assets/"):
+                    csp += "; script-src 'self'"
                 if marketing:
                     csp += "; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self'"
                 cache = "no-store"
@@ -56,7 +61,7 @@ class SecurityHeaders:
                     [
                         (b"cache-control", cache.encode()),
                         (b"x-content-type-options", b"nosniff"),
-                        (b"referrer-policy", b"no-referrer"),
+                        (b"referrer-policy", b"same-origin" if scope.get("path") == "/documents" else b"no-referrer"),
                         (
                             b"content-security-policy",
                             csp.encode(),
@@ -180,11 +185,46 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     async def invoke(context, params):
         return await anyio.to_thread.run_sync(dispatcher.call_tool, params.name, params.arguments or {})
 
+    document_root = Path(__file__).with_name("document_ui")
+
+    async def list_resources(context, params):
+        return ListResourcesResult(
+            resources=[Resource(uri=UI_URI, name="Accounting document download", mime_type="text/html;profile=mcp-app")]
+        )
+
+    async def read_resource(context, params):
+        if str(params.uri) != UI_URI:
+            raise ValueError("Resource unavailable")
+        return ReadResourceResult(
+            contents=[
+                TextResourceContents(
+                    uri=UI_URI,
+                    mime_type="text/html;profile=mcp-app",
+                    text=(document_root / "widget.html").read_text(),
+                    _meta={
+                        "ui": {
+                            "domain": ORIGIN,
+                            "csp": {"connectDomains": [], "resourceDomains": []},
+                            "prefersBorder": True,
+                        },
+                        "openai/widgetCSP": {
+                            "connect_domains": [],
+                            "resource_domains": [],
+                            "redirect_domains": [ORIGIN],
+                        },
+                        "openai/widgetDescription": "Secure accounting PDF download. Opens an authenticated first-party page; document offers expire after two minutes.",
+                    },
+                )
+            ]
+        )
+
     server = Server(
         "freeagent-ai",
         version="0.4.0",
         on_list_tools=tools,
         on_call_tool=invoke,
+        on_list_resources=list_resources,
+        on_read_resource=read_resource,
         get_tool_input_schema=lambda name: REGISTRY[name].descriptor.input_schema if name in REGISTRY else None,
         instructions="Use the packaged FreeAgent workflows. Ask for business inputs; never guess. Show each write plan and obtain approval, then verify readback. Correct only entries created in this user request. Connect or reconnect through ChatGPT to authorize your FreeAgent account. ChatGPT stays connected for up to 30 days with automatic token renewal.",
     )
@@ -219,6 +259,53 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         if record.get("kind") != "session" or record.get("expires", 0) <= time.time() or not record.get("subject"):
             raise AccessDenied("Sign in to manage your FreeAgent connection")
         return token, record
+
+    async def documents(request):
+        return HTMLResponse((document_root / "receiver.html").read_text())
+
+    async def document_download(request):
+        if request.headers.get("origin") != ORIGIN:
+            raise AccessDenied("Document download origin mismatch")
+        # Only a short urlencoded form is accepted. Never parse file uploads or
+        # echo a body/token in an exception. Enforce while reading, not afterwards.
+        if request.headers.get("content-type", "").split(";", 1)[0] != "application/x-www-form-urlencoded":
+            raise AccessDenied("Invalid document download request")
+        from urllib.parse import parse_qs
+
+        body = bytearray()
+        async for part in request.stream():
+            if len(body) + len(part) > 128:
+                raise AccessDenied("Invalid document download request")
+            body.extend(part)
+        try:
+            form = parse_qs(body.decode("ascii"), strict_parsing=True, max_num_fields=1)
+        except (ValueError, UnicodeError):
+            raise AccessDenied("Invalid document download request") from None
+        if set(form) != {"grant"} or len(form["grant"]) != 1:
+            raise AccessDenied("Invalid document download request")
+        _, record = await anyio.to_thread.run_sync(session, request)
+
+        def fetch():
+            def client(binding):
+                config = settings.upstream(binding.environment)
+                return dispatcher.client_factory(
+                    accounts,
+                    binding,
+                    deadline_context.get(),
+                    config.freeagent_client_id,
+                    config.freeagent_client_secret,
+                )
+
+            return redeem(accounts, record, form["grant"][0], client)
+
+        document = await anyio.to_thread.run_sync(fetch)
+        return Response(
+            document.data,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": 'attachment; filename="' + document.metadata["file_name"] + '"',
+            },
+        )
 
     async def home(request):
         if landing_html is not None:
@@ -403,6 +490,9 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         Mount(ASSET_PREFIX.rstrip("/"), app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),
+        Route("/documents", documents),
+        Route("/documents/download", document_download, methods=["POST"]),
+        Mount("/document-assets", app=StaticFiles(directory=document_root)),
         Route("/login", login),
         Route("/reviewer/login", login),
         Route("/auth/callback", auth_callback),
