@@ -753,3 +753,15 @@ def test_receipt_expense_approval_currency_and_readback(accounts, confirmed, hos
             with pytest.raises(AccessDenied):
                 dispatcher.invoke("create_expense", args)
             assert calls == []
+
+
+def test_versioned_assets_cache_without_caching_private_routes(accounts):
+    from freeagent_ai.landing import ASSET_PREFIX
+
+    with TestClient(create_app(settings(), accounts, SimpleNamespace()), base_url=ORIGIN) as client:
+        for asset in ("site.css", "site.js", "fonts/hanken-grotesk-latin.woff2", "social-card-v1.png"):
+            response = client.get(ASSET_PREFIX + asset)
+            assert response.status_code == 200
+            assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
+        for path in (ASSET_PREFIX + "missing.css", "/landing-assets/site.css", "/account", "/mcp"):
+            assert client.get(path, follow_redirects=False).headers["cache-control"] == "no-store"

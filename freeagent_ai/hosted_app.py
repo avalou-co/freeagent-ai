@@ -25,8 +25,8 @@ from .hosted_client import HostedClient, principal_context, request_json
 from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
 from .hosted_oauth import exchange_identity, freeagent_base
+from .landing import ASSET_PREFIX, SITE_NOTICES
 from .landing import ROOT as LANDING_ROOT
-from .landing import SITE_NOTICES
 from .landing import render as render_landing
 from .landing import validate_config as validate_landing_config
 from .public_tools import REGISTRY, Dispatcher, PublicToolsResult
@@ -49,9 +49,12 @@ class SecurityHeaders:
                 csp = "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
                 if marketing:
                     csp += "; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self'"
+                cache = "no-store"
+                if scope.get("path", "").startswith(ASSET_PREFIX) and message["status"] in (200, 304):
+                    cache = "public, max-age=31536000, immutable"
                 message.setdefault("headers", []).extend(
                     [
-                        (b"cache-control", b"no-store"),
+                        (b"cache-control", cache.encode()),
                         (b"x-content-type-options", b"nosniff"),
                         (b"referrer-policy", b"no-referrer"),
                         (
@@ -397,6 +400,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     routes = [
         *connect.routes(),
         Route("/", home),
+        Mount(ASSET_PREFIX.rstrip("/"), app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),
         Route("/login", login),
