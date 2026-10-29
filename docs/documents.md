@@ -44,9 +44,15 @@ not enter HTTP request URLs, access logs or referrers. No token enters model tex
 structuredContent, state cookies, analytics or local/session storage. The POST
 requires exact same-origin Origin, a valid existing HttpOnly browser session and
 the same original subject/company/environment/generation. A different signed-in
-browser account is refused, never substituted. A missing browser login requires a
-separate sign-in; reauthorization/relinking can invalidate the offer, in which
-case the user must obtain a fresh one from ChatGPT.
+browser account is refused, never substituted. The normal ChatGPT account-link transaction issues a new opaque pending browser
+cookie after verifying the upstream user/company. It is not a session until the
+same one-use confidential completion commits the account and activates that exact
+pending record with the actual generation. Incomplete, failed, stale or replayed
+transactions never authenticate it. Only server-recognized outer management-login
+markers are restored; arbitrary or old account cookies are never activated or
+silently reused. This gives the browser and MCP token the same original generation
+without a separate login/rotation cycle. A different browser or expired cookie
+may still require sign-in and a fresh offer after the selected company is checked.
 
 After authorization, atomic consumption permits one redemption. The route fetches
 a fresh bounded PDF using the original binding/deadline and checks that binding

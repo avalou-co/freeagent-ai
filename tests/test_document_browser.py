@@ -12,7 +12,7 @@ from test_document_delivery import PDF
 from freeagent_ai.document_delivery import UI_URI
 from freeagent_ai.hosted_auth import ORIGIN
 
-pytest_plugins = ("test_document_delivery",)
+pytest_plugins = ("test_document_delivery", "test_document_connect")
 
 sync_api = pytest.importorskip("playwright.sync_api")
 
@@ -83,7 +83,8 @@ def mount(browser_context, d, *, account="alice", host_supported=True):
     return page, urls
 
 
-def test_registered_widget_native_download_without_client_interpreter(delivery, browser_context, tmp_path):
+def test_registered_widget_native_download_without_client_interpreter(connected_delivery, browser_context, tmp_path):
+    delivery = connected_delivery
     page, urls = mount(browser_context, delivery)
     with browser_context.expect_page() as popup:
         page.get_by_role("button", name="Download PDF").click()

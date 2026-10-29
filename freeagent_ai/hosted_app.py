@@ -352,7 +352,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
             # permitted sandbox account before any data access is granted.
             sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("reviewer_entry", {}))
         else:
-            sid = secrets.token_urlsafe(32)
+            sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("login_browser", {}))
         nonce, code_verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         state = await anyio.to_thread.run_sync(
             lambda: accounts.new_state("auth0", {"session": sid, "nonce": nonce, "verifier": code_verifier})
