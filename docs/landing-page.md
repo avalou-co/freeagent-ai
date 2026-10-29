@@ -240,3 +240,9 @@ instructions and support. Each page has a unique title, description, canonical U
 and H1. The static export includes all seven in the sitemap; the hosted app serves
 the same pages. Firebase serves them with the reading-page CSP and revalidating
 HTML cache policy. The publisher permits only the known workflow HTML paths.
+
+Publication CI installs the package and invokes the exporter and publisher as
+modules (`python -m freeagent_ai.landing` and `python -m scripts.publish_landing`).
+The PR lint job smoke-checks these entrypoints before the deployment job can run.
+Running the exporter source file directly is unsupported because it imports the
+shared workflow renderer through the package.
