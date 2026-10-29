@@ -50,6 +50,43 @@
     />
     <link rel="stylesheet" href="/landing-assets/site.css?v=3" />
     <script src="/landing-assets/site.js?v=2" defer></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://avalou.co/#organization",
+            "name": "Avalou",
+            "url": "https://avalou.co"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://freeagent-ai.avalou.co/#website",
+            "name": "FreeAgent AI",
+            "url": "https://freeagent-ai.avalou.co/",
+            "inLanguage": "en-GB",
+            "publisher": {
+              "@id": "https://avalou.co/#organization"
+            },
+            "about": {
+              "@id": "https://freeagent-ai.avalou.co/#software"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://freeagent-ai.avalou.co/#software",
+            "name": "FreeAgent AI",
+            "url": "https://freeagent-ai.avalou.co/",
+            "description": "FreeAgent AI is a connector for using ChatGPT or Claude with your UK FreeAgent account. Log time, draft invoices and check who owes you.",
+            "applicationCategory": "BusinessApplication",
+            "publisher": {
+              "@id": "https://avalou.co/#organization"
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
