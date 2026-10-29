@@ -464,7 +464,7 @@ def test_app_selects_refresh_client_from_binding_not_default_config(sandbox_flow
 def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow, monkeypatch):
     from types import SimpleNamespace
 
-    from freeagent_ai.hosted_auth import PRIMARY_AUTH_CLAIM
+    from freeagent_ai.hosted_auth import GENERATION_CLAIM, PRIMARY_AUTH_CLAIM
 
     _, accounts, config, _ = sandbox_flow
     claims = {}
@@ -510,7 +510,7 @@ def test_reviewer_web_login_hands_authenticated_session_to_chatgpt(sandbox_flow,
         claims.update(
             sub="oauth2|freeagent|" + info["user_id"],
             nonce=outer["nonce"][0],
-            **{PRIMARY_AUTH_CLAIM: linked.json()["authenticated_at"]},
+            **{PRIMARY_AUTH_CLAIM: linked.json()["authenticated_at"], GENERATION_CLAIM: linked.json()["generation"]},
         )
         response = client.get("/auth/callback", params={"state": outer["state"][0], "code": "synthetic-auth0-code"})
         assert response.headers["location"] == "/account"

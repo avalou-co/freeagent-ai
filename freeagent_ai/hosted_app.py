@@ -23,7 +23,7 @@ from starlette.staticfiles import StaticFiles
 
 from .document_delivery import UI_URI, redeem
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
-from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
+from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier, connection_generation
 from .hosted_client import HostedClient, principal_context, request_json
 from .hosted_connect import FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
@@ -296,7 +296,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
                     config.freeagent_client_secret,
                 )
 
-            return redeem(accounts, record, form["grant"][0], client)
+            return redeem(accounts, record, form["grant"][0], client, connection_name=settings.connection_name)
 
         document = await anyio.to_thread.run_sync(fetch)
         return Response(
@@ -399,11 +399,11 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         claims = await anyio.to_thread.run_sync(verifier.claims, tokens["id_token"], settings.web_client_id)
         if claims.get("nonce") != state["nonce"]:
             raise AccessDenied("Callback nonce mismatch")
-        sid = await anyio.to_thread.run_sync(
-            lambda: accounts.new_state(
-                "session", {"subject": claims["sub"], "primary_auth_time": claims[PRIMARY_AUTH_CLAIM]}, ttl=3600
-            )
-        )
+        generation = connection_generation(claims, settings.connection_name)
+        session_values = {"subject": claims["sub"], "primary_auth_time": claims[PRIMARY_AUTH_CLAIM]}
+        if generation is not None:
+            session_values["connection_generation"] = generation
+        sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("session", session_values, ttl=3600))
         response = RedirectResponse("/account")
         response.set_cookie("__session", sid, secure=True, httponly=True, samesite="lax", max_age=3600)
         return response

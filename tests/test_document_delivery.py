@@ -40,17 +40,22 @@ PDF = synthetic_pdf()
 def delivery(accounts):
     now = [time.time()]
     accounts.clock = lambda: now[0]
-    auth_time = int(now[0]) + 1
+    # Real federated authentication precedes /connect/complete account replacement.
+    auth_time = int(now[0]) - 10
     cookies = {}
     for subject, company in (("alice", "1"), ("bob", "2")):
         accounts.replace(
-            subject,
+            "oauth2|freeagent|" + subject,
             BASE + "company/" + company,
             "production",
             {"access_token": subject, "expires_at": time.time() + 3600},
             0,
         )
-        cookies[subject] = accounts.new_state("session", {"subject": subject, "primary_auth_time": auth_time}, ttl=3600)
+        cookies[subject] = accounts.new_state(
+            "session",
+            {"subject": "oauth2|freeagent|" + subject, "primary_auth_time": auth_time, "connection_generation": 1},
+            ttl=3600,
+        )
     calls, mode = [], {}
 
     def transport(method, url, deadline, **kwargs):
@@ -58,7 +63,7 @@ def delivery(accounts):
         calls.append((subject, method, url))
         path = urlsplit(url).path.removeprefix("/v2/")
         if mode.get("disconnect"):
-            accounts.disconnect(subject, 1)
+            accounts.disconnect("oauth2|freeagent|" + subject, 1)
         if path.endswith("/pdf"):
             return {"pdf": {"content": mode.get("content", base64.encodebytes(PDF).decode())}}, {}
         root = {"invoices": "invoice", "estimates": "estimate", "credit_notes": "credit_note"}[path.split("/")[0]]
@@ -67,7 +72,9 @@ def delivery(accounts):
     dispatcher = Dispatcher(
         accounts, "id", "secret", client_factory=lambda *args: HostedClient(*args, transport=transport)
     )
-    verifier = SimpleNamespace(principal=lambda token: Principal(token, frozenset({"freeagent:read"}), auth_time))
+    verifier = SimpleNamespace(
+        principal=lambda token: Principal("oauth2|freeagent|" + token, frozenset({"freeagent:read"}), auth_time, 1)
+    )
     with TestClient(
         create_app(settings(), accounts, verifier, dispatcher), base_url=ORIGIN, raise_server_exceptions=False
     ) as client:
@@ -93,6 +100,7 @@ def delivery(accounts):
             offer=offer,
             download=download,
             cookies=cookies,
+            verifier=verifier,
             calls=calls,
             mode=mode,
             accounts=accounts,
@@ -148,9 +156,11 @@ def test_download_refusals_do_not_deliver_or_rebind(delivery, refusal):
     if refusal == "expired":
         d.now[0] += 121
     if refusal == "disconnected":
-        d.accounts.disconnect("alice", 1)
+        d.accounts.disconnect("oauth2|freeagent|alice", 1)
     if refusal == "relinked":
-        d.accounts.replace("alice", BASE + "company/99", "production", {"access_token": "replacement"}, 1)
+        d.accounts.replace(
+            "oauth2|freeagent|alice", BASE + "company/99", "production", {"access_token": "replacement"}, 1
+        )
     if refusal == "oversized":
         token = "x" * 1024
     if refusal == "malformed":
@@ -202,3 +212,71 @@ def test_concurrent_redemption_has_one_winner_and_no_duplicate_provider_fetch(de
         results = list(pool.map(lambda _: d.download(token).status_code, range(2)))
     assert sorted(results) == [200, 400]
     assert len(d.calls) - before == 2  # One record identity read and one PDF read.
+
+
+@pytest.mark.parametrize("generation", [1, None, 2, True, 0, "1"])
+def test_browser_callback_persists_signed_generation_and_uses_real_auth_order(delivery, monkeypatch, generation):
+    from urllib.parse import parse_qs
+
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from freeagent_ai.hosted_auth import GENERATION_CLAIM, PRIMARY_AUTH_CLAIM, Verifier
+
+    d = delivery
+    offer_token = urlsplit(d.offer()["_meta"]["document_download"]["url"]).fragment
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    verified = Verifier(
+        settings(), SimpleNamespace(get_signing_key_from_jwt=lambda _: SimpleNamespace(key=private.public_key()))
+    )
+    # /auth/callback exercises actual JWT signature/audience/issuer validation,
+    # not a fabricated session record or future primary authentication timestamp.
+    d.verifier.claims = verified.claims
+    response = d.client.get("/login", follow_redirects=False)
+    params = parse_qs(urlsplit(response.headers["location"]).query)
+    now = int(time.time())
+    claims = {
+        "iss": settings().issuer,
+        "aud": settings().web_client_id,
+        "sub": "oauth2|freeagent|alice",
+        "iat": now,
+        "exp": now + 600,
+        "nonce": params["nonce"][0],
+        PRIMARY_AUTH_CLAIM: now - 10,
+    }
+    if generation is not None:
+        claims[GENERATION_CLAIM] = generation
+    signed = jwt.encode(claims, private, algorithm="RS256")
+    monkeypatch.setattr("freeagent_ai.hosted_app.request_json", lambda *_args, **_kwargs: ({"id_token": signed}, {}))
+    callback = d.client.get(
+        "/auth/callback", params={"state": params["state"][0], "code": "synthetic-code"}, follow_redirects=False
+    )
+    if type(generation) is not int or generation < 1:
+        assert callback.status_code == 400
+        return
+    assert callback.status_code == 307
+    d.cookies["alice"] = d.client.cookies.get("__session")
+    session_record = d.accounts.store.get("web_state", key_for(d.cookies["alice"]))
+    assert session_record["connection_generation"] == generation
+    assert session_record["primary_auth_time"] == now - 10
+    link_record = d.accounts.store.get("account_links", key_for("oauth2|freeagent|alice"))
+    assert session_record["primary_auth_time"] <= link_record["revoked_before"]
+    before = len(d.calls)
+    result = d.download(offer_token)
+    if generation == 1:
+        assert result.status_code == 200 and result.content == PDF
+    else:
+        assert result.status_code == 400
+        assert len(d.calls) == before
+
+
+@pytest.mark.parametrize("generation", [None, 2, True])
+def test_federated_browser_session_missing_or_stale_generation_fails(delivery, generation):
+    d = delivery
+    token = urlsplit(d.offer()["_meta"]["document_download"]["url"]).fragment
+    d.accounts.store.mutate(
+        "web_state", key_for(d.cookies["alice"]), lambda record: {**record, "connection_generation": generation}
+    )
+    before = len(d.calls)
+    assert d.download(token).status_code == 400
+    assert len(d.calls) == before

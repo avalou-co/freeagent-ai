@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from mcp.types import CallToolResult, TextContent
 
 from .hosted_accounts import AccessDenied, Binding, Principal, key_for
-from .hosted_auth import ORIGIN
+from .hosted_auth import GENERATION_CLAIM, ORIGIN, connection_generation
 from .pdf_documents import fetch_pdf
 
 UI_URI = "ui://freeagent/document-download.html"
@@ -50,7 +50,7 @@ def prepare(accounts, binding, client, collection, record_id):
     return DownloadOffer({**document.metadata, "expires_in_seconds": GRANT_TTL}, token)
 
 
-def redeem(accounts, session_record, token, client_factory):
+def redeem(accounts, session_record, token, client_factory, *, connection_name="freeagent"):
     if not isinstance(token, str) or not TOKEN_PATTERN.fullmatch(token):
         raise AccessDenied("Document offer unavailable; request a new PDF in ChatGPT")
     grant = accounts.store.get("web_state", key_for(token))
@@ -72,8 +72,17 @@ def redeem(accounts, session_record, token, client_factory):
         grant["generation_authorized"],
     )
     accounts.check(binding)
+    browser_generation = connection_generation(
+        {"sub": session_record["subject"], GENERATION_CLAIM: session_record.get("connection_generation")},
+        connection_name,
+    )
     browser_binding = accounts.bind(
-        Principal(session_record["subject"], frozenset({"freeagent:read"}), session_record["primary_auth_time"])
+        Principal(
+            session_record["subject"],
+            frozenset({"freeagent:read"}),
+            session_record["primary_auth_time"],
+            browser_generation,
+        )
     )
     if (browser_binding.company, browser_binding.environment, browser_binding.generation) != (
         binding.company,
