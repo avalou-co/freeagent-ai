@@ -198,3 +198,17 @@ not publicly available yet and links “Contact us about access” to the config
 support page (`/support/` in the public static export). The support page provides
 the public email contact. Enabling either verified provider destination removes
 this fallback, leaving the available connection as the call to action.
+
+## Structured data
+
+The homepage includes a single JSON-LD graph linking Avalou (`Organization`),
+FreeAgent AI (`WebSite`) and the connector (`SoftwareApplication`) through stable
+`@id` values. The description reflects visible homepage content. Pricing, reviews,
+ratings and installation URLs require verified public evidence before inclusion.
+The JSON-LD script is an inert data block, not executable JavaScript; existing
+CSP restrictions remain in place.
+
+After deployment, inspect the public URL with Google's Rich Results Test and the
+Schema.org validator. Valid Schema.org entities do not by themselves establish
+Google software-app rich-result eligibility; do not invent offers or ratings to
+satisfy that separate feature's requirements.
