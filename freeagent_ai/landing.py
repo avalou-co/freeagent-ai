@@ -12,6 +12,8 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .workflow_pages import WORKFLOWS, render_workflow, workflow_links
+
 ROOT = Path(__file__).with_name("landing")
 
 
@@ -90,6 +92,7 @@ def render(config: dict[str, str]) -> str:
             f'<a href="{html.escape(config["support_url"], quote=True)}">Contact us about access</a>.</p>'
         )
     document = document.replace("{{provider_buttons}}", controls)
+    document = document.replace("{{workflow_links}}", workflow_links())
     for key in LINKS:
         document = document.replace("{{" + key + "}}", html.escape(config[key], quote=True))
     return document.replace("/landing-assets/", ASSET_PREFIX)
@@ -100,6 +103,10 @@ def build(output: Path, config: dict[str, str]) -> None:
     shutil.copytree(ROOT / "assets", output / "landing-assets", dirs_exist_ok=True)
     shutil.copytree(ROOT / "assets", output / "landing-assets" / ASSET_VERSION, dirs_exist_ok=True)
     (output / "index.html").write_text(render(config))
+    for slug in WORKFLOWS:
+        directory = output / "workflows" / slug
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "index.html").write_text(render_workflow(slug, ASSET_PREFIX))
 
 
 SITE_NOTICES = {
@@ -174,7 +181,10 @@ def build_static(output: Path) -> None:
         for path in ("/account", "/login", "/link", "/disconnect", "/auth/", "/freeagent/", "/mcp")
     )
     (output / "robots.txt").write_text(f"User-agent: *\nAllow: /\n{disallow}\nSitemap: {origin}/sitemap.xml\n")
-    urls = "".join(f"<url><loc>{origin}{path}</loc></url>" for path in ["/", *(f"/{slug}/" for slug in SITE_NOTICES)])
+    urls = "".join(
+        f"<url><loc>{origin}{path}</loc></url>"
+        for path in ["/", *(f"/{slug}/" for slug in SITE_NOTICES), *(f"/workflows/{slug}/" for slug in WORKFLOWS)]
+    )
     (output / "sitemap.xml").write_text(
         f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
     )

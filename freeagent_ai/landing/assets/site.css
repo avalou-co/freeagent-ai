@@ -1368,3 +1368,68 @@ h1 {
 .notice p {
   margin: 20px 0;
 }
+
+.workflow-guides {
+  margin: 0 0 48px;
+}
+.workflow-guides h3 {
+  font-family: Hanken, sans-serif;
+  font-size: 1rem;
+  margin-bottom: 16px;
+}
+.workflow-guide-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  padding: 0;
+  list-style: none;
+}
+.workflow-guide-links a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.workflow-guide {
+  line-height: 1.65;
+}
+.workflow-guide h1 {
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.workflow-guide h2 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  margin: 40px 0 12px;
+}
+.workflow-guide .guide-introduction {
+  font-size: 1.15rem;
+}
+.workflow-guide blockquote {
+  margin: 20px 0;
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.workflow-guide blockquote p {
+  margin: 0;
+}
+.guide-access,
+.guide-related {
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+}
+.guide-related .workflow-guide-links {
+  display: block;
+}
+.guide-related li {
+  margin: 12px 0;
+}
+.workflow-guide footer {
+  margin-top: 40px;
+}
+
+.workflow-guide p a,
+.workflow-guide nav[aria-label="Breadcrumb"] a,
+.workflow-guide footer a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}

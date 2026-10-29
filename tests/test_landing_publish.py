@@ -135,3 +135,18 @@ def test_asset_namespace_changes_when_asset_bytes_change(tmp_path, monkeypatch):
     assert landing.asset_version() == before
     (assets / "site.css").write_text("second")
     assert landing.asset_version() != before
+
+
+def test_publisher_accepts_known_workflow_pages_only(tmp_path):
+    from freeagent_ai.landing import build_static
+    from freeagent_ai.workflow_pages import WORKFLOWS
+
+    build_static(tmp_path)
+    files, _ = module.manifest(tmp_path)
+    for slug in WORKFLOWS:
+        assert f"/workflows/{slug}/index.html" in files
+    unknown = tmp_path / "workflows/unknown/index.html"
+    unknown.parent.mkdir()
+    unknown.write_text("Unreviewed page")
+    with pytest.raises(ValueError, match="Unexpected static export"):
+        module.manifest(tmp_path)
