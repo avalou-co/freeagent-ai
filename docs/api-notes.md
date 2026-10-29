@@ -93,7 +93,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
 - List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
 - Draft invoice creation can request provider `include_estimates` modes for open/approved project estimates; this is not an individual estimate-ID conversion or permission to issue/send. See [invoice contract](invoicing.md).
-- Verify after creating: status, line count, net = quantity x price.
+- Verify after creating: provider-returned status, lines, net, tax and gross against the approved inputs or explicitly sourced expectations; never recalculate accounting amounts.
 
 ## Bills
 
@@ -155,7 +155,7 @@ Read-only via `freeagent_get`.
 - `accounting/profit_and_loss/summary?from_date=&to_date=`
 - `accounting/balance_sheet?as_at_date=`
 - `accounting/trial_balance/summary?from_date=&to_date=`
-- `invoices?view=overdue`, `bills?view=overdue` (client aggregates linked pages; total per currency)
+- `invoices?view=overdue`, `bills?view=overdue` (the client aggregates linked pages while preserving provider amounts and currencies; do not derive local totals)
 - `bank_accounts` for balances (cash).
 
 ## Direct API writes
