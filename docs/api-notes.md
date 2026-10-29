@@ -16,6 +16,15 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Invoices
 
+- Named hosted `duplicate_invoice` uses the fixed provider duplicate endpoint and
+  reads the new Draft and original source. `mark_invoice_as_sent` and
+  `send_invoice_email` are separately approved current-request-only actions under
+  the [invoice policy](invoicing.md#approved-invoice-delivery-and-duplication-policy).
+  Sending requires explicit reviewed fields, disables expense-receipt inclusion,
+  and does not accept templates/extra attachments. API acceptance is not recipient
+  delivery. All action helpers read back and report uncertain outcomes without
+  replay; provider error bodies are withheld to protect email content.
+
 - Contract checked 2026-10-26: [provider invoice creation](https://dev.freeagent.com/docs/invoices).
   Named remote `create_draft_invoice_from_payload` accepts manual `invoice_items`,
   explicit `currency` and documented `include_timeslips`, `include_estimates` and

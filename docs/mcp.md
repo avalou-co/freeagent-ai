@@ -64,6 +64,15 @@ Hosted attachment descriptions distinguish metadata reads from add, update and
 remove operations. Ownership checks are agent responsibilities. The payload invoice
 helper sets Draft status and disables automatic emails; it accepts manual lines.
 
+Hosted `duplicate_invoice`, `mark_invoice_as_sent` and `send_invoice_email` call
+only their reviewed fixed provider endpoints and read affected invoices. All need
+write scope and exact confirmation. The agent enforces the narrow
+[invoice ownership/approval policy](invoicing.md#approved-invoice-delivery-and-duplication-policy).
+The email tool accepts explicit recipient/sender/subject/body/sender-copy fields,
+fixes expense-receipt inclusion off and accepts no templates or extra attachments.
+It returns API acceptance separately from unavailable recipient delivery evidence.
+No write retry, accounting state machine or ownership ledger is introduced.
+
 The hosted `list_categories` adapter combines FreeAgent's four documented category
 groups into its existing `categories` output. It preserves provider category fields
 and fails incomplete reads when a group is missing or malformed; it does not select

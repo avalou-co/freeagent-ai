@@ -11,9 +11,9 @@ that object and all manual line fields, explicit zero/empty values, currency and
 inclusion strings pass through. Its intentional convenience defaults overwrite
 `status` with Draft and the three automatic email flags with false. FreeAgent
 creates Draft invoices and owns field validation, accepted source eligibility,
-accounting calculations and duplicate billing prevention. No issuing/sending
-operation is added. Existing `create_draft_invoice` retains its original timeslip
-convenience behavior.
+accounting calculations and duplicate billing prevention. Delivery is a separate
+approval-controlled workflow below. Existing `create_draft_invoice` retains its
+original timeslip convenience behavior.
 
 Supported documented inclusion values:
 
@@ -52,19 +52,16 @@ handling. They do not prove provider accounting rules, sandbox source inclusion,
 actual assistant decisions or deployed marketplace-installed web/iOS behavior.
 Those live evidence gates remain separate; no financial writes are made by tests.
 
-## Proposed delivery policy — pending human acceptance
+## Approved invoice delivery and duplication policy
 
-This is the reviewable product-policy prerequisite for
-[#73](https://github.com/avalou-co/freeagent-ai/issues/73), not permission to send,
-duplicate or transition an invoice. Current draft-only/no-send and current-request
-ownership rules remain in force. No delivery, duplication or transition tool is
-added here. Human acceptance of the policy and separate implementation/review are
-required before enabling any of these actions. Generic local API access and an
-OAuth write scope do not override agent policy.
+The user authorized implementation of this narrow scope on 2026-10-29. This
+policy extends draft-only creation with separately approved named operations;
+it does not authorize a live write or email without the exact per-action approval.
+Generic local API access and OAuth write scope do not override agent policy.
 
 ### Provider mechanics considered
 
-Checked 2026-10-28 against the [provider invoice contract](https://dev.freeagent.com/docs/invoices):
+Checked 2026-10-29 against the [provider invoice contract](https://dev.freeagent.com/docs/invoices):
 
 - `POST invoices/:id/duplicate` returns a new Draft with today's date and the next
   global reference. Verify actual returned values; do not predict them.
@@ -80,7 +77,7 @@ Checked 2026-10-28 against the [provider invoice contract](https://dev.freeagent
   delivery confirmation. Do not assume an email-receipt, delivery log or preview
   endpoint exists.
 
-### Proposed first scope
+### Approved first scope
 
 Enable one selected invoice at a time: duplicate into a new Draft, mark a
 current-request-created Draft as sent, or explicitly email that created invoice.
@@ -90,15 +87,15 @@ outside this first scope. Do not pass arbitrary transition names through a tool.
 FreeAgent decides supported transitions and accounting validity; do not reproduce
 its state machine or calculate balances/tax locally.
 
-Duplication would be a narrow new exception allowing a selected existing invoice
-to be a read-only source for a separately approved new Draft. It would not grant
+Duplication is a narrow exception allowing a selected existing invoice
+to be a read-only source for a separately approved new Draft. It does not grant
 ownership of the source. Existing invoices remain ineligible for sending or status
-changes under this proposal: prepare review material and let the user act in
+changes under this policy: prepare review material and let the user act in
 FreeAgent instead. A duplicate's returned URL establishes its current-request
 creation only after verified readback. Creating a duplicate does not authorize
 sending it, changing the original, or duplicating again after an uncertain result.
 
-### Proposed review and approval sequence
+### Review and approval sequence
 
 1. Establish the active linked company and selected invoice using the existing
    named reads. Inspect complete contact/project/invoice evidence, prior drafts
@@ -109,39 +106,47 @@ sending it, changing the original, or duplicating again after an uncertain resul
    ownership; ask for missing business inputs rather than guessing.
 2. For duplication, preview the exact source, the new-Draft intent and provider
    date/reference behavior. Require explicit approval for this creation alone.
-   The future helper must read back the new Draft, original source and automatic
-   email flags. Stop before any delivery if flags are not verified off. Do not
+   Call `duplicate_invoice` only after that approval. It reads back the new Draft,
+   original source and automatic email flags. Stop before any delivery if flags
+   are not verified off. Do not
    promise duplication suppresses inherited settings without provider evidence.
 3. For a status transition, preview the exact owned invoice, current provider
    state and requested named transition. Explain that marking sent changes its
    accounting state and is distinct from emailing it. Verify automatic email
    settings are off before offering that operation, so an unreviewed template is
-   not triggered. Require explicit transition approval separate from draft approval;
-   read back status and settings before considering delivery. Do not infer from
-   documentation whether a particular account permits the transition.
+   not triggered. Require explicit transition approval separate from draft approval.
+   Call `mark_invoice_as_sent` once, then inspect the returned status and settings
+   before considering delivery. Do not infer from documentation whether a particular
+   account permits the transition.
 4. For email, preview the exact company and invoice, recipients, registered-user
    sender, subject, full message, sender-copy choice, rebilled receipt inclusion,
    every attachment's identity/type/size and all automatic-email settings. Confirm
    recipient spelling and resolve recipient/contact discrepancies with the user.
-   Do not invent addresses, CC/BCC fields, template wording or defaults. The first
-   implementation should use explicit reviewed email fields, no extra attachments
-   or rebilled receipts, and no unresolved template mode. Future attachment or
-   template support needs a separate bounded transport and content-review design.
-5. Where document retrieval from #72 is available, review the authenticated PDF
-   associated with the selected invoice before delivery. Treat unavailable PDF
-   rendering as a failed document-review prerequisite; direct the user to FreeAgent
-   for review instead. Never substitute a guessed local path or public download
-   URL. If the invoice, PDF, recipients or settings change after approval, refresh
-   the preview and obtain approval again.
+   Do not invent addresses, CC/BCC fields, template wording or defaults. The named
+   email operation accepts explicit reviewed `to`, `from`, `subject`,
+   `body` and `email_to_sender`; all are required, with no guessed defaults. It
+   fixes `attach_expense_receipts` to false, accepts no extra attachments and does
+   not use template mode. Requests needing templates or attachments remain
+   unsupported; ask the user to send those in FreeAgent. No recipient data or
+   message content is included in tool errors.
+5. Review the selected document through the available authenticated document
+   workflow. If its client route is unavailable, have the user review the exact
+   invoice in FreeAgent and confirm its identity/content before returning for
+   the separate send approval. Missing document review blocks delivery. Never
+   substitute a guessed local path or public download URL. If the invoice, PDF,
+   recipients or settings change after approval, refresh the preview and obtain
+   approval again.
 6. Obtain a clear approval to **send this exact email now**, separate from draft,
    duplicate and status approvals. A request to chase an invoice or approval of
    draft text is not sending approval. A refusal or missing approval means no call.
-   The future named remote tool must require write scope and `confirmed: true`;
+   Call `send_invoice_email` with numeric `id`, exact reviewed `email` fields and
+   `confirmed: true`. All three named actions require write scope and confirmation;
    agents remain responsible for ownership, exact scope and user approval.
-7. Submit each approved action once. After emailing, read the selected invoice
-   and report the provider response, status/settings and any documented delivery
-   evidence actually available. Label unknown recipient delivery explicitly. A
-   successful status transition does not establish email delivery, and a successful
+7. Submit each approved action once. After emailing, the helper reads the selected
+   invoice and returns `request_accepted: true` and `recipient_delivery: unavailable`
+   alongside its provider state. These are transport evidence and an explicit
+   limitation, not a provider delivery receipt. Label unknown recipient delivery
+   explicitly. A successful status transition does not establish email delivery, and a successful
    email response does not establish recipient receipt or payment.
 8. On rejection, timeout, disconnect or failed readback, report the exact attempted
    action and original company/invoice, and whether the outcome is uncertain or
@@ -152,23 +157,27 @@ sending it, changing the original, or duplicating again after an uncertain resul
    the user to inspect FreeAgent; no blind retry or retry-on-approval shortcut.
 
 The invoice-status workflow remains read-only, including drafting chasers. This
-proposal does not turn it into a sending workflow or expand the existing
+policy does not turn it into a sending workflow or expand the existing
 credit-allocation exception.
 
-### Acceptance and evidence still required
+### API mechanics and verification
 
-Before runtime implementation, obtain human acceptance of this exact scope and
-ownership exception. Then independently review fixed named operations, approval
-annotations, readback/uncertain-outcome handling, privacy and authenticated package
-coverage. Use synthetic cases for refused sends, recipient discrepancies, invalid
-provider transitions, existing-record refusal, duplicate proposals, partial failures
-and timeouts. Do not implement a local accounting/eligibility engine or server task
-ledger. Future delivery tests must establish actual provider request/response
-mechanics; conversational decisions require separate observed assistant evidence.
+The three operations use only the fixed documented endpoints above. Duplication
+reads back the new returned invoice and original source; status/email actions read
+back the selected invoice. Unknown duplicate identities, malformed results and
+failed readbacks report incomplete/uncertain verification rather than success.
+No write is automatically retried. HTTP errors expose only status and selected
+record identity, never recipient/message bodies echoed by a provider error.
+Accounting and address validation remain FreeAgent's responsibility; the server
+has no ownership ledger, state machine, duplicate accounting engine or calculated
+balance. The agents must refuse historical-invoice delivery/status changes under
+this policy even though the transport cannot independently know request ownership.
 
-The current regression tests establish that named sending, duplication and
-transition operations are absent from the generated audit and authenticated MCP
-discovery, and cannot reach the provider even with write scope and confirmation.
-They do not establish a delivery feature. Authorized sandbox verification, #72
-document viewing and actual installed web/iOS behavior remain external release
-gates. No live financial or email write is authorized by this policy proposal.
+Synthetic authenticated HTTP tests cover generated skills/discovery/audit, exact
+provider payloads, approved duplication/transition/email readbacks, denied scope,
+refusal, unsupported templates/attachments, provider rejection, timeouts and
+partial readback failures. They establish API mechanics, not observed assistant
+approval decisions or live delivery. Authorized sandbox verification, independent
+financial/security review and installed web/mobile behavior remain release gates.
+Do not claim recipient receipt, delivery or payment from invoice status or a
+successful API email request. No live financial/email write is made by these tests.

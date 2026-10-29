@@ -11,7 +11,7 @@ an arbitrary API destination/method and does not reproduce accounting validation
 | Projects | list/get/create/update/delete | https://dev.freeagent.com/docs/projects |
 | Tasks | list/get/create/update | https://dev.freeagent.com/docs/tasks |
 | Timeslips | list/get/create/update/delete | https://dev.freeagent.com/docs/timeslips |
-| Invoices | list/get/create draft/update/delete | https://dev.freeagent.com/docs/invoices |
+| Invoices | list/get/create draft/update/delete; duplicate selected source into new Draft, separately approved current-request mark-as-sent/email | https://dev.freeagent.com/docs/invoices |
 | Credit notes | list/get/create draft/issue current-request Draft; signed values, refund and item context | https://dev.freeagent.com/docs/credit_notes |
 | Credit-note reconciliations | list/get/create; affected credit/invoice readback, separately approved narrow allocation | https://dev.freeagent.com/docs/credit_note_reconciliations |
 | Expenses | list/get/create/update/delete; create_expense_from_payload forwards exact tax fields; reads retain receipt reference and original/native/manual tax evidence | https://dev.freeagent.com/docs/expenses |
@@ -29,12 +29,17 @@ an arbitrary API destination/method and does not reproduce accounting validation
 Task DELETE is intentionally unavailable: the provider's task-deletion section
 currently prints a users/:id endpoint. Request provider clarification rather than
 infer a potentially destructive endpoint. Bank-explanation updates and arbitrary
-status/send transitions are not exposed; no documented operation is invented.
+status transitions are not exposed except the reviewed current-request invoice
+mark-as-sent action; no undocumented operation is invented.
 Use the supported correction or explain the missing operation to the user.
 
 Named helpers preserve existing Draft defaults and automatic-email disabling.
 Updates send the exact provider payload unchanged and are annotated destructive;
-invoice update is open-world because its email settings may affect recipients.
+invoice update and the explicit email/mark-as-sent actions are open-world because
+they may affect recipients. Sending is destructive and non-idempotent; duplication
+is non-idempotent and the original source is read-only. The invoice action helpers
+read affected invoices and report uncertain verification without retries. Email
+errors omit provider bodies because they may echo recipients or message content.
 Bank explanation is destructive. Bounded private reads/other writes are not
 open-world merely because FreeAgent is externally hosted.
 

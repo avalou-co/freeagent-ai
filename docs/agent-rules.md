@@ -4,7 +4,7 @@
 - Never print, log, commit or paste secrets or tokens.
 - Reads are free. Writes (timeslips, invoices, expenses, bills, bank explanations) need the plan shown and a clear yes, unless the user already gave exact details and told you to proceed.
 - After every write, read it back and report what FreeAgent holds.
-- Do not modify or delete entries you did not create in this task; report conflicts instead. The only allocation exception is defined below.
+- Do not modify or delete entries you did not create in this task; report conflicts instead. The allocation and read-only duplication-source exceptions are defined below.
 
 ## Correcting entries created in the current task
 
@@ -54,3 +54,25 @@ allocation approval never approves issuance. Older drafts, reopening cancelled
 credits, email, refunds and unrelated edits remain excluded. On uncertain outcome
 or failed readback, inspect the original credit/status before any retry; never
 blindly replay or allocate as a workaround. See [credit policy](credit-notes.md).
+
+## Approved narrow invoice delivery and duplication policy
+
+An existing selected invoice may be a read-only source for a separately approved
+new Draft duplication. The original remains unchanged and its ownership is not
+transferred. Review complete duplicate evidence and exact source before approval;
+read back the new invoice and original source afterwards. Verify actual date,
+reference, lines and automatic-email settings before proposing another action.
+
+Only invoices created and verified during this user request may be marked sent
+or emailed. Review the document, original company, current provider state and all
+email settings. Preview the exact transition or email recipients, registered-user
+sender, full subject/body, explicit sender-copy choice and absence of additional
+attachments/expense receipts; obtain separate exact approval for each action.
+Draft/duplication/status approval is never email approval. Historical invoices,
+reopening, cancellation, scheduling, automatic reminders, payment execution and
+refunds remain excluded. Invoice-status chaser drafting remains read-only.
+
+Use only the named fixed operations in the [invoice policy](invoicing.md#approved-invoice-delivery-and-duplication-policy).
+Read affected records after each write. API acceptance/accounting status is not
+recipient delivery evidence. Inspect uncertain outcomes before any further action;
+never replay a send or duplicate, or infer non-delivery from unchanged status.

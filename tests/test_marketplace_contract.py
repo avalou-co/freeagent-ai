@@ -124,6 +124,10 @@ def remote(accounts, monkeypatch):
         if mode and mode[0] == "readback" and method == "GET":
             raise urllib.error.HTTPError(url, 503, "unavailable", Message(), None)
         path = urlsplit(url).path.removeprefix("/v2/")
+        if path.endswith("/duplicate") and method == "POST":
+            return {"invoice": {"url": BASE + "invoices/90"}}, {}
+        if path.endswith("/send_email") and method == "POST":
+            return 200, {}
         if method == "POST":
             payload = kwargs["body"]
             root = next(iter(payload))

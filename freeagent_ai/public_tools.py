@@ -307,8 +307,8 @@ def make_registry(*, experimental_pdf=False):
                 annotations=ToolAnnotations(
                     read_only_hint=method == "GET",
                     destructive_hint=method in {"PUT", "DELETE"}
-                    or name in {"explain_bank_transaction", "create_credit_note_reconciliation"},
-                    open_world_hint=name == "update_invoice",
+                    or name in {"explain_bank_transaction", "create_credit_note_reconciliation", "send_invoice_email"},
+                    open_world_hint=name in {"update_invoice", "send_invoice_email", "mark_invoice_as_sent"},
                     idempotent_hint=method == "GET",
                 ),
                 _meta={
@@ -640,6 +640,57 @@ def make_registry(*, experimental_pdf=False):
         object_schema({"credit_note": record_schema("credit_note")}, ["credit_note"]),
         "Issue only a Draft created and read back during this user request in the original company. Agent must verify ownership, current Draft and complete duplicate evidence, preview exact document and obtain separate issuance approval. Draft/allocation approval is insufficient. Calls only the fixed provider mark_as_sent transition and reads the credit back; no email, allocation, refund or reopening cancelled credits. Inspect uncertain outcomes before any retry; never blindly replay.",
     )
+
+    action_schema = {"id": id_schema, "confirmed": {"type": "boolean"}}
+    for name, method, suffix in [
+        ("duplicate_invoice", "POST", "duplicate"),
+        ("mark_invoice_as_sent", "PUT", "transitions/mark_as_sent"),
+        ("send_invoice_email", "POST", "send_email"),
+    ]:
+        inputs = dict(action_schema)
+        outputs = {"invoice": record_schema("invoice")}
+        if name == "duplicate_invoice":
+            outputs["source_invoice"] = record_schema("invoice")
+        if name == "send_invoice_email":
+            inputs["email"] = object_schema(
+                {
+                    **{key: {"type": "string"} for key in ("to", "from", "subject", "body")},
+                    "email_to_sender": {"type": "boolean"},
+                },
+                ["to", "from", "subject", "body", "email_to_sender"],
+            )
+            outputs.update(
+                request_accepted={"const": True},
+                recipient_delivery={"const": "unavailable"},
+            )
+        add(
+            name,
+            method,
+            "invoices/{id}/" + suffix,
+            "invoice_action",
+            object_schema(inputs, inputs),
+            object_schema(outputs, outputs),
+            (
+                "Duplicate only the selected source into a new Draft after duplicate review and separate exact approval. "
+                "The existing source is read-only under the narrow duplication exception. Reads the new invoice and source; "
+                "verify actual date/reference and all email settings before any later separately approved action. "
+                if name == "duplicate_invoice"
+                else "Act only on an invoice created and verified during the current user request in the original company. "
+                "Agent must verify ownership, current provider state, automatic emails off and unchanged reviewed document. "
+            )
+            + (
+                "Preview exact invoice, to/from registered-user addresses, subject, full body and explicit sender-copy choice. "
+                "Require separate approval to send this exact email now; draft/status approval is insufficient. "
+                "Explicit fields only: no template, extra attachments or rebilled expense receipts; attach_expense_receipts is false. "
+                "Reads invoice after provider acceptance; recipient delivery remains unavailable, not inferred from status. "
+                if name == "send_invoice_email"
+                else "Mark only a current-request Draft as sent after separate exact transition approval. "
+                "This accounting transition is not email delivery; no reopening, cancellation, scheduling or payments. "
+                if name == "mark_invoice_as_sent"
+                else ""
+            )
+            + "FreeAgent validates accounting/addresses/transitions. No blind retries: inspect original records and any uncertain outcome first.",
+        )
     for endpoint, (root, update, delete) in CORRECTIONS.items():
         for verb, method, enabled in [("update", "PUT", update), ("delete", "DELETE", delete)]:
             if not enabled:
@@ -734,6 +785,9 @@ class Dispatcher:
                     + "; inspect this credit in the original company before any retry. Do not email, allocate or recreate it as a workaround."
                 ) from None
 
+        if op.root == "invoice_action":
+            return self._invoice_action(op, args, client)
+
         if op.root == "payroll":
             return self._payroll(op, args, client)
         if op.root == "attachments":
@@ -816,6 +870,64 @@ class Dispatcher:
         if op.method == "GET" and op.root in COLLECTED_RESOURCES:
             record["collected_at"] = datetime.now(timezone.utc).isoformat()
         return record
+
+    @staticmethod
+    def _invoice_action(op, args, client):
+        resource = "invoices/" + args["id"]
+
+        def read_invoice(path):
+            record = client.call("GET", path)["invoice"]
+            if not isinstance(record, dict):
+                raise ValueError("Malformed invoice readback")
+            expected_url = path if path.startswith(client.base) else client.base + path
+            if "url" in record and record["url"] != expected_url:
+                raise ValueError("Invoice readback identity mismatch")
+            if "invoice_items" in record and (
+                not isinstance(record["invoice_items"], list)
+                or any(not isinstance(item, dict) for item in record["invoice_items"])
+            ):
+                raise ValueError("Malformed invoice line readback")
+            return project_record(record, "invoice")
+
+        body = (
+            {"invoice": {"email": {**args["email"], "attach_expense_receipts": False}}}
+            if op.name == "send_invoice_email"
+            else None
+        )
+        try:
+            response = client.call(op.method, op.endpoint.format(id=args["id"]), body)
+            if op.name == "duplicate_invoice":
+                created = response["invoice"]["url"]
+                prefix = client.base + "invoices/"
+                if (
+                    not isinstance(created, str)
+                    or not created.startswith(prefix)
+                    or not created[len(prefix) :].isdigit()
+                    or created == client.base + resource
+                ):
+                    raise ValueError("Invalid duplicate resource identity")
+                result: dict[str, Any] = {
+                    "invoice": read_invoice(created),
+                    "source_invoice": read_invoice(resource),
+                }
+            else:
+                result = {"invoice": read_invoice(resource)}
+                if op.name == "send_invoice_email":
+                    result.update(request_accepted=True, recipient_delivery="unavailable")
+            # A schema failure after an accepted write is also uncertain verification.
+            jsonschema.validate(result, op.descriptor.output_schema)
+            return result
+        except Exception as error:
+            status = f"FreeAgent HTTP {error.code}; " if isinstance(error, urllib.error.HTTPError) else ""
+            raise UnverifiedWrite(
+                status
+                + op.name
+                + " outcome/readback not verified for "
+                + client.base
+                + resource
+                + "; inspect the original company and invoice before any further action. "
+                "Do not replay email, duplicate again or infer non-delivery from unchanged status."
+            ) from None
 
     @staticmethod
     def _payroll(op, args, client):

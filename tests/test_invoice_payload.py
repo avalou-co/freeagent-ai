@@ -22,7 +22,7 @@ from freeagent_ai.hosted_app import create_app
 from freeagent_ai.hosted_auth import ORIGIN
 from freeagent_ai.hosted_client import HostedClient
 from freeagent_ai.public_package import package_files
-from freeagent_ai.public_tools import REGISTRY, Dispatcher
+from freeagent_ai.public_tools import Dispatcher
 
 BASE = "https://api.freeagent.com/v2/"
 
@@ -381,10 +381,7 @@ def test_source_detail_rebilling_and_tax_evidence_survives_remote_projection(rem
 
 
 PENDING_INVOICE_ACTIONS = (
-    "send_invoice_email",
     "send_invoice",
-    "duplicate_invoice",
-    "mark_invoice_as_sent",
     "mark_invoice_as_scheduled",
     "mark_invoice_as_draft",
     "mark_invoice_as_cancelled",
@@ -412,29 +409,19 @@ def test_pending_invoice_actions_cannot_reach_provider_over_authenticated_http(r
     assert calls == []
 
 
-def test_pending_delivery_policy_is_bundled_without_exposing_invoice_actions(remote):
+def test_approved_delivery_policy_is_bundled_and_existing_invoice_status_remains_read_only(remote):
     rpc, calls, _ = remote
     root = Path(__file__).resolve().parents[1]
     files = package_files(root)
     discovery = {tool["name"] for tool in rpc("tools/list", {})["tools"]}
-    audit = {tool["name"] for tool in json.loads(files["docs/public-tool-audit.json"])}
+    assert {"duplicate_invoice", "mark_invoice_as_sent", "send_invoice_email"} <= discovery
     assert not discovery.intersection(PENDING_INVOICE_ACTIONS)
-    assert not audit.intersection(PENDING_INVOICE_ACTIONS)
-    assert {"get_invoice", "list_invoices", "create_draft_invoice_from_payload"} <= discovery
-    # Check endpoint inventory too: adding a renamed send/transition must not evade the gate.
-    assert not any(
-        operation.endpoint.startswith("invoices/")
-        and any(fragment in operation.endpoint for fragment in ("/send_email", "/duplicate", "/transitions/"))
-        for operation in REGISTRY.values()
-    )
     contract = files["docs/invoicing.md"].decode()
-    assert "Proposed delivery policy — pending human acceptance" in contract
-    assert "Current draft-only/no-send" in contract
+    assert "Approved invoice delivery and duplication policy" in contract
     assert "Existing invoices remain ineligible for sending or status" in contract
     assert "unchanged invoice status as proof that no email was sent" in contract
     digests = json.loads(files["docs/source-digests.json"])
     for source in ("docs/invoicing.md", ".agents/skills/invoicing/SKILL.md", ".agents/skills/invoice-status/SKILL.md"):
         assert digests[source] == hashlib.sha256((root / source).read_bytes()).hexdigest()
-    for name in ("invoicing", "invoice-status"):
-        assert "pending human acceptance" in files[f"skills/{name}/SKILL.md"].decode()
+    assert "This workflow remains read-only" in files["skills/invoice-status/SKILL.md"].decode()
     assert calls == []
