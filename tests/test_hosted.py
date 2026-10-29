@@ -765,3 +765,17 @@ def test_versioned_assets_cache_without_caching_private_routes(accounts):
             assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
         for path in (ASSET_PREFIX + "missing.css", "/landing-assets/site.css", "/account", "/mcp"):
             assert client.get(path, follow_redirects=False).headers["cache-control"] == "no-store"
+
+
+def test_public_workflow_pages_match_static_renderer(accounts):
+    from freeagent_ai.landing import ASSET_PREFIX
+    from freeagent_ai.workflow_pages import WORKFLOWS, render_workflow
+
+    with TestClient(create_app(settings(), accounts, SimpleNamespace()), base_url=ORIGIN) as client:
+        for slug in WORKFLOWS:
+            response = client.get(f"/workflows/{slug}/")
+            assert response.status_code == 200
+            assert response.text == render_workflow(slug, ASSET_PREFIX)
+            assert "style-src 'self'" in response.headers["content-security-policy"]
+            assert "unsafe-inline" not in response.headers["content-security-policy"]
+        assert client.get("/workflows/unknown/").status_code == 404

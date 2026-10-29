@@ -30,6 +30,7 @@ from .landing import ROOT as LANDING_ROOT
 from .landing import render as render_landing
 from .landing import validate_config as validate_landing_config
 from .public_tools import REGISTRY, Dispatcher, PublicToolsResult
+from .workflow_pages import WORKFLOWS, render_workflow
 
 
 def page(title, body):
@@ -49,6 +50,8 @@ class SecurityHeaders:
                 csp = "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
                 if marketing:
                     csp += "; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self'"
+                if scope.get("path", "").startswith("/workflows/"):
+                    csp += "; style-src 'self'; font-src 'self'; img-src 'self'"
                 cache = "no-store"
                 if scope.get("path", "").startswith(ASSET_PREFIX) and message["status"] in (200, 304):
                     cache = "public, max-age=31536000, immutable"
@@ -386,6 +389,10 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         title, paragraphs = SITE_NOTICES[request.url.path.strip("/")]
         return page(title, "".join("<p>" + html.escape(paragraph) + "</p>" for paragraph in paragraphs))
 
+    async def workflow_page(request):
+        slug = request.url.path.strip("/").split("/")[-1]
+        return HTMLResponse(render_workflow(slug, ASSET_PREFIX))
+
     async def denied(request, error):
         if request.url.path.startswith("/connect/"):
             return JSONResponse({"error": "invalid_request", "error_description": str(error)}, status_code=400)
@@ -400,6 +407,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
     routes = [
         *connect.routes(),
         Route("/", home),
+        *[Route(f"/workflows/{slug}/", workflow_page, name=slug) for slug in WORKFLOWS],
         Mount(ASSET_PREFIX.rstrip("/"), app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Mount("/landing-assets", app=StaticFiles(directory=LANDING_ROOT / "assets")),
         Route("/account", account),

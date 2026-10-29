@@ -100,5 +100,8 @@ jobs:
           for path in / /privacy/ /terms/ /support/ /robots.txt /sitemap.xml /landing-assets/site.css; do
             curl --fail --silent --show-error --max-time 15 --retry 5 --retry-delay 3 --retry-all-errors "https://freeagent-ai.avalou.co$path" --output /dev/null
           done
+          for workflow in timesheets invoicing expenses-and-bills estimates invoice-status bank-reconciliation reports; do
+            curl --fail --silent --show-error --max-time 15 --retry 5 --retry-delay 3 --retry-all-errors "https://freeagent-ai.avalou.co/workflows/$workflow/" --output /dev/null
+          done
           status=$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' https://freeagent-ai.avalou.co/mcp)
           test "$status" = 401 || test "$status" = 403

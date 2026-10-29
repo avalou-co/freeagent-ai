@@ -34,6 +34,13 @@
         "Content-Security-Policy": "default-src 'none'; style-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
         "Cache-Control": "public, max-age=0, must-revalidate"
       }
+    },
+    {
+      "glob": "/workflows/**",
+      "headers": {
+        "Content-Security-Policy": "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+        "Cache-Control": "public, max-age=0, must-revalidate"
+      }
     }
   ]
 }

@@ -12,6 +12,8 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from freeagent_ai.workflow_pages import WORKFLOWS
+
 API = "https://firebasehosting.googleapis.com/v1beta1/"
 
 
@@ -35,14 +37,19 @@ def manifest(root):
         if not path.is_file():
             continue
         name = "/" + path.relative_to(root).as_posix()
-        allowed = name in {
-            "/index.html",
-            "/privacy/index.html",
-            "/terms/index.html",
-            "/support/index.html",
-            "/robots.txt",
-            "/sitemap.xml",
-        } or name.startswith("/landing-assets/")
+        allowed = (
+            name
+            in {
+                "/index.html",
+                "/privacy/index.html",
+                "/terms/index.html",
+                "/support/index.html",
+                "/robots.txt",
+                "/sitemap.xml",
+            }
+            or name in {f"/workflows/{slug}/index.html" for slug in WORKFLOWS}
+            or name.startswith("/landing-assets/")
+        )
         if not allowed or path.suffix not in {
             ".html",
             ".css",

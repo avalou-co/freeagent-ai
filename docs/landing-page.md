@@ -226,3 +226,17 @@ retain no-store. The publisher accepts PNG files so the social card can deploy.
 
 After deployment, check the headers of a versioned CSS file and font from the
 rendered homepage, and confirm `/account` and `/mcp` remain no-store.
+
+## Workflow guides
+
+Seven public guides live under `/workflows/`: timesheets, invoicing,
+expenses-and-bills, estimates, invoice-status, bank-reconciliation and reports.
+`freeagent_ai/workflow_pages.py` owns their distinct copy, example prompts and
+shared HTML renderer. The content follows the corresponding packaged workflows;
+examples do not create accounting records or claim public connection availability.
+
+The homepage links to every guide, and each guide links to the others, connection
+instructions and support. Each page has a unique title, description, canonical URL
+and H1. The static export includes all seven in the sitemap; the hosted app serves
+the same pages. Firebase serves them with the reading-page CSP and revalidating
+HTML cache policy. The publisher permits only the known workflow HTML paths.
