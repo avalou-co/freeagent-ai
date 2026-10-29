@@ -181,3 +181,14 @@ site are supplied through protected deployment-environment secrets. `hosting.jso
 contains public headers only; the publisher injects the exact backend rewrite
 from private configuration and validates all returned resource names against the
 configured project/site. Public CI summaries contain the build digest only.
+
+## Social previews
+
+The homepage includes Open Graph and Twitter large-image card metadata. Both use
+`/landing-assets/social-card-v1.png`, a 1200×630 PNG composed from the site's
+existing palette and licensed fonts, with the product logo from
+`publication/assets/icon.svg` beside the title and a smaller Avalou publisher
+credit. It ships in the wheel and static export.
+Use a new versioned filename when replacing the image to refresh crawler caches.
+After deployment, check the public homepage with a social-card validator; local
+export checks do not prove that a third-party crawler has refreshed its preview.
