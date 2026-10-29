@@ -12,7 +12,11 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .workflow_pages import WORKFLOWS, render_workflow, workflow_links
+if __package__:
+    from .workflow_pages import WORKFLOWS, render_workflow, workflow_links
+else:
+    # CI exports this file directly without importing the accounting client package.
+    from workflow_pages import WORKFLOWS, render_workflow, workflow_links
 
 ROOT = Path(__file__).with_name("landing")
 

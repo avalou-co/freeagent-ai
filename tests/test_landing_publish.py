@@ -1,6 +1,9 @@
 import gzip
 import hashlib
 import importlib.util
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -150,3 +153,26 @@ def test_publisher_accepts_known_workflow_pages_only(tmp_path):
     unknown.write_text("Unreviewed page")
     with pytest.raises(ValueError, match="Unexpected static export"):
         module.manifest(tmp_path)
+
+
+def test_ci_direct_static_export_works_without_installed_packages(tmp_path):
+    from freeagent_ai.workflow_pages import WORKFLOWS
+
+    root = Path(__file__).resolve().parents[1]
+    output = tmp_path / "landing"
+    # Match the deploy job's direct-script invocation, with site-packages disabled
+    # and no repository working directory or Python path to mask package imports.
+    result = subprocess.run(
+        [sys.executable, "-S", str(root / "freeagent_ai/landing.py"), "--static", "--output", str(output)],
+        cwd=tmp_path,
+        env={key: value for key, value in os.environ.items() if not key.startswith("PYTHON")},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (output / "index.html").is_file()
+    sitemap = (output / "sitemap.xml").read_text()
+    for slug in WORKFLOWS:
+        assert (output / "workflows" / slug / "index.html").is_file()
+        assert f"/workflows/{slug}/" in sitemap
