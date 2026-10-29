@@ -67,7 +67,13 @@ def render(config: dict[str, str]) -> str:
         else:
             button = f'<button class="{classes}" type="button" disabled aria-label="{name}, connection unavailable"><span class="availability-badge">Unavailable</span>{brand}</button>'
         buttons.append(button)
-    document = document.replace("{{provider_buttons}}", '<div class="provider-buttons">' + "".join(buttons) + "</div>")
+    controls = '<div class="provider-buttons">' + "".join(buttons) + "</div>"
+    if not any(config.get(key) for key in PROVIDERS):
+        controls += (
+            '<p class="hero-note">Connections are not publicly available yet. '
+            f'<a href="{html.escape(config["support_url"], quote=True)}">Contact us about access</a>.</p>'
+        )
+    document = document.replace("{{provider_buttons}}", controls)
     for key in LINKS:
         document = document.replace("{{" + key + "}}", html.escape(config[key], quote=True))
     return document

@@ -602,7 +602,13 @@ def test_provider_availability_is_independent(landing_config, enabled):
     urls = {"listing_url": landing_config["listing_url"], "claude_url": "https://claude.ai/connectors/test-only"}
     config.update({key: urls[key] for key in enabled})
     parser = Controls()
-    parser.feed(render(validate_config(config)))
+    document = render(validate_config(config))
+    parser.feed(document)
+    if enabled:
+        assert "Contact us about access" not in document
+    else:
+        assert "Connections are not publicly available yet." in document
+        assert f'href="{landing_config["support_url"]}">Contact us about access</a>' in document
     assert len(parser.providers) == 2
     for tag, attrs in parser.providers:
         key = "listing_url" if "provider-chatgpt" in attrs["class"] else "claude_url"
@@ -622,6 +628,7 @@ def test_static_export_keeps_connections_unavailable(tmp_path):
     build_static(tmp_path)
     index = (tmp_path / "index.html").read_text()
     assert index.count('type="button" disabled') == 2
+    assert 'href="/support/">Contact us about access</a>' in index
     assert 'href="/account"' not in index
     assert "{{" not in index
     for slug in ("index.html", "privacy/index.html", "terms/index.html", "support/index.html"):

@@ -192,3 +192,9 @@ credit. It ships in the wheel and static export.
 Use a new versioned filename when replacing the image to refresh crawler caches.
 After deployment, check the public homepage with a social-card validator; local
 export checks do not prove that a third-party crawler has refreshed its preview.
+
+When both provider connections are disabled, the hero states that connections are
+not publicly available yet and links “Contact us about access” to the configured
+support page (`/support/` in the public static export). The support page provides
+the public email contact. Enabling either verified provider destination removes
+this fallback, leaving the available connection as the call to action.
