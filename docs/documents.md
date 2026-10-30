@@ -75,6 +75,14 @@ to preserve the native form Origin header; its fragment is already gone, and no
 cross-origin referrer is sent. No API response body, grant or file data is logged.
 The host/browser controls retention of already received files.
 
+Hosting applies CSP and referrer overrides only to static website paths. Dynamic
+document routes retain the backend's response-specific headers: the receiver's
+exact script hash and same-origin referrer policy, and the attachment's
+no-referrer policy. A global Hosting override would block the receiver script or
+remove the Origin evidence required by the download POST. Browser regression
+tests include Hosting's global response-header overlay; deployment checks must
+also inspect the final public receiver headers.
+
 Decoded files are limited to 5 MiB, encoded strings to 8 MiB, within the hosted
 8 MiB JSON transport bound. Strict base64, header and EOF checks validate the
 transport envelope, not a complete PDF parser or malware scan. Legacy local

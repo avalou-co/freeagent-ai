@@ -103,6 +103,28 @@ def test_backend_config_uses_only_explicit_deployment_inputs():
             module.deployment_config({}, service=service, region=region)
 
 
+def test_hosting_preserves_backend_document_headers_and_static_security():
+    import json
+
+    config = json.loads((Path(__file__).parents[1] / "hosting.json").read_text())
+    deployed = module.deployment_config(config, service="example-service", region="europe-west1")
+    rules = {rule["glob"]: rule["headers"] for rule in deployed["headers"]}
+    # Dynamic rewritten routes need their response-specific CSP/referrer policies.
+    assert "Content-Security-Policy" not in rules["**"]
+    assert "Referrer-Policy" not in rules["**"]
+    for glob in (
+        "/{,index.html}",
+        "/landing-assets/**",
+        "/{privacy,terms,support}{,/**}",
+        "/workflows/**",
+        "/{robots.txt,sitemap.xml}",
+    ):
+        headers = rules[glob]
+        assert headers["Referrer-Policy"] == "no-referrer"
+        assert "default-src 'none'" in headers["Content-Security-Policy"]
+        assert "unsafe-inline" not in headers["Content-Security-Policy"]
+
+
 def test_real_export_can_publish_versioned_assets_and_png(tmp_path):
     import json
 
