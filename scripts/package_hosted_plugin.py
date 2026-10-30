@@ -17,6 +17,9 @@ def build(output: Path, client_id: str) -> None:
     if not client_id.strip():
         raise ValueError("Set FREEAGENT_PLUGIN_CLIENT_ID to the registered OAuth client ID")
     entries = package_files(ROOT, {"mcp_client_id": client_id})
+    entries["CANDIDATE-NOT-FOR-SUBMISSION.txt"] = (
+        b"Private operator candidate only. Installed web/mobile document delivery acceptance and publication approvals remain separate.\n"
+    )
     # Never replace an artifact, and keep operator-supplied metadata private on disk.
     descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as stream:

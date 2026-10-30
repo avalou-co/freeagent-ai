@@ -16,11 +16,11 @@ from .public_tools import CORRECTIONS, CREATES, REGISTRY, RESOURCES, TAX_RETURNS
 # Explicit reviewed entry points, plus every operation referenced by the actual
 # workflow (not the full registry appendix). This is a product contract, not a
 # parallel task/status tracker. New skills must declare their executable path.
-HOSTED_EXCLUDED_SKILLS = frozenset({"documents"})
+HOSTED_EXCLUDED_SKILLS = frozenset()
 UNSUPPORTED_CAPABILITIES = {
     "documents": {
-        "status": "unavailable",
-        "reason": "No verified interpreter-free ChatGPT web/mobile PDF delivery contract",
+        "status": "awaiting_installed_client_verification",
+        "reason": "Registered MCP Apps UI and authenticated HTTPS attachment source implemented; deployed web/mobile delivery not yet observed",
         "required_evidence": ["documented host file output", "installed web delivery", "installed mobile delivery"],
     }
 }
@@ -29,11 +29,18 @@ SKILLS = {
     "bills": ("list_bills", "create_bill"),
     "cash-flow": ("list_bank_accounts", "list_invoices", "list_bills"),
     "clients": ("list_contacts", "create_contact", "create_project", "create_task"),
-    "credit-notes": ("create_draft_credit_note", "create_credit_note_reconciliation"),
+    "credit-notes": ("create_draft_credit_note", "issue_credit_note", "create_credit_note_reconciliation"),
+    "documents": ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"),
     "estimates": ("list_estimates", "create_draft_estimate"),
     "expenses": ("list_expenses", "create_expense_from_payload"),
     "invoice-status": ("list_invoices", "get_invoice"),
-    "invoicing": ("list_invoices", "create_draft_invoice_from_payload"),
+    "invoicing": (
+        "list_invoices",
+        "create_draft_invoice_from_payload",
+        "duplicate_invoice",
+        "mark_invoice_as_sent",
+        "send_invoice_email",
+    ),
     "mileage": ("get_mileage_settings", "create_mileage_expense"),
     "month-end": (
         "get_company",
@@ -53,7 +60,7 @@ SKILLS = {
     "timesheets": ("list_timeslips", "create_timeslip"),
 }
 TOOL_TOKEN = re.compile(
-    r"\b((?:list|get|create|update|delete|explain|add|remove|find|calculate|execute|run)_[a-z][a-z0-9_]*)\b"
+    r"\b((?:list|get|create|update|delete|explain|issue|duplicate|mark|send|add|remove|find|calculate|execute|run)_[a-z][a-z0-9_]*)\b"
 )
 CALL_REFERENCE = re.compile(r"\b(?:call|invoke|tool|helper|function)\s+`([a-z][a-z0-9_]*)(?:\(|`)", re.I)
 LINK = re.compile(r"\[[^\]]*\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
@@ -136,6 +143,7 @@ def validate_operations():
     """
     routes = {("GET", endpoint) for endpoint in RESOURCES}
     routes.update(("GET", endpoint + "/{id}") for endpoint in RESOURCES)
+    routes.update(("GET", endpoint + "/{id}/pdf") for endpoint in ("invoices", "estimates", "credit_notes"))
     routes.update(("GET", endpoint) for endpoint in TAX_RETURNS)
     routes.update(("GET", endpoint + "/{period_ends_on}") for endpoint in TAX_RETURNS)
     routes.update(
@@ -157,7 +165,15 @@ def validate_operations():
             routes.add(("PUT", endpoint + "/{id}"))
         if delete:
             routes.add(("DELETE", endpoint + "/{id}"))
+    routes.add(("PUT", "credit_notes/{id}/transitions/mark_as_sent"))
     routes.update((method, "bank_transaction_explanations/{id}/attachments") for method in ["GET", "POST", "PUT"])
+    routes.update(
+        {
+            ("POST", "invoices/{id}/duplicate"),
+            ("POST", "invoices/{id}/send_email"),
+            ("PUT", "invoices/{id}/transitions/mark_as_sent"),
+        }
+    )
     for name, op in REGISTRY.items():
         create = op.method == "POST" and op.helper in CREATES
         if (
@@ -170,6 +186,19 @@ def validate_operations():
             or (create and op.root != CREATES[op.helper])
         ):
             raise ValueError(f"Non-provider operation in hosted inventory: {name}")
+        if op.root == "document_download":
+            from .document_delivery import UI_URI
+
+            if (op.descriptor.meta or {}).get("ui", {}).get("resourceUri") != UI_URI:
+                raise ValueError("Document delivery requires registered UI transport")
+        if op.root == "document_download_refresh":
+            meta = op.descriptor.meta or {}
+            if (
+                meta.get("ui", {}).get("visibility") != ["app"]
+                or meta.get("ui", {}).get("resourceUri")
+                or meta.get("openai/outputTemplate")
+            ):
+                raise ValueError("Document refresh must be UI-only without a new output template")
         if op.method != "GET":
             schema = op.descriptor.input_schema
             if (
@@ -215,7 +244,15 @@ def validate_workflow(path, text):
             raise ValueError(f"Required client runtime in workflow: {path}")
         if affirmative_match(ACCOUNTING_INSTRUCTION, clause):
             raise ValueError(f"Custom accounting instruction in workflow: {path}")
-        if affirmative_match(FILE_OUTPUT, clause) or affirmative_match(LOCAL_PATH, clause):
+        document_output = (
+            path == "skills/documents/SKILL.md"
+            and {"get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"} <= tool_names(body)
+            and all(
+                REGISTRY[name].root == "document_download"
+                for name in ("get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf")
+            )
+        )
+        if (affirmative_match(FILE_OUTPUT, clause) and not document_output) or affirmative_match(LOCAL_PATH, clause):
             raise ValueError(f"Unsupported file-output or local-path promise: {path}")
     return tool_names(body)
 
@@ -253,7 +290,9 @@ def coverage(files):
                     "input_schema": op.descriptor.input_schema,
                     "output_schema": op.descriptor.output_schema,
                     "approval_parameter": "confirmed" if op.method != "GET" else None,
-                    "result": "provider JSON with source references; errors are explicit",
+                    "result": "provider metadata plus registered UI with private original-account context"
+                    if op.root == "document_download"
+                    else "provider JSON with source references; errors are explicit",
                 }
             )
         result[skill] = {
@@ -262,7 +301,11 @@ def coverage(files):
             "operations": operations,
             "linked_evidence": sorted(LINK.findall(workflow(text))),
             "input_artifacts": artifacts,
-            "output_artifacts": ["provider JSON / assistant explanation"],
+            "output_artifacts": [
+                "registered MCP Apps UI -> original-account delegated HTTPS application/pdf attachment"
+            ]
+            if any(REGISTRY[name].root == "document_download" for name in names)
+            else ["provider JSON / assistant explanation"],
             "verification_limits": "Static contract and synthetic HTTP fixtures do not prove assistant decisions or live web/iOS installation.",
         }
     return result

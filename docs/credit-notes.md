@@ -45,39 +45,39 @@ partial failures; inspect an uncertain result before any retry, never replay bli
 FreeAgent decides accounting eligibility, signs and over-allocation. Missing fields
 are unknown; do not invent balances or exchange rates.
 
-A newly created Draft remains Draft. This policy does NOT authorize issuing it to
-make it allocatable. Use a provider-eligible existing issued credit for allocation;
-if none exists, prepare the draft and explain that issuance needs a separate future
-policy decision. No issuance/status-transition/email operation is added. Draft
-approval and this policy approval do not substitute for exact per-allocation approval.
-The approved exception is shared in [agent rules](agent-rules.md#approved-credit-allocation-exception).
+Issuance and allocation are separate actions. The allocation exception does not
+itself authorize issuing a Draft. A Draft created in the current user request may
+be issued only under the issuance policy below with separate exact approval.
+Older Drafts remain excluded. The approved allocation exception is shared in
+[agent rules](agent-rules.md#approved-credit-allocation-exception).
 
-## Proposed issuance policy — pending human acceptance
+## Current-request Draft issuance policy
 
-This proposal is for review under issue #69. It is not an approved exception,
-an executable workflow or permission to issue a credit. The current workflow and
-hosted registry continue to exclude issuance. A human must explicitly accept this
-policy and review its implementation before an issuance operation is exposed.
-Accepting this document alone would not approve any financial write.
+`issue_credit_note` is the fixed hosted status-transition operation. It requires
+write scope and `confirmed=true`, submits one transition and reads the credit
+back in the same account binding. Ownership and exact approval are agent
+responsibilities, not a server ledger. This source implementation and policy are
+subject to independent review and human PR merge; no live financial action is
+authorized by implementing the feature.
 
 The [provider credit-note contract](https://dev.freeagent.com/docs/credit_notes)
-was checked on 2026-10-28. It documents
+was checked on 2026-10-29. It documents
 `PUT credit_notes/:id/transitions/mark_as_sent`, returning HTTP 200, separately
 from `POST credit_notes/:id/send_email`. The transition can also reopen a
-cancelled credit; that broader provider behavior is outside this proposal.
+cancelled credit; that broader provider behavior is outside this workflow.
 Provider status values include `Draft`, `Open`, `Overdue`, `Refunded` and
 `Written-off`; do not expect a literal `Sent` readback merely because of the
 transition's name. Sandbox verification of actual eligible transitions remains
-required before enablement.
+a separate release-evidence gate.
 
-The proposed scope would permit only a Draft created and successfully read back
-during the current user request, in the same linked company. It would not grant
+This workflow permits only a Draft created and successfully read back
+during the current user request, in the same linked company. It does not grant
 ownership over an older Draft, reopen a cancelled credit, return an issued credit
 to Draft, edit invoice lines, send email, cancel a credit or refund cash. Existing
 issued credits remain eligible only for the separately approved allocation
 exception above. No additional exception for historical drafts is proposed.
 
-If accepted and implemented, the agent would follow these steps:
+The agent must follow these steps:
 
 1. Establish current-request creation evidence and re-read the company, selected
    Draft, original invoice where applicable, and complete related credit and
@@ -103,17 +103,16 @@ If accepted and implemented, the agent would follow these steps:
    automatically retry the transition, recreate the credit, email it or allocate
    it as a workaround. If status is already issued, do not replay issuance. Any
    retry after evidence establishes no transition requires a fresh exact approval.
-6. Allocation, if requested after verified issuance, would still require the full
+6. Allocation, if requested after verified issuance, still requires the full
    existing allocation preview, eligibility/duplicate reads and separate exact
-   approval. Issuance approval would never authorize allocation.
+   approval. Issuance approval never authorizes allocation.
 
-Before enabling this proposal, independent financial-workflow review must assess
-the ownership boundary and refusal/uncertain-result paths. A separately reviewed
-implementation must add one named remote operation, annotations, tool audit and
-canonical skill/rule updates together; verify authenticated discovery/invocation,
-permissions and affected-record readbacks with synthetic fixtures. Dedicated
-authorized sandbox evidence and marketplace client verification must be reported
-separately. No current tool or local generic executor is a workaround for this gate.
+Independent financial-workflow review must assess the ownership boundary,
+refusal and uncertain-result paths. Synthetic authenticated tests verify discovery,
+write authorization, fixed provider requests and credit readbacks. The agent also
+re-reads source invoice and complete related reconciliations where applicable;
+issuance itself neither allocates credit nor edits an invoice. Sandbox acceptance
+and actual installed web/mobile behavior remain separate evidence gates.
 
 ## Review examples and safeguards
 
@@ -121,8 +120,8 @@ These are policy review examples, not claims of observed assistant execution:
 
 - Selected existing issued credit + existing invoice, complete duplicate/balance
   reads and separate exact approval: allocate once and compare all three provider readbacks with the sourced preview.
-- Draft credit, even created and approved in the same request: leave Draft, explain
-  issuance is unavailable, do not call a transition or allocate it to bypass issuance.
+- Current-request Draft: leave Draft unless a separate exact issuance preview is
+  approved. Older Draft or unavailable creation evidence: do not issue.
 - User refuses allocation or only approves draft creation: no allocation write.
 - Missing currency/balance/duplicate coverage: stop before proposing a verified
   result; obtain missing evidence instead of treating it as zero.
@@ -145,13 +144,12 @@ real account eligibility remain external release gates; no live writes are impli
 ## Marketplace runtime audit
 
 The installed ChatGPT web/iOS workflow uses conversational review and the remote
-named tools in its skill. Contact/invoice/credit/reconciliation reads and both
-create helpers are declared in the hosted registry and exposed through authenticated
+named tools in its skill. Contact/invoice/credit/reconciliation reads and creation, issuance and allocation operations are declared in the hosted registry and exposed through authenticated
 MCP discovery/invocation. The package includes this document, the skill and shared
 agent rules with source digests. It requires no client-local Python, shell, files,
 CLI or generic API executor. Python helpers described above execute inside the
 remote service; their presence alone is not evidence of client availability.
-Synthetic authenticated HTTP tests discover both named creates and invoke them
+Synthetic authenticated HTTP tests discover named operations and invoke them
 through tools/call with the real dispatcher, including affected-record readback.
 This proves the packaged route and server mechanics, not publication, installed
 ChatGPT web/iOS execution or deployed provider availability; those require actual

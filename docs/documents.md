@@ -1,52 +1,94 @@
-# Accounting document PDFs: hosted delivery unavailable
+# Accounting document PDF delivery
 
-The hosted product does not expose PDF tools or ship the documents workflow.
-Both package builders exclude it, generated unsupported-capabilities.json records
-it as unavailable, and the capability gate rejects PDF operation re-enablement.
-The following describes an experimental local/server prototype and its diagnostics,
-not supported ChatGPT web/mobile file delivery. No client interpreter fallback is
-allowed.
+The registered document card identifies an invoice, estimate or credit note and
+provides one Download PDF action. That action obtains fresh authorization through
+the host's authenticated MCP bridge, opens a transient first-party browser route
+and starts a native HTTPS PDF attachment automatically. It requires no second
+confirmation, browser cookie, separate login, client interpreter or invented file
+ID. It is browser delivery, not a claim of a native ChatGPT attachment. Actual
+installed web/mobile acceptance remains a release gate.
 
-The [official OpenAI file APIs](https://developers.openai.com/plugins/reference)
-document tool file references and host download helpers. This prototype only emits
-an embedded MCP blob with a private URI; that is not evidence of a usable host file
-reference or viewer. Re-enable only after implementing a documented host output
-contract and verifying actual installed web and mobile delivery without a client
-interpreter. Synthetic tests alone cannot satisfy those gates.
+## Host contract
 
-Provider contracts checked 2026-10-28:
+Official OpenAI documentation checked 2026-10-29:
+[registered MCP Apps UI](https://developers.openai.com/plugins/build/chatgpt-ui),
+[UI quickstart](https://developers.openai.com/plugins/build/app-quickstart) and
+[plugin reference](https://developers.openai.com/plugins/reference).
+The card is registered at ui://freeagent/document-download-v2.html using
+_meta.ui.resourceUri and authenticated resources/list/read. Component-only result
+_meta contains an opaque original-context handle; text and structuredContent have
+only document metadata. On the user's action, the MCP Apps tools/call bridge invokes
+a UI-only refresh operation with no output template, so it does not create another
+card. The result contains a fresh private URL for documented openExternal navigation
+with redirectUrl:false. A host lacking required support shows an inline error.
+
+The file APIs document uploadFile for user-selected files and download helpers for
+already authorized file IDs. They do not establish that a backend PDF blob becomes
+a native ChatGPT attachment or how to mint such an ID. This flow does not rely on
+that assumption, a local executable, or an unverified upload-and-render fallback.
+
+## Original authorization and delegated capability
+
+Provider contracts checked 2026-10-29:
 [invoices](https://dev.freeagent.com/docs/invoices),
-[estimates](https://dev.freeagent.com/docs/estimates) and
+[estimates](https://dev.freeagent.com/docs/estimates),
 [credit notes](https://dev.freeagent.com/docs/credit_notes).
-Each documents a fixed GET collection/:id/pdf operation with RFC 2045 base64 in
-pdf.content and minimum provider access level Estimates and Invoices.
+Each documents collection/:id/pdf with RFC 2045 base64 at pdf.content and minimum
+access Estimates and Invoices. Named PDF tools verify record identity and a bounded
+PDF through the current read-scoped company binding. The display label uses the
+provider reference when returned; filenames retain only the fixed collection/ID.
 
-Named tools get_invoice_pdf, get_estimate_pdf and get_credit_note_pdf first read
-and verify the selected record URL through the same account-bound client, then
-fetch its PDF. Prototype hosted test fixtures require freeagent:read, a current principal/company
-binding and the existing rate/deadline/transport limits. No destination URL or
-local path is accepted. Provider authorization remains authoritative. Relinking,
-revocation or an identity mismatch fails the request rather than changing accounts.
+The canonical state store retains an immutable context containing the original
+subject, company, environment, generation, fixed collection/ID and authorization
+window. This context is not download authority. It lasts only within the original
+connected-session limit (up to the existing 30-day window), so a card open for hours
+does not depend on an expired two-minute offer. Every refresh requires current
+verified MCP read scope and an exact original subject/company/environment/generation
+and document-type match. A new account with the same numeric document ID cannot
+silently replace the original selection. Original bindings are checked before and
+after provider fetches. Relinking, disconnection or authorization expiry fails
+closed; refreshed access does not extend the original context window.
 
-The tools decode the provider response and return a standard MCP embedded binary
-resource (application/pdf), alongside metadata in structuredContent and text.
-Encoded content is confined to the protocol resource, never prose or metadata.
-The numeric-ID filename contains no provider-supplied reference or customer name.
-Local MCP and explicitly experimental test fixtures use this contract; clients supporting embedded PDF
-resources can display or expose their native attachment control. There is no
-public download endpoint, signed URL, server file store or resource-read cache.
-Bytes are held only for the invocation/response; the host controls subsequent chat
-retention. Do not log tool response bodies or resource contents.
+A successful user-initiated refresh mints a separate random 256-bit, one-file,
+120-second single-use delegated capability. Possession of that token authorizes
+only its original selected document; this is an explicit narrow bearer authority,
+not browser identity authentication. A copied token could be redeemed during that
+short window. It remains private to the component, appears only in a URL fragment
+and then a small POST body, and never enters model text, structuredContent, HTTP
+URL paths/queries, logs, referrers, cookies or browser storage. The static inline
+bridge clears the fragment before further requests and automatically submits the
+bounded POST. Its script is pinned by a CSP hash. No manual receiver form is shown.
 
-The limit is 5 MiB decoded and 8 MiB encoded, within the hosted transport's 8 MiB
-JSON response bound. Strict base64 (with RFC 2045 whitespace), PDF header and final
-EOF marker checks reject malformed/truncated envelopes; these are transport checks,
-not a full document validator or malware scanner. Errors reveal no provider body,
-file content or signed URL. Existing HTTPS security headers specify no-store.
+Redemption ignores browser cookies: an absent or different browser account cannot
+substitute provider credentials. It uses only the original MCP-authorized binding,
+requires exact first-party Origin, rate limits the original subject, atomically
+consumes the capability before a fresh provider read, and rechecks revocation before
+releasing bytes. Expired, replayed, revoked or uncertain outcomes do not yield files.
+A retry in the existing card obtains a new authorized capability; it does not replay
+a used one. This removes document-specific OAuth/browser-session coupling.
 
-Synthetic authenticated HTTP tests establish discovery, account-bound provider
-requests, denied/revoked access, identity checks, bounds and MCP resource bytes.
-They do not establish live provider PDF behavior, marketplace-installed web/iOS
-viewing, or actual file delivery on those clients. Those checks and independent
-security review remain release gates. If the host cannot display embedded PDF
-resources, report delivery unavailable and direct the user to FreeAgent.
+The state store retains metadata only, with canonical TTL cleanup; no PDF bytes,
+persistent file cache or background generation are stored. The response is
+application/pdf with Content-Disposition: attachment, no-store and nosniff. The
+attachment uses no-referrer. The transient bridge uses same-origin referrer policy
+to preserve the native form Origin header; its fragment is already gone, and no
+cross-origin referrer is sent. No API response body, grant or file data is logged.
+The host/browser controls retention of already received files.
+
+Decoded files are limited to 5 MiB, encoded strings to 8 MiB, within the hosted
+8 MiB JSON transport bound. Strict base64, header and EOF checks validate the
+transport envelope, not a complete PDF parser or malware scan. Legacy local
+embedded resources remain diagnostics and are not advertised as usable output.
+
+## Verification limits
+
+Synthetic HTTP and Chromium desktop/mobile-viewport tests exercise the full normal
+OAuth transaction, signed MCP authorization, registered card, one user action,
+automatic native PDF attachment, stale-card refresh, absent/different browser
+cookies, denied/cross-account refresh, relinking, expiry, revocation and atomic
+replay/concurrency guards. They do not prove production routing or actual installed
+ChatGPT web/iOS delivery. Independent review, deployment of the reviewed source and
+actual installed-client attachment results for each document type remain #72
+acceptance gates. Record that evidence separately in private operational records.
+The publication builder stays blocked while those observations are pending;
+draft/operator candidates do not assert acceptance or public availability.

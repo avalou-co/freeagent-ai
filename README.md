@@ -8,7 +8,7 @@ Nothing here is specific to one business. Your contact, project and bank-account
 
 ## What you get
 
-- **Skills**: ready-made workflows for setting up contacts, projects and tasks (`clients`), logging time (`timesheets`) and creating draft invoices from timeslips (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), draft estimates (`estimates`), explaining bank transactions (`bank-reconcile`), read-only reports (`reports`), and listing outstanding or overdue invoices and drafting chasers for you to send (`invoice-status`, read-only).
+- **Skills**: ready-made workflows for setting up contacts, projects and tasks (`clients`), logging time (`timesheets`), draft invoices and separately approved current-request invoice actions (`invoicing`), recording expenses with receipts (`expenses`) and supplier bills (`bills`), draft estimates (`estimates`), explaining bank transactions (`bank-reconcile`), read-only reports (`reports`), and listing outstanding or overdue invoices and drafting chasers (`invoice-status`, read-only).
 - **MCP server**: direct GET, POST, PUT and DELETE API tools, plus convenience tools for reading FreeAgent data and finding and creating contacts, creating projects, tasks, timeslips, draft invoices, expenses, supplier bills, draft estimates and bank explanations.
 - **Python client and CLI**: `freeagent-ai login`, `freeagent-ai status` and a small `call()` helper with automatic token refresh.
 - **Safety rules**: agents confirm before writing, only create drafts, and never touch entries they did not create (`docs/agent-rules.md`).
@@ -186,20 +186,18 @@ Income Tax evidence, with separate provider filing/payment dates and statuses.
 Unavailable remaining debt is reported explicitly; no forecast commitments are calculated.
 
 Use `/freeagent-ai:credit-notes` to review duplicate credits and create approved
-Draft credit notes. A [narrow allocation exception](docs/credit-notes.md) permits
+Draft credit notes and separately approve issuance of a Draft created during the
+current user request using `issue_credit_note`. A [narrow allocation exception](docs/credit-notes.md) permits
 separately approved allocation of a selected existing issued credit to a selected
-invoice after complete reads and an exact preview. Issuing, invoice edits and cash
-refunds remain excluded. Allocation mechanics return all affected provider records.
+invoice after complete reads and an exact preview. Historical Draft issuance,
+credit emailing and cash refunds remain excluded. Allocation mechanics return all affected provider records.
 
 Draft invoices support exact approved manual lines/currency and documented provider
 source-inclusion modes through `create_draft_invoice_from_payload`. FreeAgent owns
 totals, eligibility and duplicate billing; the tool keeps Draft/emails off and reads
 back. See [invoice workflow](docs/invoicing.md) for inclusion limits and evidence gates.
 
-Accounting PDF delivery is unavailable in hosted ChatGPT web/mobile. The local
-`/freeagent-ai:documents` prototype is excluded from hosted discovery and both
-marketplace package builders until a supported interpreter-free delivery contract
-and actual client evidence exist. See [document transport status](docs/documents.md).
+Accounting PDFs: `/freeagent-ai:documents` uses a registered ChatGPT UI and a one-action browser download using the original MCP authorization. No client interpreter or public file URL is required. Installed web/mobile delivery remains a separate verification gate. See [document transport](docs/documents.md).
 
 UK payroll filing/payment evidence is available through `/freeagent-ai:payroll`
 skill; employee payslips, payroll execution and filing are excluded. See

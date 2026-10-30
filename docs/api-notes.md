@@ -16,6 +16,15 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 
 ## Invoices
 
+- Named hosted `duplicate_invoice` uses the fixed provider duplicate endpoint and
+  reads the new Draft and original source. `mark_invoice_as_sent` and
+  `send_invoice_email` are separately approved current-request-only actions under
+  the [invoice policy](invoicing.md#approved-invoice-delivery-and-duplication-policy).
+  Sending requires explicit reviewed fields, disables expense-receipt inclusion,
+  and does not accept templates/extra attachments. API acceptance is not recipient
+  delivery. All action helpers read back and report uncertain outcomes without
+  replay; provider error bodies are withheld to protect email content.
+
 - Contract checked 2026-10-26: [provider invoice creation](https://dev.freeagent.com/docs/invoices).
   Named remote `create_draft_invoice_from_payload` accepts manual `invoice_items`,
   explicit `currency` and documented `include_timeslips`, `include_estimates` and
@@ -84,7 +93,7 @@ Learned from real use. All paths are relative to `https://api.freeagent.com/v2/`
 - Create with `status: "Draft"`. Estimates have no email flags; sending is a separate action this repo never takes.
 - List with `GET estimates?contact=...` (or `?project=...`) and copy reference style from the latest.
 - Draft invoice creation can request provider `include_estimates` modes for open/approved project estimates; this is not an individual estimate-ID conversion or permission to issue/send. See [invoice contract](invoicing.md).
-- Verify after creating: status, line count, net = quantity x price.
+- Verify after creating: provider-returned status, lines, net, tax and gross against the approved inputs or explicitly sourced expectations; never recalculate accounting amounts.
 
 ## Bills
 
@@ -146,7 +155,7 @@ Read-only via `freeagent_get`.
 - `accounting/profit_and_loss/summary?from_date=&to_date=`
 - `accounting/balance_sheet?as_at_date=`
 - `accounting/trial_balance/summary?from_date=&to_date=`
-- `invoices?view=overdue`, `bills?view=overdue` (client aggregates linked pages; total per currency)
+- `invoices?view=overdue`, `bills?view=overdue` (the client aggregates linked pages while preserving provider amounts and currencies; do not derive local totals)
 - `bank_accounts` for balances (cash).
 
 ## Direct API writes
@@ -189,13 +198,15 @@ action is added.
 
 Use the [credit workflow and allocation policy](credit-notes.md). Provider creates credit
 notes as Draft. Named helper forwards signed credit_note_items and reads back;
-issuing/email are separate and not exposed by this workflow. Reconciliations use
+`issue_credit_note` separately calls fixed PUT credit_notes/:id/transitions/mark_as_sent
+and reads the credit back. Only a current-request-created Draft with separate exact
+approval is in scope; email/reopening cancelled credits are excluded. Reconciliations use
 POST credit_note_reconciliations with credit_note/invoice/gross_value; helper reads
 reconciliation, credit note and invoice. Detail JSON may use a plural root.
 Allocation is not a cash refund. The approved narrow ownership exception permits
 allocation affecting only the selected existing issued credit and invoice, after
 complete reads, exact preview and separate approval. It excludes invoice edits,
-issuing, cash refunds and unrelated records. Preserve provider
+cash refunds and unrelated records; it never supplies issuance approval. Preserve provider
 errors and inspect uncertain writes before any retry.
 
 
@@ -212,7 +223,7 @@ errors and inspect uncertain writes before any retry.
 
 ## Document PDFs
 
-Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Experimental local PDF reads verify record identity and emit bounded embedded MCP resources, keeping bytes out of text/structured metadata and errors. Hosted discovery and packages exclude PDF delivery until supported interpreter-free web/mobile output is verified. See [document transport](documents.md) for limits and client verification gates.
+Provider PDF endpoints for invoices, estimates and credit notes return RFC 2045 base64 at `pdf.content`. Hosted named reads verify record identity and PDF bounds, then emit public metadata plus a private original-bound UI context. Its authenticated UI-only refresh mints a short one-file delegated capability; the browser route auto-submits for a native HTTPS attachment without cookie or login dependence. Legacy local embedded resources remain diagnostics only; installed web/mobile delivery acceptance remains separate. See [document transport](documents.md) for limits and client verification gates.
 
 ## Payroll reads
 

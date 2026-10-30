@@ -23,8 +23,9 @@ reminders, mark paid or mutate an invoice. No local runtime is required.
 
 Follow `docs/agent-rules.md` throughout.
 
-The [proposed delivery policy](../../../docs/invoicing.md#proposed-delivery-policy--pending-human-acceptance)
-is pending human acceptance. Chaser drafting stays read-only; do not send, duplicate
-or change status, even if an invoice is existing/issued or OAuth grants write scope. There
-is no approved sending workflow to enter until that policy is accepted and the
-named remote implementation is separately reviewed.
+This workflow remains read-only. If the user explicitly requests an action, hand
+off to the [invoicing workflow](../invoicing/SKILL.md) and
+[approved invoice policy](../../../docs/invoicing.md#approved-invoice-delivery-and-duplication-policy).
+That workflow requires current-request ownership for delivery/status, complete
+review and distinct exact approval. Chaser-text approval alone never permits a
+send; existing invoices cannot be sent under that ownership policy.

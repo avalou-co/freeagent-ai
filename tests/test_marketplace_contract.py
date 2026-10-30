@@ -66,6 +66,8 @@ def provider_result(path):
     record = {"url": BASE + path, "currency": "GBP", "total_value": "-123.45", "description": "Synthetic"}
     if path.endswith("/pdf"):
         return {"pdf": {"content": base64.b64encode(b"%PDF-1.4\nsynthetic\n%%EOF").decode()}}
+    if path.endswith("/pdf"):
+        return {"pdf": {"content": base64.b64encode(b"%PDF-1.4\nsynthetic\n%%EOF").decode()}}
     if path == "expenses/mileage_settings":
         return {"mileage_settings": {"engine_type_and_size_options": [], "mileage_rates": []}}
     if path == "categories":
@@ -124,6 +126,10 @@ def remote(accounts, monkeypatch):
         if mode and mode[0] == "readback" and method == "GET":
             raise urllib.error.HTTPError(url, 503, "unavailable", Message(), None)
         path = urlsplit(url).path.removeprefix("/v2/")
+        if path.endswith("/duplicate") and method == "POST":
+            return {"invoice": {"url": BASE + "invoices/90"}}, {}
+        if path.endswith("/send_email") and method == "POST":
+            return 200, {}
         if method == "POST":
             payload = kwargs["body"]
             root = next(iter(payload))
@@ -376,7 +382,12 @@ def test_artifact_and_approval_contracts_are_derived_from_discovered_schemas(rem
     receipts = contracts["receipts"]["input_artifacts"]
     assert {item["parameter"] for item in receipts} == {"receipt", "attachment"}
     for contract in contracts.values():
-        assert contract["output_artifacts"] == ["provider JSON / assistant explanation"]
+        expected_artifacts = (
+            ["registered MCP Apps UI -> original-account delegated HTTPS application/pdf attachment"]
+            if any(op["name"].endswith("_pdf") for op in contract["operations"])
+            else ["provider JSON / assistant explanation"]
+        )
+        assert contract["output_artifacts"] == expected_artifacts
         for item in contract["input_artifacts"]:
             tool = tools[item["tool"]]
             assert item["parameter"] in tool["_meta"]["openai/fileParams"]

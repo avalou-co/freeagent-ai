@@ -19,6 +19,7 @@ MAX_ENCODED_BYTES = 8 * 1024 * 1024
 class PdfDocument:
     metadata: dict
     data: bytes = field(repr=False)
+    reference: str = ""
 
     def tool_result(self):
         return CallToolResult(
@@ -66,6 +67,7 @@ def fetch_pdf(call, base, collection, record_id):
         raise ValueError("Malformed PDF header")
     if not data.rstrip().endswith(b"%%EOF"):
         raise ValueError("Incomplete PDF")
+    reference = record.get("reference")
     return PdfDocument(
         {
             "source": base + path,
@@ -75,4 +77,5 @@ def fetch_pdf(call, base, collection, record_id):
             "collected_at": datetime.now(timezone.utc).isoformat(),
         },
         data,
+        reference if isinstance(reference, str) else "",
     )

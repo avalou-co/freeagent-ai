@@ -58,6 +58,14 @@ def credit(accounts, hosted_context):
     def transport(method, url, deadline, **kwargs):
         path = urlsplit(url).path.removeprefix("/v2/")
         calls.append((method, path, kwargs.get("body")))
+        if method == "PUT":
+            assert path == "credit_notes/8/transitions/mark_as_sent"
+            if state["failure"] == "reject":
+                raise urllib.error.HTTPError(url, 422, "invalid", Message(), None)
+            if state["failure"] == "timeout":
+                raise TimeoutError("uncertain")
+            state["credit_note"]["status"] = "Open"
+            return 200, {}
         if method == "POST":
             if state["failure"] == "reject":
                 raise urllib.error.HTTPError(
@@ -71,6 +79,8 @@ def credit(accounts, hosted_context):
             return {"company": {"url": BASE + "company/1"}}, {}
         if state["failure"] == "readback" or (state["failure"] == "invoice_readback" and path == "invoices/7"):
             raise urllib.error.HTTPError(url, 503, "unavailable", Message(), None)
+        if state["failure"] == "malformed" and path == "credit_notes/8":
+            return {"credit_note": "invalid"}, {}
         if path == "credit_notes":
             return {"credit_notes": [deepcopy(state["credit_note"])]}, {}
         if path == "credit_note_reconciliations":
@@ -216,54 +226,44 @@ def test_existing_issued_allocation_partial_verification_never_repeats_or_edits(
     assert not any(m in {"PUT", "DELETE"} or "transitions" in p or "send_email" in p for m, p, _ in calls)
 
 
-def test_allocation_policy_does_not_expose_issuing_or_refund_operations():
-    # Surface audit only: agent behavior remains subject to independent workflow review.
-    assert not any(
-        "credit_note" in name and any(x in name for x in ("sent", "issue", "refund", "email")) for name in REGISTRY
-    )
+def test_credit_issuance_is_fixed_destructive_and_separate_from_email_refund():
+    operation = REGISTRY["issue_credit_note"]
+    assert (operation.method, operation.endpoint) == ("PUT", "credit_notes/{id}/transitions/mark_as_sent")
+    assert operation.descriptor.annotations.destructive_hint
+    assert not operation.descriptor.annotations.idempotent_hint
+    assert "separate issuance approval" in operation.descriptor.description
+    assert not any("credit_note" in name and any(x in name for x in ("refund", "email")) for name in REGISTRY)
 
 
-@pytest.mark.parametrize("name", ["issue_credit_note", "mark_credit_note_as_sent", "send_credit_note_email"])
-def test_unapproved_credit_transitions_fail_before_provider_access(credit, name):
+def test_issuance_refusal_reaches_no_provider(credit):
     invoke, _, calls, _ = credit
-    result = invoke(name, id="8", confirmed=True)
-    assert result.is_error
-    assert result.content[0].text == "Tool not available"
+    assert invoke("issue_credit_note", id="8", confirmed=False).is_error
     assert calls == []
 
 
-def test_pending_credit_issuance_policy_is_packaged_without_enabling_a_tool(credit, accounts):
+@pytest.mark.parametrize("failure", ["timeout", "reject", "readback", "malformed"])
+def test_issuance_uncertain_outcomes_do_not_replay(credit, failure):
+    invoke, state, calls, _ = credit
+    state["failure"] = failure
+    result = invoke("issue_credit_note", id="8", confirmed=True)
+    assert result.is_error
+    assert "inspect this credit in the original company before any retry" in result.content[0].text
+    assert len([call for call in calls if call[0] == "PUT"]) == 1
+    assert not any(method in {"POST", "DELETE"} for method, _, _ in calls)
+    if failure == "reject":
+        assert "FreeAgent HTTP 422" in result.content[0].text
+    if failure == "readback":
+        assert state["credit_note"]["status"] == "Open"
+        assert any(path == "credit_notes/8" for _, path, _ in calls)
+
+
+def test_issuance_requires_write_scope_and_numeric_id(credit, hosted_context):
     _, _, calls, dispatcher = credit
-    files = package_files(Path(__file__).resolve().parents[1])
-    policy = files["docs/credit-notes.md"].decode()
-    skill = files["skills/credit-notes/SKILL.md"].decode()
-    assert "Proposed issuance policy — pending human acceptance" in policy
-    assert "It does not authorize issuing a Draft now" in skill
-    principal = Principal("credit", frozenset({"freeagent:read", "freeagent:write"}), 101)
-    app = create_app(settings(), accounts, SimpleNamespace(principal=lambda _: principal), dispatcher)
-    with TestClient(app, base_url=ORIGIN) as client:
-        headers = {"Authorization": "Bearer synthetic", "Accept": "application/json, text/event-stream"}
-        response = client.post(
-            "/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
-        )
-        names = {tool["name"] for tool in response.json()["result"]["tools"]}
-        assert {"create_draft_credit_note", "create_credit_note_reconciliation"} <= names
-        assert not any(
-            "credit_note" in name and any(verb in name for verb in ("issue", "sent", "email", "refund"))
-            for name in names
-        )
-        response = client.post(
-            "/mcp",
-            headers=headers,
-            json={
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {"name": "issue_credit_note", "arguments": {"id": "8", "confirmed": True}},
-            },
-        )
-        result = response.json()
-        assert "error" in result or result["result"].get("isError")
+    with hosted_context(Principal("credit", frozenset({"freeagent:read"}), 101)):
+        assert dispatcher.call_tool("issue_credit_note", {"id": "8", "confirmed": True}).is_error
+    assert calls == []
+    with hosted_context(Principal("credit", frozenset({"freeagent:write"}), 101)):
+        assert dispatcher.call_tool("issue_credit_note", {"id": "8/transitions/other", "confirmed": True}).is_error
     assert calls == []
 
 
@@ -285,12 +285,11 @@ def test_marketplace_package_and_remote_mcp_credit_path(credit, accounts):
         descriptors = {t["name"]: t for t in discovery.json()["result"]["tools"]}
         for name, args in [
             ("create_draft_credit_note", draft_args()),
+            ("issue_credit_note", {"id": "8", "confirmed": True}),
             ("create_credit_note_reconciliation", allocation_args()),
         ]:
             assert name in descriptors
             assert descriptors[name]["securitySchemes"] == [{"type": "oauth2", "scopes": ["freeagent:write"]}]
-            if name == "create_credit_note_reconciliation":
-                state["credit_note"]["status"] = "Open"
             response = client.post(
                 "/mcp",
                 headers=headers,
@@ -301,10 +300,21 @@ def test_marketplace_package_and_remote_mcp_credit_path(credit, accounts):
             assert not result.get("isError", False)
             data = result["structuredContent"]
             assert "credit_note" in data
+            if name == "issue_credit_note":
+                assert data["credit_note"]["status"] == "Open"
+                assert data["credit_note"]["total_value"] == "-120"
+                assert data["credit_note"]["credit_note_items"][0]["price"] == "-100"
             if name == "create_credit_note_reconciliation":
                 assert data["invoice"]["url"] == BASE + "invoices/7"
                 assert data["credit_note_reconciliation"]["gross_value"] == "60"
         assert len([c for c in calls if c[0] == "POST"]) == 2
+        assert len([c for c in calls if c[0] == "PUT"]) == 1
+        assert not any("send_email" in path for _, path, _ in calls)
+        issue_index = next(i for i, call in enumerate(calls) if call[0] == "PUT")
+        assert calls[issue_index][1:] == ("credit_notes/8/transitions/mark_as_sent", None)
+        assert calls[issue_index + 1][0:2] == ("GET", "credit_notes/8")
+        assert "Current-request Draft issuance policy" in files["docs/credit-notes.md"].decode()
+        assert "`issue_credit_note`" in skill
 
 
 def test_credit_package_preserves_provider_remediation_docs_and_source_digests():

@@ -64,6 +64,15 @@ Hosted attachment descriptions distinguish metadata reads from add, update and
 remove operations. Ownership checks are agent responsibilities. The payload invoice
 helper sets Draft status and disables automatic emails; it accepts manual lines.
 
+Hosted `duplicate_invoice`, `mark_invoice_as_sent` and `send_invoice_email` call
+only their reviewed fixed provider endpoints and read affected invoices. All need
+write scope and exact confirmation. The agent enforces the narrow
+[invoice ownership/approval policy](invoicing.md#approved-invoice-delivery-and-duplication-policy).
+The email tool accepts explicit recipient/sender/subject/body/sender-copy fields,
+fixes expense-receipt inclusion off and accepts no templates or extra attachments.
+It returns API acceptance separately from unavailable recipient delivery evidence.
+No write retry, accounting state machine or ownership ledger is introduced.
+
 The hosted `list_categories` adapter combines FreeAgent's four documented category
 groups into its existing `categories` output. It preserves provider category fields
 and fails incomplete reads when a group is missing or malformed; it does not select
@@ -85,6 +94,7 @@ verify wrapper behavior; they do not independently test FreeAgent's accounting r
 | `create_contact` | POST supplied contact fields and read back; omitted payment terms use provider defaults, explicit zero is preserved. |
 | `create_timeslip` | POST supplied timeslip fields and read back; no date, hours, relationship or duplicate checks. |
 | `create_draft_credit_note` | POST supplied signed credit items using FreeAgent default Draft status, then read back; no issuance/email/allocation. |
+| `issue_credit_note` | PUT fixed mark_as_sent transition after separate exact current-request Draft approval, then GET the credit; no email/allocation/refund or cancelled-credit reopening. |
 | `create_credit_note_reconciliation` | POST separately approved allocation fields, then read reconciliation, credit note and invoice; destructive, non-idempotent, and subject to the narrow allocation ownership exception. |
 | `create_draft_invoice` | POST invoice fields with automatic emails off; optionally request provider-generated timeslip lines, then read back. Relies on FreeAgent's default Draft status and unbilled-timeslip handling. |
 | `create_draft_invoice_from_payload` | POST approved invoice object to fixed invoices endpoint with Draft and all automatic emails off, then read back. Manual lines/currency/provider inclusion strings remain unchanged; no accounting calculations or source eligibility validation. |
@@ -190,6 +200,11 @@ complete reads, exact preview and separate approval. It does not authorize issui
 invoice edits, cash refunds or unrelated changes. No task ledger or local
 eligibility validator is added.
 
+`issue_credit_note` requires write scope and confirmed=true, issues a current-request
+Draft with separate exact approval and GETs the credit for verification. It never
+emails or allocates. Read related source evidence using named reads; inspect an
+uncertain result before retrying. See [issuance policy](credit-notes.md#current-request-draft-issuance-policy).
+
 ## Bank attachment migration
 
 API calls explicitly use `X-Api-Version: 2026-09-01`. The local generic API tools
@@ -220,21 +235,13 @@ This is server collection metadata, not provider financial data or an atomic
 snapshot. Existing fields, filters, pagination, authorization and errors remain
 unchanged. See [month-end evidence limits](month-end.md).
 
-## Document PDF resources
+## Document PDF delivery
 
-Hosted discovery excludes `get_invoice_pdf`, `get_estimate_pdf` and
-`get_credit_note_pdf`; both marketplace builders omit the documents workflow.
-The embedded MCP resource implementation remains a local/server prototype, not a
-verified ChatGPT file output. The gate rejects PDF tools and records this feature
-as unavailable until a documented interpreter-free host output contract and
-installed web/mobile evidence exist. [Status and prototype limits](documents.md).
-
-## Hosted payroll audit
-
-`list_payroll_periods` and `get_payroll_period` perform only the two documented
-fixed GET reads in the [payroll API](https://dev.freeagent.com/docs/payroll).
-Annual reads preserve both period/payment collections; period reads discard
-employee payslips before returning metadata. Both provide source and collection
-time, use linked-company read authorization, and fail incomplete collection
-shapes. No employee, filing, execution or payment/status mutation is exposed.
-See [payroll evidence](payroll.md) for provider permissions and evidence limits.
+Named PDF reads identify the selected document and return the registered card.
+Its one Download PDF action calls a UI-only refresh tool through authenticated
+MCP, checks the immutable original account/document context and obtains a short,
+single-use delegated capability. The transient browser bridge clears the fragment
+and auto-submits for a native PDF attachment; no second click or browser login is
+required. Browser cookies never select another account. This is narrow bearer
+capability authority, not a browser identity check. [Full contract and remaining
+installed-client verification](documents.md).

@@ -1,32 +1,27 @@
 ---
 name: documents
-description: Experimental local MCP PDF diagnostics; unavailable in hosted ChatGPT web/mobile.
+description: Request invoice, estimate and credit-note PDFs with one Download PDF action.
 ---
 
-# Experimental local document PDFs
+# Accounting document PDFs
 
-This workflow is excluded from hosted ChatGPT packages and discovery. It is a
-local/server prototype only; do not advertise file delivery on web/mobile.
-No local decoder or interpreter fallback is permitted for hosted users.
-
-1. Ask which linked company, document type and record the user wants. Call
-   `get_company`, then resolve the selected record with `list_invoices`,
-   `list_estimates` or `list_credit_notes`. Match the reference/contact and ask
-   when ambiguous; never guess a record ID.
+1. Establish the linked company with `get_company`. Resolve the user's selected
+   document with `list_invoices`, `list_estimates` or `list_credit_notes` and the
+   matching `get_invoice`, `get_estimate` or `get_credit_note` detail tool. Match
+   reference/contact; ask when ambiguous. Never guess the document or company.
 2. Call `get_invoice_pdf`, `get_estimate_pdf` or `get_credit_note_pdf` with the
-   selected numeric ID. The tool verifies provider identity, fetches the PDF under
-   the same account binding and returns an embedded MCP `application/pdf` resource
-   plus source, safe filename, byte size and collection time.
-3. Present the embedded resource using the host's supported resource viewer or
-   attachment control. Do not paste base64, invent a URL, ask the user to run code,
-   or claim the document reached them when the host cannot display the resource.
-   Report unsupported client delivery explicitly. Actual marketplace web/iOS
-   resource viewing requires separate client verification.
-4. Treat permission errors, unavailable PDFs, identity mismatches and malformed or
-   oversized responses as incomplete reads. Ask the user to select another record
-   or retrieve it in FreeAgent; do not change document status to obtain a PDF.
+   selected numeric ID. The card identifies the document using its provider
+   reference when available and has one **Download PDF** action.
+3. The action refreshes authorization internally and starts the browser download.
+   There is no second confirmation or separate browser login. Do not ask the user
+   to request a new link when a card has been open for a while; its action obtains
+   a fresh one-file capability under the original account context. A changed or
+   disconnected account is refused rather than silently selecting another company.
+4. Describe the result as a browser download, not a native ChatGPT file attachment.
+   Claim arrival only after actual client/user confirmation. Missing host support
+   stays unavailable, with an inline message; never invent file IDs, paste base64
+   or require client code to produce the file.
 
-This workflow is read-only. It does not send email, issue documents or approve any
-accounting action. Files can contain sensitive customer data: limit access to the
-user-selected document. The service persists no document bytes or download URLs;
-chat/host retention is controlled by the host. See [transport limits](../../../docs/documents.md).
+The workflow is read-only and authorizes no accounting writes. Legacy local
+embedded resources remain diagnostics, not supported hosted delivery. See
+[delivery contract and installed-client verification limits](../../../docs/documents.md).

@@ -16,12 +16,12 @@ Task workflows live in `.agents/skills/<name>/SKILL.md`. Load the one that match
 |-------|---------|
 | `clients` | Finding or creating contacts, projects and tasks; setting up a new client |
 | `timesheets` | Logging time as timeslips for a date range |
-| `credit-notes` | Reviewed draft credit notes and policy-gated invoice allocation |
-| `invoicing` | Creating draft invoices, optionally from timeslips |
+| `credit-notes` | Reviewed draft credit notes, separately approved current-request issuance and invoice allocation |
+| `invoicing` | Draft creation, reviewed new-Draft duplication and separately approved current-request status/email actions |
 | `receipts` | Extracting and reviewing receipt images/PDFs before expense or bill creation |
 | `expenses` | Recording expense claims with receipts |
 | `mileage` | Recording reviewed mileage inputs and provider-calculated claim results |
-| `documents` | Experimental local PDF diagnostics; unavailable in hosted ChatGPT web/mobile |
+| `documents` | Read-only PDFs through a registered UI and authenticated browser download; installed-client verification separate |
 | `estimates` | Creating draft estimates/quotes with line items |
 | `bills` | Recording supplier bills, listing unpaid or overdue ones |
 | `bank-reconcile` | Listing unexplained bank transactions and proposing explanations |

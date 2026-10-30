@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Accounting document</title>
+<style>
+:root{color-scheme:light dark;--surface:#fcf9f8;--ink:#0a0a0a;--muted:#4a4949;--action:#1b3224;--on-action:#fcf9f8;--focus:#2d7351;--error:#9d2828;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--surface:#141313;--ink:#e6e1e1;--muted:#c1c8c1;--action:#8cc2a7;--on-action:#163626;--focus:#a2d9bd;--error:#ffb4ab}}
+:root[data-theme=dark]{--surface:#141313;--ink:#e6e1e1;--muted:#c1c8c1;--action:#8cc2a7;--on-action:#163626;--focus:#a2d9bd;--error:#ffb4ab}
+*{box-sizing:border-box}body{margin:0;background:var(--surface);color:var(--ink)}main{max-width:700px;padding:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}.document{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:180px}svg{flex:none;margin-top:2px;color:var(--muted)}h1{margin:0;font-size:1.14rem;line-height:1.4;font-weight:600;overflow-wrap:anywhere}p{margin:5px 0 0;line-height:1.5;color:var(--muted);max-width:54ch}button{font:inherit;font-weight:600;line-height:1.4;min-height:44px;padding:11px 16px;border:1px solid transparent;border-radius:8px;background:var(--action);color:var(--on-action);cursor:pointer;white-space:nowrap;transition:filter 150ms ease}button:hover:not(:disabled){filter:brightness(1.12)}button:active:not(:disabled){filter:brightness(.9)}button:focus-visible{outline:3px solid var(--focus);outline-offset:3px}button:disabled{opacity:.65;cursor:wait}main[data-error=true] p{color:var(--error)}::selection{background:var(--action);color:var(--on-action)}@media(max-width:420px){main{gap:16px;padding:18px}.document{min-width:0;flex-basis:100%}button{width:100%}}@media(prefers-reduced-motion:reduce){button{transition:none}}
+</style></head><body><main aria-labelledby="title"><div class="document"><svg aria-hidden="true" width="24" height="28" viewBox="0 0 24 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 1h9l5 5v20H5zM14 1v6h5M8 13h8M8 17h8M8 21h5"/></svg><div><h1 id="title">Document PDF</h1><p id="status" role="status" aria-live="polite">Preparing your document…</p></div></div><button id="download" type="button" disabled>Download PDF</button></main>
+<script>
+(()=>{
+  const main=document.querySelector("main"), title=document.getElementById("title"), status=document.getElementById("status"), button=document.getElementById("download");
+  const tokenPattern=/^[A-Za-z0-9_-]{43}$/, tools=new Set(["refresh_invoice_pdf","refresh_estimate_pdf","refresh_credit_note_pdf"]);
+  let context=null, busy=false, ready=false, rpcId=0; const pending=new Map();
+  const notify=(method,params)=>window.parent.postMessage({jsonrpc:"2.0",method,params},"*");
+  function request(method,params){return new Promise((resolve,reject)=>{const id=++rpcId,timer=setTimeout(()=>{pending.delete(id);reject(Error());},30000);pending.set(id,{resolve,reject,timer});window.parent.postMessage({jsonrpc:"2.0",id,method,params},"*");});}
+  function theme(value){if(value==="light"||value==="dark")document.documentElement.dataset.theme=value;}
+  function error(message){main.dataset.error="true";status.textContent=message;}
+  function enabled(){button.disabled=busy||!ready||!context||typeof window.openai?.openExternal!=="function";}
+  function receive(result){
+    const data=result?._meta?.document_download;
+    if(!data?.context)return; // UI-only refresh results must not replace the original selection.
+    if(!tokenPattern.test(data.context)||!tools.has(data.refresh_tool)){error("This document is unavailable. Select it again.");return;}
+    context={token:data.context,tool:data.refresh_tool,source:result.structuredContent?.source};
+    title.textContent=result.structuredContent?.document_label||"Document PDF";
+    main.dataset.error="false";status.textContent="Opens a PDF download in your browser.";
+    if(typeof window.openai?.openExternal!=="function")error("Downloads aren’t supported in this client.");
+    enabled();
+  }
+  button.addEventListener("click",async()=>{
+    if(busy||!context||!ready)return;
+    const selected=context;busy=true;button.textContent="Preparing PDF…";button.setAttribute("aria-busy","true");enabled();main.dataset.error="false";status.textContent="Preparing your PDF…";
+    try{
+      const result=await request("tools/call",{name:selected.tool,arguments:{context:selected.token}});
+      if(result?.isError)throw Error();
+      const url=new URL(result?._meta?.document_download?.url);
+      if(context!==selected||result.structuredContent?.source!==selected.source||url.origin!=="https://freeagent-ai.avalou.co"||url.pathname!=="/documents"||url.search||!/^#[A-Za-z0-9_-]{43}$/.test(url.hash))throw Error();
+      await window.openai.openExternal({href:url.href,redirectUrl:false});
+      status.textContent="Download opened in your browser.";
+    }catch{error("Couldn’t open this PDF. Try again, or check the connected account.");}
+    finally{busy=false;button.textContent="Download PDF";button.removeAttribute("aria-busy");enabled();}
+  });
+  window.addEventListener("message",event=>{
+    if(event.source!==window.parent||event.data?.jsonrpc!=="2.0")return;
+    const message=event.data;
+    if(message.id!==undefined&&!message.method){const waiting=pending.get(message.id);if(!waiting)return;clearTimeout(waiting.timer);pending.delete(message.id);message.error?waiting.reject(Error()):waiting.resolve(message.result);return;}
+    if(message.method==="ui/notifications/tool-result")receive(message.params);
+    if(message.method==="ui/notifications/host-context-changed")theme(message.params?.theme);
+  });
+  theme(window.openai?.theme);
+  request("ui/initialize",{appInfo:{name:"freeagent-document-download",version:"2.0.0"},appCapabilities:{},protocolVersion:"2026-01-26"}).then(result=>{ready=true;theme(result?.hostContext?.theme);notify("ui/notifications/initialized",{});enabled();}).catch(()=>error("Downloads aren’t supported in this client."));
+  const initial=window.openai?.toolResponseMetadata;
+  if(initial)receive(initial.mcp_tool_result||initial.call_tool_result||initial);
+})();
+</script></body></html>

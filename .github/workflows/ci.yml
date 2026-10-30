@@ -53,11 +53,27 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[hosted,dev]"
-      - run: pytest
+      - name: Install server test dependencies
+        run: pip install -e ".[hosted,dev]"
+      - name: Run server tests (browser tests skipped)
+        run: pytest
+
+  document-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test dependencies
+        run: pip install -e ".[hosted,dev,browser]"
+      - name: Install Chromium and system dependencies
+        run: python -m playwright install --with-deps chromium
+      - name: Run PDF browser tests
+        run: pytest tests/test_document_browser.py
 
   deploy-landing:
-    needs: [auth0-action, lint, test]
+    needs: [auth0-action, lint, test, document-browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
