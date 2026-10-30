@@ -3,6 +3,7 @@
 These browser fixtures are not evidence from an installed ChatGPT client.
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -35,6 +36,13 @@ def mount(browser_context, d, *, host_supported=True, cookie=""):
     resource = d.rpc("resources/read", {"uri": UI_URI})["contents"][0]
     urls, refreshes, grant_urls, downloads = [], [], [], []
     browser_context.on("page", lambda page: page.on("download", lambda download: downloads.append(download)))
+    hosting = json.loads((Path(__file__).parents[1] / "hosting.json").read_text())
+    edge_headers = {
+        key.lower(): value
+        for rule in hosting["headers"]
+        if rule["glob"] == "**"
+        for key, value in rule["headers"].items()
+    }
 
     def route(request_route):
         request = request_route.request
@@ -43,7 +51,13 @@ def mount(browser_context, d, *, host_supported=True, cookie=""):
             response = d.client.request(
                 request.method, request.url, headers=request.all_headers(), content=request.post_data_buffer
             )
-            request_route.fulfill(status=response.status_code, headers=dict(response.headers), body=response.content)
+            if request.url == ORIGIN + "/documents/download" and response.status_code == 200:
+                assert response.headers["referrer-policy"] == "no-referrer"
+            # Hosting applies its global headers after the rewritten backend response.
+            # Exercise the same boundary that can otherwise block the receiver script.
+            request_route.fulfill(
+                status=response.status_code, headers={**response.headers, **edge_headers}, body=response.content
+            )
         else:
             request_route.fulfill(status=200, content_type="text/html", body=resource["text"])
 
