@@ -32,7 +32,7 @@ def browser_context(request):
         browser.close()
 
 
-def mount(browser_context, d, *, host_supported=True, cookie=""):
+def mount(browser_context, d, *, host_supported=True, cookie="", host_capabilities=None):
     resource = d.rpc("resources/read", {"uri": UI_URI})["contents"][0]
     urls, refreshes, grant_urls, downloads = [], [], [], []
     browser_context.on("page", lambda page: page.on("download", lambda download: downloads.append(download)))
@@ -70,7 +70,12 @@ def mount(browser_context, d, *, host_supported=True, cookie=""):
 
     def host_rpc(method, params):
         if method == "ui/initialize":
-            return {"hostContext": {"theme": "light"}}
+            return {
+                "hostContext": {"theme": "light"},
+                "hostCapabilities": host_capabilities
+                if host_capabilities is not None
+                else ({"openLinks": {}} if host_supported else {}),
+            }
         assert method == "tools/call"
         refreshes.append(params)
         result = d.rpc(method, params)
@@ -83,15 +88,23 @@ def mount(browser_context, d, *, host_supported=True, cookie=""):
     browser_context.add_init_script("""
       window.addEventListener("message",async event=>{
         const m=event.data;
-        if(event.source!==window||m?.jsonrpc!=="2.0"||!["ui/initialize","tools/call"].includes(m.method))return;
+        if(event.source!==window||m?.jsonrpc!=="2.0"||!["ui/initialize","tools/call","ui/open-link"].includes(m.method))return;
+        if(m.method==="ui/open-link"){
+          window.__openRequests=(window.__openRequests||[]).concat([m.params]);
+          const failure=window.__openFailure;
+          if(failure==='timeout')return;
+          if(failure==='rpc-error'){window.postMessage({jsonrpc:"2.0",id:m.id,error:{code:-32603,message:"Host declined"}},"*");return;}
+          if(failure==='result-error'){window.postMessage({jsonrpc:"2.0",id:m.id,result:{isError:true}},"*");return;}
+          if(failure==='malformed'){window.postMessage({jsonrpc:"2.0",id:m.id,result:null},"*");return;}
+          if(failure!=='noop')window.open(m.params.url,'_blank','noopener');
+          window.postMessage({jsonrpc:"2.0",id:m.id,result:{}},"*");return;
+        }
         const result=await window.__hostRpc(m.method,m.params);
         window.postMessage({jsonrpc:"2.0",id:m.id,result},"*");
       });
     """)
-    if host_supported:
-        browser_context.add_init_script(
-            "window.openai={openExternal:({href,redirectUrl})=>{if(redirectUrl!==false)throw Error('Invalid navigation');window.open(href,'_blank','noopener');}};"
-        )
+    # Even a present compatibility shim must never be used in the standard path.
+    browser_context.add_init_script("window.openai={openExternal:()=>{throw Error('Compatibility shim invoked')}};")
     page.goto("https://widget.example.invalid/")
     result = d.offer()
     page.evaluate(
@@ -173,20 +186,20 @@ def test_refused_refresh_stays_inline_and_never_opens_other_account(delivery, br
     assert page.get_by_role("heading", name="Invoice INV-007").is_visible()
 
 
-@pytest.mark.parametrize("refusal", ["throw", "reject"])
+@pytest.mark.parametrize("refusal", ["result-error", "rpc-error", "malformed", "timeout"])
 def test_refused_external_navigation_is_inline_without_automatic_retry(delivery, browser_context, refusal):
     page, urls, refreshes, _, downloads = mount(browser_context, delivery)
-    page.evaluate(
-        """refusal=>{window.openai.openExternal=()=>{
-          if(refusal==='throw')throw Error('Host declined navigation');
-          return Promise.reject(Error('Host declined navigation'));
-        };}""",
-        refusal,
-    )
+    page.evaluate("refusal=>{window.__openFailure=refusal;}", refusal)
+    if refusal == "timeout":
+        page.clock.install()
     button = page.get_by_role("button", name="Download PDF")
     sync_api.expect(button).to_be_enabled()
     button.click()
-    page.get_by_text("Couldn’t open this PDF. Select the document again, or check the connected account.").wait_for()
+    if refusal == "timeout":
+        page.wait_for_function("window.__openRequests?.length===1")
+        page.clock.fast_forward(30001)
+    page.get_by_text("This client couldn’t open the browser. Select Download PDF to try again.").wait_for()
+    assert page.evaluate("window.__openRequests.length") == 1
     assert len(refreshes) == 1 and not downloads
     assert not any(url.startswith(ORIGIN) for url in urls)
     assert button.is_enabled() and page.get_by_role("button").count() == 1
@@ -196,9 +209,8 @@ def test_noop_external_navigation_does_not_claim_arrival_and_manual_retry_refres
     connected_delivery, browser_context
 ):
     page, _, refreshes, grant_urls, downloads = mount(browser_context, connected_delivery)
-    # The API does not document an acknowledgment. A void/no-op host
-    # therefore cannot be distinguished from an actual browser dispatch here.
-    page.evaluate("()=>{window.openai.openExternal=()=>undefined;}")
+    # A nonconforming host may acknowledge without opening. Do not infer arrival.
+    page.evaluate("()=>{window.__openFailure='noop';}")
     button = page.get_by_role("button", name="Download PDF")
     sync_api.expect(button).to_be_enabled()
     button.click()
@@ -207,10 +219,9 @@ def test_noop_external_navigation_does_not_claim_arrival_and_manual_retry_refres
     assert len(browser_context.pages) == 1
     assert page.get_by_text("Download opened in your browser.").count() == 0
     assert button.is_enabled() and page.get_by_role("button").count() == 1
-    page.evaluate("""()=>{window.openai.openExternal=({href,redirectUrl})=>{
-      if(redirectUrl!==false)throw Error('Invalid navigation');
-      window.open(href,'_blank','noopener');
-    };}""")
+    assert page.evaluate("window.__openRequests.length") == 1
+    assert page.evaluate("window.__openRequests[0].url") == grant_urls[0]
+    page.evaluate("()=>{window.__openFailure=null;}")
     with browser_context.expect_page() as opened:
         button.click()
     wait_download(opened.value, downloads)
@@ -338,3 +349,34 @@ def test_outdated_card_guidance_requests_fresh_selection_without_navigation(deli
     page.get_by_text("Couldn’t open this PDF. Select the document again, or check the connected account.").wait_for()
     assert len(delivery.calls) == before and not grants and not downloads
     assert not any(url.startswith(ORIGIN) for url in urls)
+
+
+def test_receiver_reuses_homepage_lockup_in_light_and_dark(delivery, browser_context):
+    page, urls, _, _, downloads = mount(browser_context, delivery)
+    receiver = open_receiver(page, browser_context)
+    wait_download(receiver, downloads)
+    receiver.evaluate("document.fonts.ready")
+    brand = receiver.get_by_role("link", name="Avalou home")
+    assert brand.get_attribute("href") == "https://avalou.co"
+    assert brand.locator(".brand-mark").inner_text() == "A"
+    assert brand.locator("span").nth(1).inner_text() == "Avalou"
+    assert brand.evaluate("e=>getComputedStyle(e).fontWeight") == "700"
+    assert any(url.endswith("libre-caslon-text-latin-bold.woff2") for url in urls)
+    for theme, background in (("light", "rgb(27, 50, 36)"), ("dark", "rgb(140, 194, 167)")):
+        receiver.emulate_media(color_scheme=theme, reduced_motion="reduce")
+        assert brand.locator(".brand-mark").evaluate("e=>getComputedStyle(e).backgroundColor") == background
+        directory = os.environ.get("FREEAGENT_UX_SCREENSHOT_DIR")
+        if directory:
+            name = "mobile" if receiver.viewport_size["width"] == 390 else "desktop"
+            receiver.screenshot(path=str(Path(directory) / (name + "-brand-" + theme + ".png")), full_page=True)
+
+
+@pytest.mark.parametrize("value", [None, False, [], True])
+def test_malformed_open_links_capability_is_unavailable_without_refresh(delivery, browser_context, value):
+    page, _, refreshes, _, downloads = mount(browser_context, delivery, host_capabilities={"openLinks": value})
+    page.get_by_text("Downloads aren’t supported in this client.").wait_for()
+    button = page.get_by_role("button", name="Download PDF")
+    assert button.is_disabled()
+    button.dispatch_event("click")
+    assert not refreshes and not downloads
+    assert page.evaluate("window.__openRequests||[]") == []

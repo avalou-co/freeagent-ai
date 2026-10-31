@@ -422,7 +422,7 @@ def make_registry(*, experimental_pdf=False):
                 "the original account authorization and opens a branded browser preparation page with an automatic download "
                 "and persistent ready control, without another login or confirmation. "
                 "No PDF bytes or capability appear in model-visible output. No email or status changes. "
-                "Requires documented host tool-call and external-navigation support; installed web/mobile verification is separate.",
+                "Requires host tool-call support and advertised MCP Apps openLinks navigation; installed web/mobile verification is separate.",
                 meta={"ui": {"resourceUri": UI_URI}, "openai/outputTemplate": UI_URI},
             )
             add(

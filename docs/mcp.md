@@ -239,7 +239,8 @@ unchanged. See [month-end evidence limits](month-end.md).
 
 Named PDF reads identify the selected document and return the registered card.
 Its one Download PDF action calls a UI-only refresh tool through authenticated
-MCP, checks the immutable original account/document context and obtains a short,
+MCP, requires advertised host openLinks support for ui/open-link navigation,
+checks the immutable original account/document context and obtains a short,
 single-use delegated capability. The branded browser page clears the fragment
 and POST-fetches the PDF once, shows preparation, then exposes a persistent ready
 control and automatically requests the browser download. It retains only bounded

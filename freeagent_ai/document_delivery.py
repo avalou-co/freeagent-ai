@@ -10,7 +10,7 @@ from .hosted_accounts import AccessDenied, Binding, key_for
 from .hosted_auth import MAX_SESSION_SECONDS, ORIGIN
 from .pdf_documents import fetch_pdf
 
-UI_URI = "ui://freeagent/document-download-v2.html"
+UI_URI = "ui://freeagent/document-download-v3.html"
 GRANT_TTL = 120
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 COLLECTION_ROOTS = {"invoices": "invoice", "estimates": "estimate", "credit_notes": "credit_note"}
