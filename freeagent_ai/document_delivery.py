@@ -83,7 +83,11 @@ def prepare(accounts, binding, client, collection, record_id):
     # This context is not a download capability. Every refresh requires current
     # MCP read authorization and an exact immutable original-binding match.
     ttl = max(1, int(binding.primary_auth_time + MAX_SESSION_SECONDS - accounts.clock()))
-    context = accounts.new_state("document_context", _original(binding, collection, record_id), ttl=ttl)
+    context = accounts.new_state(
+        "document_context",
+        {**_original(binding, collection, record_id), "metadata": _metadata(document, collection, record_id, ttl)},
+        ttl=ttl,
+    )
     return DownloadOffer(
         _metadata(document, collection, record_id, ttl),
         {"context": context, "refresh_tool": "refresh_" + COLLECTION_ROOTS[collection] + "_pdf"},
@@ -97,15 +101,19 @@ def refresh(accounts, current_binding, client, collection, context):
         raise AccessDenied("The connected account changed. Select the document again.")
     binding = _binding(original)
     accounts.check(binding)
-    document = fetch_pdf(client.call, client.base, original["collection"], original["record_id"])
-    accounts.check(binding)
+    # Authorization is the only work before navigation. The browser redemption
+    # performs the fresh provider fetch; these display fields are the original
+    # verified snapshot, never a claim that preparation has already completed.
+    metadata = original.get("metadata")
+    if not isinstance(metadata, dict):
+        raise AccessDenied("This document card is out of date. Select the document again.")
     # The browser receives only this 256-bit, two-minute, single-file delegated
     # capability. Its authority is possession, not a browser cookie or login.
     token = accounts.new_state(
         "document_download", _original(binding, collection, original["record_id"]), ttl=GRANT_TTL
     )
     return DownloadOffer(
-        _metadata(document, collection, original["record_id"], GRANT_TTL),
+        {**metadata, "expires_in_seconds": GRANT_TTL},
         {"url": ORIGIN + "/documents#" + token},
     )
 

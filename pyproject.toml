@@ -22,7 +22,7 @@ build-backend = "setuptools.build_meta"
 packages = ["freeagent_ai"]
 
 [tool.setuptools.package-data]
-freeagent_ai = ["document_ui/*.html", "document_ui/*.js", "landing/*.html", "landing/assets/*", "landing/assets/fonts/*", "landing/assets/licenses/*"]
+freeagent_ai = ["document_ui/*.html", "document_ui/*.js", "document_ui/*.css", "landing/*.html", "landing/assets/*", "landing/assets/fonts/*", "landing/assets/licenses/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

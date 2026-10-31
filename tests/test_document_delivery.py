@@ -226,11 +226,17 @@ def test_refresh_requires_exact_immutable_original_mcp_context_before_provider(d
     assert context not in json.dumps(result)
 
 
-def test_refresh_and_redemption_recheck_revocation_after_provider_fetch(delivery):
+def test_refresh_only_authorizes_original_context_without_slow_provider_fetch(delivery):
     d = delivery
     context = d.offer()["_meta"]["document_download"]["context"]
-    d.mode["disconnect"] = True
-    assert d.refresh(context)["isError"]
+    before = len(d.calls)
+    refreshed = d.refresh(context)
+    assert not refreshed.get("isError")
+    assert len(d.calls) == before
+    assert (
+        refreshed["structuredContent"]["collected_at"]
+        == d.accounts.store.get("web_state", key_for(context))["metadata"]["collected_at"]
+    )
 
 
 def test_disconnect_during_download_prevents_byte_release(delivery):
@@ -268,3 +274,16 @@ def test_publication_remains_blocked_until_reviewed_installed_client_acceptance(
             tmp_path / "release.zip",
             metadata={"mcp_client_id": "synthetic", "evidence": {"mobile_verified": True}},
         )
+
+
+def test_context_without_snapshot_fails_closed_without_provider_fetch(delivery):
+    d = delivery
+    context = d.offer()["_meta"]["document_download"]["context"]
+    record = d.accounts.store.get("web_state", key_for(context))
+    record.pop("metadata")
+    d.accounts.store.mutate("web_state", key_for(context), lambda _: record)
+    before = len(d.calls)
+    result = d.refresh(context)
+    assert result["isError"]
+    assert len(d.calls) == before
+    assert "document_download" not in result.get("_meta", {})
