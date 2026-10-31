@@ -5,10 +5,13 @@ publication is confirmed by its Git tag and GitHub Release, not by this file.
 
 ## [0.4.0]
 
-API-only remediation release. This entry describes the proposed contents; the
-annotated tag and GitHub Release confirm source publication. Deployment, provider
-sandbox verification and marketplace web/iOS installation or listing remain
-separate evidence gates.
+API-only release with reviewed credit-note and invoice actions, document download
+integration, and read-only month-end and payroll evidence workflows. The annotated
+tag and GitHub Release confirm source publication. Deployment, provider sandbox
+verification, private-client checks, installed ChatGPT web/mobile acceptance and
+public directory listing are separate evidence states. Installed ChatGPT delivery
+and account/reconnect verification remain deferred; no public listing or native
+conversation file attachment is claimed.
 
 ### Added
 
@@ -17,13 +20,29 @@ separate evidence gates.
 - Exact expense and draft-invoice payload forwarding, including provider-supported
   invoice source inclusion, manual lines, currencies and tax fields. FreeAgent
   validates accounting inputs and calculates the returned outcomes.
-- Reviewed draft credit-note creation and a narrow, separately approved allocation
-  workflow for selected existing issued credits and invoices, with affected-record
-  readbacks. Issuing, invoice edits and cash refunds remain excluded.
+- Reviewed draft credit-note creation, separately approved issuance of a Draft
+  created in the current user request, and separately approved allocation of a
+  selected issued credit to an invoice, with affected-record readbacks. Historical
+  Draft issuance, credit emailing, invoice edits and cash refunds remain excluded.
+- Separately approved invoice duplication into a new Draft, and mark-as-sent or
+  email actions for invoices created in the current user request. Exact document,
+  recipient, registered sender, subject/body and sender-copy review precede email;
+  API acceptance is distinct from recipient delivery and payment evidence.
+- Read-only month-end bookkeeping review using provider records and collection
+  timestamps, with explicit missing-evidence limits and separately approved
+  follow-up workflows. No historical closing-state reconstruction is performed.
+- Read-only UK payroll period, filing-status and payment-obligation evidence,
+  keeping filing separate from payment and omitting employee payslips.
+- Invoice, estimate and credit-note PDF reads with a registered document card and
+  one Download PDF action. An authorized browser handoff shows branded animated
+  preparation, requests the initial download once and retains a ready-page button
+  after saving or cancelling; it does not claim to detect a completed save.
+  Browser navigation uses negotiated host support and fails closed when unavailable.
+  Private desktop checks do not establish installed ChatGPT web/mobile delivery.
 - Versioned bank-explanation attachment operations with bounded hosted file inputs
   and collection readback.
 - Package-derived API-only capability checks and authenticated synthetic HTTP
-  coverage for all 16 packaged skills and 77 named provider-backed operations.
+  coverage for all 19 packaged skills and 89 named provider-backed operations.
 
 ### Changed
 
@@ -38,6 +57,17 @@ separate evidence gates.
   evidence remain explicit; uncertain writes are not blindly replayed.
 - Python, local plugin manifests, generated packages, hosted server metadata and
   HTTP User-Agent are aligned at 0.4.0.
+
+### Security
+
+- PDF handoffs use short-lived, single-use delegated authority bound to the
+  original account, company and environment, with revocation and generation
+  checks. Bounded PDF decoding, fragment clearing, no-store responses, attachment
+  no-referrer headers and effective content-security policy protect the transfer. The ready
+  button reuses delivered bytes held in browser page memory, without persisting
+  the PDF in server state or browser storage.
+- Submission-approved packaging remains blocked while installed web/mobile
+  document acceptance is pending; draft/operator candidates are review artifacts.
 
 ### Removed
 
