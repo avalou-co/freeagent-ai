@@ -14,24 +14,39 @@ Official OpenAI documentation checked 2026-10-29:
 [registered MCP Apps UI](https://developers.openai.com/plugins/build/chatgpt-ui),
 [UI quickstart](https://developers.openai.com/plugins/build/app-quickstart) and
 [plugin reference](https://developers.openai.com/plugins/reference).
-The card is registered at ui://freeagent/document-download-v2.html using
+The card is registered at ui://freeagent/document-download-v3.html using
 _meta.ui.resourceUri and authenticated resources/list/read. Component-only result
 _meta contains an opaque original-context handle; text and structuredContent have
 only document metadata. On the user's action, the MCP Apps tools/call bridge invokes
 a UI-only refresh operation with no output template, so it does not create another
 card. This operation checks authorization and mints the short handoff without a
 provider PDF fetch for current cards; an animated opening state covers that brief
-authorization work. The provider preparation runs in the external page. The result contains a fresh private URL for documented openExternal navigation
-with redirectUrl:false. A host lacking required support shows an inline error.
+authorization work. The provider preparation runs in the external page. The result
+contains a fresh private URL passed unchanged through the shared MCP Apps bridge
+request `ui/open-link` with `{url}`. Initialization must advertise
+`hostCapabilities.openLinks`; absent support disables downloads with an inline
+message. The widget does not use the optional `window.openai.openExternal` shim or
+fall back to a second navigation request. Resource v3 prevents a cached v2 widget
+from silently retaining that prior navigation contract on a new card.
 
-The openExternal API does not document a browser-open or file-arrival
-acknowledgment. The card reports only that it requested the browser download;
-an explicit host rejection remains an inline error. A resolved call, including a
-host no-op, does not prove that a browser opened or that a PDF arrived. A native
-browser Save dialog is normal file handling. User-confirmed file arrival and
-first-action behavior remain separate client evidence; a later successful action
-does not establish that the first one succeeded. No navigation is retried
-automatically; another user action refreshes authorization and obtains a new grant.
+The [OpenAI UI reference](https://developers.openai.com/plugins/reference) recommends
+the shared bridge when an equivalent exists. The stable
+[MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx)
+defines `ui/open-link` and the negotiated `openLinks` capability under the existing
+2026-01-26 protocol. A correlated `{}` result is accepted; a host `isError` result,
+JSON-RPC error, malformed result or timeout remains a visible navigation error.
+Neither an accepted request nor a nonconforming host no-op proves that a browser
+opened or that a PDF arrived. The widget reports only that the download was
+requested. No navigation is automatically retried; a later explicit user action
+refreshes authorization and obtains a new grant.
+
+This standards-contract correction is a candidate for the observed first-click
+problem, not a demonstrated explanation of it. The source widget/host trace was
+not available through the supported inspection surface. Actual first-click
+behaviour and user-confirmed file arrival must be recorded separately; success on
+a later click does not establish that the first one worked. A fresh resource/card
+avoids old widget caching, but cache refresh or a new chat is a diagnostic, not
+proof that caching caused the original failure.
 
 The file APIs document uploadFile for user-selected files and download helpers for
 already authorized file IDs. They do not establish that a backend PDF blob becomes
@@ -139,3 +154,7 @@ actual installed-client attachment results for each document type remain #72
 acceptance gates. Record that evidence separately in private operational records.
 The publication builder stays blocked while those observations are pending;
 draft/operator candidates do not assert acceptance or public availability.
+
+The download page uses the homepage's Avalou lockup: the square A mark, Caslon
+bold wordmark and existing forest/light and mint/dark token roles, including the
+self-hosted bold font. It does not substitute a plain regular-weight wordmark.

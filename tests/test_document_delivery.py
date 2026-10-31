@@ -127,7 +127,19 @@ def delivery(accounts):
 def test_registered_resource_original_context_private_fresh_grant_and_attachment(delivery, root, collection):
     d = delivery
     resource = d.rpc("resources/read", {"uri": UI_URI})["contents"][0]
-    assert UI_URI != "ui://freeagent/document-download.html"  # Cached v1 expects the incompatible URL-only result.
+    assert UI_URI == "ui://freeagent/document-download-v3.html"
+    for tool in d.rpc("tools/list")["tools"]:
+        if tool["name"] in {"get_invoice_pdf", "get_estimate_pdf", "get_credit_note_pdf"}:
+            assert tool["_meta"]["ui"]["resourceUri"] == UI_URI
+    for old_uri in ("ui://freeagent/document-download.html", "ui://freeagent/document-download-v2.html"):
+        assert (
+            "error"
+            in d.client.post(
+                "/mcp",
+                headers={"Authorization": "Bearer alice", "Accept": "application/json, text/event-stream"},
+                json={"jsonrpc": "2.0", "id": 1, "method": "resources/read", "params": {"uri": old_uri}},
+            ).json()
+        )
     assert resource["mimeType"] == "text/html;profile=mcp-app"
     assert resource["_meta"]["openai/widgetCSP"]["redirect_domains"] == [ORIGIN]
     offer = d.offer(root)
