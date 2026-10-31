@@ -22,6 +22,15 @@ a UI-only refresh operation with no output template, so it does not create anoth
 card. The result contains a fresh private URL for documented openExternal navigation
 with redirectUrl:false. A host lacking required support shows an inline error.
 
+The openExternal API does not document a browser-open or file-arrival
+acknowledgment. The card reports only that it requested the browser download;
+an explicit host rejection remains an inline error. A resolved call, including a
+host no-op, does not prove that a browser opened or that a PDF arrived. A native
+browser Save dialog is normal file handling. User-confirmed file arrival and
+first-action behavior remain separate client evidence; a later successful action
+does not establish that the first one succeeded. No navigation is retried
+automatically; another user action refreshes authorization and obtains a new grant.
+
 The file APIs document uploadFile for user-selected files and download helpers for
 already authorized file IDs. They do not establish that a backend PDF blob becomes
 a native ChatGPT attachment or how to mint such an ID. This flow does not rely on

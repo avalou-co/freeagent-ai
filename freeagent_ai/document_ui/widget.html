@@ -34,7 +34,8 @@
       const url=new URL(result?._meta?.document_download?.url);
       if(context!==selected||result.structuredContent?.source!==selected.source||url.origin!=="https://freeagent-ai.avalou.co"||url.pathname!=="/documents"||url.search||!/^#[A-Za-z0-9_-]{43}$/.test(url.hash))throw Error();
       await window.openai.openExternal({href:url.href,redirectUrl:false});
-      status.textContent="Download opened in your browser.";
+      // The host API has no documented browser/file-arrival acknowledgment.
+      status.textContent="Browser download requested. Check your browser for the PDF or Save dialog.";
     }catch{error("Couldn’t open this PDF. Try again, or check the connected account.");}
     finally{busy=false;button.textContent="Download PDF";button.removeAttribute("aria-busy");enabled();}
   });

@@ -134,6 +134,7 @@ def test_single_action_identified_pdf_auto_download_stale_refresh_and_replay(
     output = tmp_path / download.suggested_filename
     download.save_as(output)
     assert output.read_bytes() == PDF
+    assert page.get_by_text("Browser download requested. Check your browser for the PDF or Save dialog.").is_visible()
     assert len(refreshes) == 1 and len(downloads) == 1
     assert receiver.get_by_role("button").count() == 0
     assert receiver.get_by_role("link").count() == 0
@@ -165,6 +166,51 @@ def test_refused_refresh_stays_inline_and_never_opens_other_account(delivery, br
     assert not any(url.startswith(ORIGIN) for url in urls)
     assert button.is_enabled()
     assert page.get_by_role("heading", name="Invoice INV-007").is_visible()
+
+
+@pytest.mark.parametrize("refusal", ["throw", "reject"])
+def test_refused_external_navigation_is_inline_without_automatic_retry(delivery, browser_context, refusal):
+    page, urls, refreshes, _, downloads = mount(browser_context, delivery)
+    page.evaluate(
+        """refusal=>{window.openai.openExternal=()=>{
+          if(refusal==='throw')throw Error('Host declined navigation');
+          return Promise.reject(Error('Host declined navigation'));
+        };}""",
+        refusal,
+    )
+    button = page.get_by_role("button", name="Download PDF")
+    sync_api.expect(button).to_be_enabled()
+    button.click()
+    page.get_by_text("Couldn’t open this PDF. Try again, or check the connected account.").wait_for()
+    assert len(refreshes) == 1 and not downloads
+    assert not any(url.startswith(ORIGIN) for url in urls)
+    assert button.is_enabled() and page.get_by_role("button").count() == 1
+
+
+def test_noop_external_navigation_does_not_claim_arrival_and_manual_retry_refreshes(
+    connected_delivery, browser_context
+):
+    page, _, refreshes, grant_urls, downloads = mount(browser_context, connected_delivery)
+    # The API does not document an acknowledgment. A void/no-op host
+    # therefore cannot be distinguished from an actual browser dispatch here.
+    page.evaluate("()=>{window.openai.openExternal=()=>undefined;}")
+    button = page.get_by_role("button", name="Download PDF")
+    sync_api.expect(button).to_be_enabled()
+    button.click()
+    page.get_by_text("Browser download requested. Check your browser for the PDF or Save dialog.").wait_for()
+    assert len(refreshes) == 1 and len(grant_urls) == 1 and not downloads
+    assert len(browser_context.pages) == 1
+    assert page.get_by_text("Download opened in your browser.").count() == 0
+    assert button.is_enabled() and page.get_by_role("button").count() == 1
+    page.evaluate("""()=>{window.openai.openExternal=({href,redirectUrl})=>{
+      if(redirectUrl!==false)throw Error('Invalid navigation');
+      window.open(href,'_blank','noopener');
+    };}""")
+    with browser_context.expect_page() as opened:
+        button.click()
+    wait_download(opened.value, downloads)
+    assert len(refreshes) == 2 and len(downloads) == 1
+    assert grant_urls[0] != grant_urls[1]
 
 
 def test_double_click_is_suppressed_and_keyboard_focus_is_visible(delivery, browser_context):
