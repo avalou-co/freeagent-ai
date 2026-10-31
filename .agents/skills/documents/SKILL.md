@@ -12,7 +12,11 @@ description: Request invoice, estimate and credit-note PDFs with one Download PD
 2. Call `get_invoice_pdf`, `get_estimate_pdf` or `get_credit_note_pdf` with the
    selected numeric ID. The card identifies the document using its provider
    reference when available and has one **Download PDF** action.
-3. The action refreshes authorization internally and starts the browser download.
+3. The action refreshes authorization internally and opens a branded browser page.
+   That page shows animated PDF preparation, then a ready screen with Download PDF
+   and automatically requests the browser download once. The ready button stays
+   available after saving/cancelling, using the received file in page memory; no
+   download-complete screen or save confirmation is claimed.
    There is no second confirmation or separate browser login. Do not ask the user
    to request a new link when a card has been open for a while; its action obtains
    a fresh one-file capability under the original account context. A changed or

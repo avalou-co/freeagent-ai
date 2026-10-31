@@ -2,8 +2,8 @@
 
 The registered document card identifies an invoice, estimate or credit note and
 provides one Download PDF action. That action obtains fresh authorization through
-the host's authenticated MCP bridge, opens a transient first-party browser route
-and starts a native HTTPS PDF attachment automatically. It requires no second
+the host's authenticated MCP bridge, opens a branded first-party browser page
+that prepares the PDF and automatically requests a native browser download. It requires no second
 confirmation, browser cookie, separate login, client interpreter or invented file
 ID. It is browser delivery, not a claim of a native ChatGPT attachment. Actual
 installed web/mobile acceptance remains a release gate.
@@ -19,7 +19,9 @@ _meta.ui.resourceUri and authenticated resources/list/read. Component-only resul
 _meta contains an opaque original-context handle; text and structuredContent have
 only document metadata. On the user's action, the MCP Apps tools/call bridge invokes
 a UI-only refresh operation with no output template, so it does not create another
-card. The result contains a fresh private URL for documented openExternal navigation
+card. This operation checks authorization and mints the short handoff without a
+provider PDF fetch for current cards; an animated opening state covers that brief
+authorization work. The provider preparation runs in the external page. The result contains a fresh private URL for documented openExternal navigation
 with redirectUrl:false. A host lacking required support shows an inline error.
 
 The file APIs document uploadFile for user-selected files and download helpers for
@@ -46,7 +48,10 @@ does not depend on an expired two-minute offer. Every refresh requires current
 verified MCP read scope and an exact original subject/company/environment/generation
 and document-type match. A new account with the same numeric document ID cannot
 silently replace the original selection. Original bindings are checked before and
-after provider fetches. Relinking, disconnection or authorization expiry fails
+after provider fetches. Refresh returns the original metadata snapshot, including
+its original collected_at; that snapshot does not assert a freshly prepared PDF.
+Cards without the required snapshot fail closed and require a fresh document
+selection; there is no compatibility provider-fetch path before navigation. Relinking, disconnection or authorization expiry fails
 closed; refreshed access does not extend the original context window.
 
 A successful user-initiated refresh mints a separate random 256-bit, one-file,
@@ -55,9 +60,10 @@ only its original selected document; this is an explicit narrow bearer authority
 not browser identity authentication. A copied token could be redeemed during that
 short window. It remains private to the component, appears only in a URL fragment
 and then a small POST body, and never enters model text, structuredContent, HTTP
-URL paths/queries, logs, referrers, cookies or browser storage. The static inline
-bridge clears the fragment before further requests and automatically submits the
-bounded POST. Its script is pinned by a CSP hash. No manual receiver form is shown.
+URL paths/queries, logs, referrers, cookies or browser storage. The inline receiver clears the fragment before further requests, redeems the
+capability once with a bounded same-origin POST fetch and shows an animated
+Preparing your PDF state. Its script and style are pinned by exact CSP hashes;
+connect-src and font-src allow only the same origin. No manual receiver form is shown.
 
 Redemption ignores browser cookies: an absent or different browser account cannot
 substitute provider credentials. It uses only the original MCP-authorized binding,
@@ -67,17 +73,39 @@ releasing bytes. Expired, replayed, revoked or uncertain outcomes do not yield f
 A retry in the existing card obtains a new authorized capability; it does not replay
 a used one. This removes document-specific OAuth/browser-session coupling.
 
-The state store retains metadata only, with canonical TTL cleanup; no PDF bytes,
-persistent file cache or background generation are stored. The response is
+The server state store retains metadata only, with canonical TTL cleanup; no PDF
+bytes, persistent file cache or background generation are stored. The browser reads
+the response through a 5 MiB-bounded stream, checks MIME type and fixed filename,
+and holds the received PDF as a Blob in page memory only. A 45-second abort
+timeout fails closed with return-to-chat recovery; an uncertain redemption is
+never automatically replayed. The response is
 application/pdf with Content-Disposition: attachment, no-store and nosniff. The
-attachment uses no-referrer. The transient bridge uses same-origin referrer policy
-to preserve the native form Origin header; its fragment is already gone, and no
+attachment uses no-referrer. The receiver uses same-origin referrer policy for
+the browser POST Origin check; its fragment is already gone, and no
 cross-origin referrer is sent. No API response body, grant or file data is logged.
-The host/browser controls retention of already received files.
+The branded ready screen shows Your PDF is ready and a Download PDF control,
+then activates that control once automatically. The same ready screen remains
+while and after the browser's native Save dialog; there is no complete screen or
+claim that saving succeeded. If automatic downloading is blocked or the user
+cancels, the visible control saves the same already received Blob without a new
+provider request or replaying a grant. This is reuse of delivered bytes, not
+renewed account authority. Revocation is checked before the bytes reach the page;
+as with a file already saved, it cannot retract those already delivered bytes.
+The object URL is revoked on pagehide, requests are aborted and back/forward-cache
+restoration requires a new chat action. No PDF or authority is kept in cookies,
+local/session storage, a service worker or browser cache. The browser controls
+retention of downloaded files.
+
+This uses documented browser [Blob object URLs](https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL_static)
+and the native [anchor download attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#download),
+not a client interpreter or invented host file ID. Browser policies/preferences
+can block automatic downloads, save directly or show Save; the ready control
+provides an explicit user action. Actual installed-client behaviour stays a
+separate acceptance gate. The first-click host issue is not claimed fixed.
 
 Hosting applies CSP and referrer overrides only to static website paths. Dynamic
 document routes retain the backend's response-specific headers: the receiver's
-exact script hash and same-origin referrer policy, and the attachment's
+exact script/style hashes, same-origin connection policy and same-origin referrer policy, and the attachment's
 no-referrer policy. A global Hosting override would block the receiver script or
 remove the Origin evidence required by the download POST. Browser regression
 tests include Hosting's global response-header overlay; deployment checks must
@@ -92,7 +120,9 @@ embedded resources remain diagnostics and are not advertised as usable output.
 
 Synthetic HTTP and Chromium desktop/mobile-viewport tests exercise the full normal
 OAuth transaction, signed MCP authorization, registered card, one user action,
-automatic native PDF attachment, stale-card refresh, absent/different browser
+automatic browser PDF download, persistent ready control, blocked auto-download,
+manual local-byte reuse, slow preparation, cancellation/timeout and malformed
+response refusal, stale-card refresh, absent/different browser
 cookies, denied/cross-account refresh, relinking, expiry, revocation and atomic
 replay/concurrency guards. They do not prove production routing or actual installed
 ChatGPT web/iOS delivery. Independent review, deployment of the reviewed source and

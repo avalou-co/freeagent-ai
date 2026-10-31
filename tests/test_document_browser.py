@@ -135,15 +135,20 @@ def test_single_action_identified_pdf_auto_download_stale_refresh_and_replay(
     download.save_as(output)
     assert output.read_bytes() == PDF
     assert len(refreshes) == 1 and len(downloads) == 1
+    directory = os.environ.get("FREEAGENT_UX_SCREENSHOT_DIR")
+    if directory and not elapsed:
+        name = "mobile" if receiver.viewport_size["width"] == 390 else "desktop"
+        receiver.screenshot(path=str(Path(directory) / (name + "-ready.png")), full_page=True)
     assert receiver.get_by_role("button").count() == 0
-    assert receiver.get_by_role("link").count() == 0
+    assert receiver.get_by_role("link", name="Download PDF").is_visible()
+    assert receiver.get_by_role("heading", name="Your PDF is ready").is_visible()
     assert receiver.url == ORIGIN + "/documents"
-    assert receiver.locator("#grant").input_value() == ""
+    assert receiver.locator("#grant").count() == 0
     assert all("#" not in url and "grant=" not in url and "/login" not in url for url in urls)
     assert receiver.evaluate("Object.keys(localStorage).length+Object.keys(sessionStorage).length") == 0
     replay = browser_context.new_page()
     replay.goto(grant_urls[0])
-    replay.get_by_text("This download expired. Try Download PDF again.").wait_for()
+    replay.get_by_role("heading", name="Your PDF isn’t available").wait_for()
     assert len(downloads) == 1
 
 
@@ -160,7 +165,7 @@ def test_refused_refresh_stays_inline_and_never_opens_other_account(delivery, br
     sync_api.expect(button).to_be_enabled()
     delivery.accounts.disconnect("oauth2|freeagent|alice", 1)
     button.click()
-    page.get_by_text("Couldn’t open this PDF. Try again, or check the connected account.").wait_for()
+    page.get_by_text("Couldn’t open this PDF. Select the document again, or check the connected account.").wait_for()
     assert len(refreshes) == 1 and not downloads
     assert not any(url.startswith(ORIGIN) for url in urls)
     assert button.is_enabled()
@@ -179,3 +184,111 @@ def test_double_click_is_suppressed_and_keyboard_focus_is_visible(delivery, brow
         button.evaluate("element=>{element.click();element.click();}")
     wait_download(opened.value, downloads)
     assert len(refreshes) == 1 and len(downloads) == 1
+
+
+def open_receiver(page, browser_context):
+    with browser_context.expect_page() as opened:
+        page.get_by_role("button", name="Download PDF").click()
+    return opened.value
+
+
+def test_browser_preparation_is_visible_and_manual_ready_download_reuses_received_bytes(delivery, browser_context):
+    d = delivery
+    page, _, refreshes, _, downloads = mount(browser_context, d)
+    pending = []
+
+    def hold(route):
+        response = d.download(route.request.post_data.split("=", 1)[1])
+        pending.append((route, response))
+
+    browser_context.route(ORIGIN + "/documents/download", hold)
+    before = len(d.calls)
+    receiver = open_receiver(page, browser_context)
+    receiver.get_by_role("heading", name="Preparing your PDF").wait_for()
+    sync_api.expect(receiver.locator("#download")).to_be_hidden()
+    assert receiver.locator(".activity span").first.evaluate("e=>getComputedStyle(e).animationName") == "breathe"
+    receiver.emulate_media(reduced_motion="reduce")
+    assert receiver.locator(".activity span").first.evaluate("e=>getComputedStyle(e).animationName") == "none"
+    directory = os.environ.get("FREEAGENT_UX_SCREENSHOT_DIR")
+    if directory:
+        name = "mobile" if receiver.viewport_size["width"] == 390 else "desktop"
+        receiver.screenshot(path=str(Path(directory) / (name + "-preparing.png")), full_page=True)
+    receiver.wait_for_function("document.querySelector('main').dataset.state==='preparing'")
+    assert len(pending) == 1
+    route, response = pending[0]
+    route.fulfill(status=response.status_code, headers=dict(response.headers), body=response.content)
+    wait_download(receiver, downloads)
+    assert len(d.calls) - before == 2  # No PDF read during widget authorization.
+    ready = receiver.get_by_role("link", name="Download PDF")
+    assert ready.is_visible()
+    calls = len(d.calls)
+    downloads[0].cancel()  # No completion acknowledgment changes the ready screen.
+    with receiver.expect_download() as repeated:
+        ready.click()
+    assert repeated.value.suggested_filename == "invoices-7.pdf"
+    assert len(pending) == 1 and len(refreshes) == 1 and len(d.calls) == calls
+    assert receiver.get_by_role("heading", name="Your PDF is ready").is_visible()
+    receiver.evaluate(
+        "window.dispatchEvent(new PageTransitionEvent('pagehide'));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))"
+    )
+    assert ready.is_hidden()
+    assert receiver.get_by_role("heading", name="Your PDF isn’t available").is_visible()
+
+
+def test_blocked_automatic_download_keeps_ready_button_for_explicit_user_action(delivery, browser_context):
+    browser_context.add_init_script("HTMLAnchorElement.prototype.click=function(){};")
+    page, _, _, _, downloads = mount(browser_context, delivery)
+    receiver = open_receiver(page, browser_context)
+    receiver.get_by_role("heading", name="Your PDF is ready").wait_for()
+    assert not downloads
+    with receiver.expect_download() as opened:
+        receiver.get_by_role("link", name="Download PDF").click()
+    assert opened.value.suggested_filename == "invoices-7.pdf"
+
+
+@pytest.mark.parametrize("failure", ["wrong_mime", "oversized", "wrong_filename", "http_error", "timeout"])
+def test_browser_preparation_failure_stays_actionable_without_replaying(delivery, browser_context, failure):
+    page, _, _, _, downloads = mount(browser_context, delivery)
+    requests, held = [], []
+    if failure == "timeout":
+        browser_context.add_init_script(
+            "const nativeTimeout=window.setTimeout;window.setTimeout=(fn,ms,...args)=>nativeTimeout(fn,ms===45000?50:ms,...args);"
+        )
+
+    def respond(route):
+        requests.append(route.request)
+        headers = {"Content-Type": "application/pdf", "Content-Disposition": 'attachment; filename="invoices-7.pdf"'}
+        if failure == "timeout":
+            held.append(route)
+            return
+        if failure == "wrong_mime":
+            headers["Content-Type"] = "text/html"
+        if failure == "oversized":
+            headers["Content-Length"] = str(6 * 1024 * 1024)
+        if failure == "wrong_filename":
+            headers["Content-Disposition"] = 'attachment; filename="../../unsafe.pdf"'
+        route.fulfill(status=400 if failure == "http_error" else 200, headers=headers, body=PDF)
+
+    browser_context.route(ORIGIN + "/documents/download", respond)
+    receiver = open_receiver(page, browser_context)
+    receiver.get_by_role("heading", name="Your PDF isn’t available").wait_for()
+    assert receiver.get_by_text("Return to your chat and select Download PDF to try again.").is_visible()
+    assert receiver.locator("#download").is_hidden()
+    assert len(requests) == 1 and not downloads
+    if held:
+        held[0].fulfill(status=200, content_type="application/pdf", body=PDF)
+        assert receiver.get_by_role("heading", name="Your PDF isn’t available").is_visible()
+
+
+def test_outdated_card_guidance_requests_fresh_selection_without_navigation(delivery, browser_context):
+    page, urls, _, grants, downloads = mount(browser_context, delivery)
+    for (collection, key), record in list(delivery.accounts.store.records.items()):
+        if record.get("kind") == "document_context":
+            delivery.accounts.store.mutate(
+                collection, key, lambda old: {k: v for k, v in old.items() if k != "metadata"}
+            )
+    before = len(delivery.calls)
+    page.get_by_role("button", name="Download PDF").click()
+    page.get_by_text("Couldn’t open this PDF. Select the document again, or check the connected account.").wait_for()
+    assert len(delivery.calls) == before and not grants and not downloads
+    assert not any(url.startswith(ORIGIN) for url in urls)

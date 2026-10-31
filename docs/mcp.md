@@ -240,8 +240,10 @@ unchanged. See [month-end evidence limits](month-end.md).
 Named PDF reads identify the selected document and return the registered card.
 Its one Download PDF action calls a UI-only refresh tool through authenticated
 MCP, checks the immutable original account/document context and obtains a short,
-single-use delegated capability. The transient browser bridge clears the fragment
-and auto-submits for a native PDF attachment; no second click or browser login is
-required. Browser cookies never select another account. This is narrow bearer
+single-use delegated capability. The branded browser page clears the fragment
+and POST-fetches the PDF once, shows preparation, then exposes a persistent ready
+control and automatically requests the browser download. It retains only bounded
+already received bytes in page memory for manual download; no grant is replayed.
+No second click or browser login is required for the initial request. Browser cookies never select another account. This is narrow bearer
 capability authority, not a browser identity check. [Full contract and remaining
 installed-client verification](documents.md).

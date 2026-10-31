@@ -1,1 +1,16 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Downloading PDF</title><!-- receiver-script --></head><body><main><p id="status" role="status">Your PDF download is starting…</p><form id="download-form" action="/documents/download" method="post" hidden><input type="hidden" name="grant" id="grant"></form></main></body></html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Your PDF · FreeAgent AI</title><!-- receiver-script --><!-- receiver-style --></head>
+<body>
+<header class="masthead"><a class="brand" href="/" aria-label="Avalou home">Avalou</a><span class="product">FreeAgent AI</span></header>
+<main aria-labelledby="title" data-state="preparing">
+  <div class="document-mark" aria-hidden="true"><svg width="38" height="46" viewBox="0 0 38 46" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2h16l9 9v33H7zM23 2v10h9M13 23h13M13 29h13M13 35h8"/></svg></div>
+  <h1 id="title">Preparing your PDF</h1>
+  <p id="status" role="status" aria-live="polite">We’re getting your document from FreeAgent.</p>
+  <div class="activity" aria-hidden="true"><span></span><span></span><span></span></div>
+  <a id="download" class="download" hidden>Download PDF<svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10m-4-4 4 4 4-4M4 14v3h12v-3"/></svg></a>
+  <p id="detail" class="detail">This page will start your download when it’s ready.</p>
+  <noscript><p>JavaScript is needed for this secure download. Enable it, then select Download PDF again in your chat.</p></noscript>
+</main>
+<footer><span>A document from your connected FreeAgent account.</span><span>Securely delivered by Avalou.</span></footer>
+</body></html>

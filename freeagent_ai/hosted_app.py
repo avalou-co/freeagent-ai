@@ -36,6 +36,10 @@ from .public_tools import REGISTRY, Dispatcher, PublicToolsResult
 from .workflow_pages import WORKFLOWS, render_workflow
 
 RECEIVER_SCRIPT = (Path(__file__).with_name("document_ui") / "receiver.js").read_text()
+RECEIVER_STYLE = (
+    (Path(__file__).with_name("document_ui") / "receiver.css").read_text().replace("/landing-assets/", ASSET_PREFIX)
+)
+RECEIVER_STYLE_HASH = base64.b64encode(hashlib.sha256(RECEIVER_STYLE.encode()).digest()).decode()
 RECEIVER_SCRIPT_HASH = base64.b64encode(hashlib.sha256(RECEIVER_SCRIPT.encode()).digest()).decode()
 
 
@@ -56,6 +60,7 @@ class SecurityHeaders:
                 csp = "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
                 if scope.get("path") == "/documents":
                     csp += "; script-src 'sha256-" + RECEIVER_SCRIPT_HASH + "'"
+                    csp += "; style-src 'sha256-" + RECEIVER_STYLE_HASH + "'; font-src 'self'; connect-src 'self'"
                 if marketing:
                     csp += "; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self'"
                 if scope.get("path", "").startswith("/workflows/"):
@@ -271,6 +276,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
             (document_root / "receiver.html")
             .read_text()
             .replace("<!-- receiver-script -->", "<script>" + RECEIVER_SCRIPT + "</script>")
+            .replace("<!-- receiver-style -->", "<style>" + RECEIVER_STYLE + "</style>")
         )
 
     async def document_download(request):
