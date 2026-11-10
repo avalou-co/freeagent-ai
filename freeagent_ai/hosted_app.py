@@ -25,7 +25,7 @@ from .document_delivery import UI_URI, redeem
 from .hosted_accounts import AccessDenied, Accounts, FirestoreStore, TokenCipher, key_for
 from .hosted_auth import ORIGIN, PRIMARY_AUTH_CLAIM, Settings, Verifier
 from .hosted_client import HostedClient, principal_context, request_json
-from .hosted_connect import FreeAgentConnect
+from .hosted_connect import REVIEWER_SIGN_IN_TTL, FreeAgentConnect
 from .hosted_deadline import Deadline, deadline_context
 from .hosted_oauth import exchange_identity, freeagent_base
 from .landing import ASSET_PREFIX, SITE_NOTICES
@@ -359,18 +359,20 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
         )
 
     async def login(request):
+        ttl = 600
         if request.url.path == "/reviewer/login":
             connect.enabled()
             if not settings.reviewer_sandbox_enabled:
                 raise AccessDenied("Reviewer sandbox is not configured")
             # This selects a provider only; FreeAgent must still authenticate a
             # permitted sandbox account before any data access is granted.
-            sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("reviewer_entry", {}))
+            ttl = REVIEWER_SIGN_IN_TTL
+            sid = await anyio.to_thread.run_sync(lambda: accounts.new_state("reviewer_entry", {}, ttl=ttl))
         else:
             sid = secrets.token_urlsafe(32)
         nonce, code_verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         state = await anyio.to_thread.run_sync(
-            lambda: accounts.new_state("auth0", {"session": sid, "nonce": nonce, "verifier": code_verifier})
+            lambda: accounts.new_state("auth0", {"session": sid, "nonce": nonce, "verifier": code_verifier}, ttl=ttl)
         )
         challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).decode().rstrip("=")
         query = urlencode(
@@ -389,7 +391,7 @@ def create_app(settings=None, accounts=None, verifier=None, dispatcher=None):
             }
         )
         response = RedirectResponse(settings.issuer + "authorize?" + query)
-        response.set_cookie("__session", sid, secure=True, httponly=True, samesite="lax", max_age=600)
+        response.set_cookie("__session", sid, secure=True, httponly=True, samesite="lax", max_age=ttl)
         return response
 
     async def auth_callback(request):

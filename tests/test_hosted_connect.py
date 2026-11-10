@@ -362,12 +362,14 @@ def test_reviewer_marker_is_one_use_expiring_and_cannot_be_forged(sandbox_flow):
     client.get("/reviewer/login")
     marker = client.cookies.get(COOKIE)
     assert connect.browser_environment(marker) == "sandbox"
-    assert connect.browser_environment(marker) == "production"
+    with pytest.raises(AccessDenied, match="restart from the reviewer login URL"):
+        connect.browser_environment(marker)
     assert connect.browser_environment("sandbox") == "production"
     client.get("/reviewer/login")
     marker = client.cookies.get(COOKIE)
-    accounts.clock = lambda: time.time() + 601
-    assert connect.browser_environment(marker) == "production"
+    accounts.clock = lambda: time.time() + 1801
+    with pytest.raises(AccessDenied, match="restart from the reviewer login URL"):
+        connect.browser_environment(marker)
     assert calls == []
 
 
