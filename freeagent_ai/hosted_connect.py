@@ -22,6 +22,7 @@ from .hosted_deadline import Deadline
 from .hosted_oauth import exchange_identity, freeagent_base
 
 BRIDGE_CLIENT = "freeagent-ai-auth0"
+REVIEWER_SIGN_IN_TTL = 1800
 COOKIE = "__session"  # Firebase Hosting forwards only this cookie to Cloud Run.
 
 
@@ -71,6 +72,7 @@ class FreeAgentConnect:
             raise AccessDenied("Invalid connection authorization request")
         environment = await anyio.to_thread.run_sync(self.browser_environment, request.cookies.get(COOKIE, ""))
         config = self.settings.upstream(environment)
+        ttl = REVIEWER_SIGN_IN_TTL if environment == "sandbox" and self.settings.reviewer_sandbox_enabled else 600
         browser = secrets.token_urlsafe(32)
         state = await anyio.to_thread.run_sync(
             lambda: self.accounts.new_state(
@@ -82,10 +84,11 @@ class FreeAgentConnect:
                     "challenge": q["code_challenge"],
                     "prior_session": request.cookies.get(COOKIE, ""),
                 },
+                ttl=ttl,
             )
         )
         response = self.upstream_redirect(state, config)
-        response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=600)
+        response.set_cookie(COOKIE, browser, secure=True, httponly=True, samesite="lax", path="/", max_age=ttl)
         return response
 
     def upstream_redirect(self, state, config):
@@ -108,12 +111,13 @@ class FreeAgentConnect:
         if not self.settings.reviewer_sandbox_enabled or not cookie:
             return self.settings.environment
         record = self.accounts.store.get("web_state", key_for(cookie))
-        if record.get("used") or record.get("expires", 0) <= self.accounts.clock():
-            return self.settings.environment
+        expired = record.get("used") or record.get("expires", 0) <= self.accounts.clock()
         if record.get("kind") == "reviewer_entry":
+            if expired:
+                raise AccessDenied("Reviewer sign-in expired; restart from the reviewer login URL")
             self.accounts.take_state(cookie, "reviewer_entry")
             return "sandbox"
-        if record.get("kind") == "session":
+        if not expired and record.get("kind") == "session":
             link = self.accounts.store.get("account_links", key_for(record.get("subject", "")))
             if link.get("active") and link.get("environment") == "sandbox":
                 return "sandbox"
