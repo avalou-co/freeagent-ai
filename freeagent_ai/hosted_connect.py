@@ -7,6 +7,7 @@ Upstream credentials are encrypted in short-lived records, never profile claims.
 import base64
 import hashlib
 import hmac
+import logging
 import re
 import secrets
 from urllib.parse import urlencode
@@ -20,6 +21,8 @@ from .hosted_auth import ORIGIN
 from .hosted_client import request_json
 from .hosted_deadline import Deadline
 from .hosted_oauth import exchange_identity, freeagent_base
+
+logger = logging.getLogger("uvicorn.error").getChild("oauth_routing")
 
 BRIDGE_CLIENT = "freeagent-ai-auth0"
 REVIEWER_SIGN_IN_TTL = 1800
@@ -109,18 +112,23 @@ class FreeAgentConnect:
     def browser_environment(self, cookie):
         """Only an expiring server-owned reviewer login/session selects sandbox."""
         if not self.settings.reviewer_sandbox_enabled or not cookie:
+            logger.warning("oauth_route reviewer_session=unavailable environment=%s", self.settings.environment)
             return self.settings.environment
         record = self.accounts.store.get("web_state", key_for(cookie))
         expired = record.get("used") or record.get("expires", 0) <= self.accounts.clock()
         if record.get("kind") == "reviewer_entry":
             if expired:
+                logger.warning("oauth_route reviewer_session=expired_or_used environment=none")
                 raise AccessDenied("Reviewer sign-in expired; restart from the reviewer login URL")
             self.accounts.take_state(cookie, "reviewer_entry")
+            logger.warning("oauth_route reviewer_session=entry environment=sandbox")
             return "sandbox"
         if not expired and record.get("kind") == "session":
             link = self.accounts.store.get("account_links", key_for(record.get("subject", "")))
             if link.get("active") and link.get("environment") == "sandbox":
+                logger.warning("oauth_route reviewer_session=linked environment=sandbox")
                 return "sandbox"
+        logger.warning("oauth_route reviewer_session=unrecognized environment=%s", self.settings.environment)
         return self.settings.environment
 
     def is_callback(self, request):
